@@ -418,17 +418,18 @@ class NDN(Network):
         """
 
         assert self.graph is not None, 'Must fit model first.'
-
-        # Take care of data-filtering, if necessary
-        if self.filter_data:
-            data_filters = [None]*len(output_data)
-            for nn in range(len(output_data)):
-                data_filters[nn] = np.ones( output_data[nn].shape, dtype='float32' )
-        else:
-            data_filters = None
         # check input
+        if type(input_data) is not list:
+            input_data = [input_data]
+        if type(output_data) is not list:
+            output_data = [output_data]
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
+
+        # Take care of data-filtering, in case necessary
+        data_filters = [None]*len(output_data)
+        for nn in range(len(output_data)):
+            data_filters[nn] = np.ones( output_data[nn].shape, dtype='float32' )
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
             self._restore_params(sess, input_data, output_data, data_filters)
