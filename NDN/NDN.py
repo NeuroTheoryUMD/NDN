@@ -141,9 +141,10 @@ class NDN(Network):
 
     # END NDN._define_network
 
-    def _build_graph(self, learning_alg='lbfgs', learning_rate=1e-3, data_validity=None, use_gpu=False):
+    def _build_graph(self, learning_alg='lbfgs', learning_rate=1e-3, use_gpu=False,
+                     params_to_fit=None, data_filters=None ):
 
-        # Check number of input streams for saving and restoring models
+        # Check data_filters if it exists
 
         self.graph = tf.Graph()  # must be initialized before graph creation
 
@@ -198,11 +199,14 @@ class NDN(Network):
 
             # Define loss function
             with tf.variable_scope('loss'):
-                self._define_loss( data_validity )
+                self._define_loss()
 
             # Define optimization routine
+            var_list = self._build_fit_variable_list(params_to_fit)
+
             with tf.variable_scope('optimizer'):
-                self._define_optimizer( learning_alg, learning_rate )
+                self._define_optimizer( learning_alg=learning_alg, learning_rate=learning_rate,
+                                        var_list = var_list )
 
             # add additional ops
             # for saving and restoring models (initialized after var creation)
@@ -212,14 +216,19 @@ class NDN(Network):
             # add variable initialization op to graph
             self.init = tf.global_variables_initializer()
 
-    def _define_loss(self, data_validity=None):
+    def _define_loss(self):
         """Loss function that will be used to optimize model parameters"""
 
         cost = []
         self.unit_cost = []
         for nn in range(len(self.ffnet_out)):
             data_out = self.data_out_batch[nn]
-            pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
+            if self.filter_data:
+                # this will zero out predictions where there is no data, matching Robs here
+                pred = tf.multiply( self.networks[self.ffnet_out[nn]].layers[-1].outputs, self.data_filter_batch[nn] )
+            else:
+                pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
+
             # define cost function
             if self.noise_dist == 'gaussian':
                 with tf.name_scope('gaussian_loss'):
