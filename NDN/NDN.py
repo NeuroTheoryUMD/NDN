@@ -418,12 +418,20 @@ class NDN(Network):
         """
 
         assert self.graph is not None, 'Must fit model first.'
+
+        # Take care of data-filtering, if necessary
+        if self.filter_data:
+            data_filters = [None]*len(output_data)
+            for nn in range(len(output_data)):
+                data_filters[nn] = np.ones( output_data[nn].shape, dtype='float32' )
+        else:
+            data_filters = None
         # check input
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
-            self._restore_params(sess, input_data, output_data)
+            self._restore_params(sess, input_data, output_data, data_filters)
             LL_neuron = sess.run(self.unit_cost, feed_dict={self.indices: data_indxs})
 
             return LL_neuron
