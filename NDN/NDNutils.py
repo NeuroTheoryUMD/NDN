@@ -39,15 +39,15 @@ def FFnetwork_params( input_dims = None,
 
     if layer_sizes is None:
         raise TypeError('Must specify layer_sizes.')
-    if ei_layers is not None:
-        assert len(ei_layers) == (len(layer_sizes)-1), \
-            'ei_layers must be a list one less than the number of layers (in layer_sizes)'
 
     if xstim_n is not None:
         if not isinstance(xstim_n, list):
             xstim_n = [xstim_n]
     else:
         assert ffnet_n is not None, 'Must assign some input source.'
+    if network_type is 'side':
+        xstim_n = None
+
     if ffnet_n is not None:
         if not isinstance(ffnet_n, list):
             ffnet_n = [ffnet_n]
@@ -80,8 +80,9 @@ def FFnetwork_params( input_dims = None,
     if ei_layers is not None:
         for nn in range(len(ei_layers)):
             if ei_layers[nn] >= 0:
-                pos_constraints[nn + 1] = True
                 num_inh_layers[nn] = ei_layers[nn]
+                if nn < (num_layers-1):
+                    pos_constraints[nn+1] = True
     if not isinstance(act_funcs, list):
         act_funcs = [act_funcs] * num_layers
 
@@ -100,7 +101,7 @@ def FFnetwork_params( input_dims = None,
                         reg_initializers[nn][reg_type] = reg_val_list[nn]
 
     network_params = {
-        'network_type': 'normal',
+        'network_type': network_type,
         'xstim_n': xstim_n,
         'ffnet_n': ffnet_n,
         'input_dims': input_dims,

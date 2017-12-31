@@ -271,12 +271,12 @@ class side_network(FFNetwork):
     """Implementation of siFFNetwork
     """
 
-    def __init__(self, scope=None, input_network=None, params_dict=None):
+    def __init__(self, scope=None, input_network_params=None, params_dict=None):
         """Constructor for Network class
 
         Args:
             scope (str): name scope for network
-            input_network:
+            input_network_params: parameters of network that is input to this network
             params_dict (dictionary with the following fields):
                 SI-NETWORK SPECIFIC:
                 -> first_filter_size: size of filters in first layer, if different than input size
@@ -303,18 +303,15 @@ class side_network(FFNetwork):
         """
 
         # Determine dimensions of input and pass into regular network initializer
-        num_layers = len(input_network.layers)
-        num_units = [0]*num_layers
-        for nn in range(num_layers):
-            num_units[nn] = np.prod(input_network.layers[nn].output_dims)
+        input_layer_sizes = input_network_params['layer_sizes']
 
         super(side_network, self).__init__(
             scope=scope,
-            input_dims = [num_layers, max(num_units), 1],
+            input_dims = [len(input_layer_sizes), max(input_layer_sizes), 1],
             params_dict=params_dict)
 
-        self.num_units = num_units
-        # END side_network.__init__
+        self.num_units = input_layer_sizes
+    # END side_network.__init__
 
     def build_graph(self, input_network, params_dict=None):
         """Note this is different from other network build-graphs in that the whole
@@ -324,11 +321,15 @@ class side_network(FFNetwork):
         with tf.name_scope(self.scope):
 
             # Assemble network-inputs into the first layer
-            inputs = []
             for input_nn in range(len(self.num_units)):
-                inputs = tf.concat( 1, inputs, input_network.layers[input_nn].output )
+                if input_nn == 0:
+                    inputs = input_network.layers[input_nn].outputs
+                else:
+                    inputs = tf.concat( (inputs, input_network.layers[input_nn].outputs), 1 )
+
                 if max_units-self.num_units[input_nn] > 0:
-                    inputs = tf.pad( input, [[max_units-self.num_units[input_nn],1]] )
+                    layer_padding = tf.constant([[0, 0], [0, max_units-self.num_units[input_nn]]])
+                    inputs = tf.pad( inputs, layer_padding )
 
             # Now standard graph-build (could just call the parent with inputs)
             for layer in range(self.num_layers):

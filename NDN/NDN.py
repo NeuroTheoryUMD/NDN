@@ -7,8 +7,9 @@ import numpy as np
 import tensorflow as tf
 
 from FFnetwork.ffnetwork import FFNetwork
+from FFnetwork.ffnetwork import side_network
 from .network import Network
-from NDNutils import expand_input_dims_to_3d
+#from NDNutils import expand_input_dims_to_3d
 from NDNutils import concatenate_input_dims
 
 
@@ -128,21 +129,24 @@ class NDN(Network):
                 assert network_list[nn]['input_dims'] == list(input_dims_measured), 'Input_dims dont match.'
 
             # Build networks
-            self.networks.append(
-                FFNetwork(scope='network_%i' % nn, params_dict=network_list[nn]))
+            if network_list[nn]['network_type'] is 'side':
+                assert len(network_list[nn]['ffnet_n']) == 1, 'only one input to a side network'
+                network_input_params = network_list[network_list[nn]['ffnet_n'][0]]
+                self.networks.append(
+                    side_network(scope='side_network_%i' % nn, input_network_params=network_input_params,
+                                 params_dict=network_list[nn]))
+            else:
+                self.networks.append(
+                    FFNetwork(scope='network_%i' % nn, params_dict=network_list[nn]))
 
         # Assemble outputs
         for nn in range(len(self.ffnet_out)):
             ffnet_n = self.ffnet_out[nn]
-            self.output_size[ffnet_n] = self.networks[ffnet_n].layers[-1].weights.shape[1]
-
-        #print('num_inputs = ', self.input_sizes)
-        #print('num_outputs = ', self.output_size)
+            self.output_size[nn] = self.networks[ffnet_n].layers[-1].weights.shape[1]
 
     # END NDN._define_network
 
-    def _build_graph(self, learning_alg='lbfgs', learning_rate=1e-3, use_gpu=False,
-                     params_to_fit=None, data_filters=None ):
+    def _build_graph(self, learning_alg='lbfgs', learning_rate=1e-3, use_gpu=False, params_to_fit=None ):
 
         # Check data_filters if it exists
 

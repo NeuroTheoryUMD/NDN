@@ -231,7 +231,7 @@ class Network(object):
 
         # Build graph: self.build_graph must be defined in child of network
         self._build_graph( learning_alg=learning_alg, learning_rate=learning_rate, use_gpu=use_gpu,
-                           params_to_fit=fit_parameter_list, data_filters=data_filters)
+                           params_to_fit=fit_parameter_list )
 
         # Define optimization routine -- moved within graph
         # with tf.variable_scope('optimizer'):
