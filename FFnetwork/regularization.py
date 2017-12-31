@@ -197,23 +197,17 @@ class Regularization(object):
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max'],
-                tf.trace(tf.matmul(
-                    w2,
-                    tf.matmul(self.mats['max'], w2), transpose_a=True)))
+                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max'], w2), transpose_a=True)))
         elif reg_type == 'max_space':
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max_space'],
-                tf.trace(tf.matmul(
-                    w2,
-                    tf.matmul(self.mats['max_space'], w2), transpose_a=True)))
+                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max_space'], w2), transpose_a=True)))
         elif reg_type == 'max_filt':
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max_filt'],
-                tf.trace(tf.matmul(
-                    w2,
-                    tf.matmul(self.mats['max_filt'], w2), transpose_a=True)))
+                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max_filt'], w2), transpose_a=True)))
         elif reg_type == 'd2t':
             reg_pen = tf.multiply(
                 self.vals_var['d2t'],
@@ -265,4 +259,112 @@ class Regularization(object):
         reg_target.mats = self.mats
 
         return reg_target
-    # END reg_copy
+    # END Regularization.reg_copy
+
+
+class Sep_Regularization(Regularization):
+    """Child class that adjusts regularization for separable layers"""
+
+
+    def __init__(self, input_dims=None, num_outputs=None, vals=None):
+
+        super(Sep_Regularization, self).__init__(
+            input_dims=input_dims,
+            num_outputs = num_outputs,
+            vals = vals )
+
+    def _build_reg_mats(self, reg_type):
+        """Build regularization matrices in default tf Graph
+
+        Args:
+            reg_type (str): see `_allowed_reg_types` for options
+
+        """
+
+        if reg_type is 'd2t':
+            reg_mat = makeRmats.create_Tikhonov_matrix(
+                [self.input_dims[0], 1, 1], reg_type)
+            name = reg_type + '_laplacian'
+        elif reg_type is 'd2x':
+            print(reg_type, self.input_dims[1], self.input_dims[2] )
+            reg_mat = makeRmats.create_Tikhonov_matrix(
+                [1, self.input_dims[1], self.input_dims[2]], reg_type)
+            name = reg_type + '_laplacian'
+        elif reg_type is 'd2xt':
+            raise TypeError('d2xt does not work with a separable layer.')
+        elif reg_type is 'max':
+            reg_mat = makeRmats.create_maxpenalty_matrix(
+                [self.input_dims[0]+self.input_dims[1]*self.input_dims[2]], reg_type)
+            name = reg_type + '_reg'
+        elif reg_type is 'max_filter':
+            reg_mat = makeRmats.create_maxpenalty_matrix(
+                [self.input_dims[0], 1, 1], reg_type)
+            name = reg_type + '_reg'
+        elif reg_type is 'max_space':
+            reg_mat = makeRmats.create_maxpenalty_matrix(
+                [1, self.input_dims[1], self.input_dims[2]], reg_type)
+            name = reg_type + '_reg'
+        else:
+            reg_mat = 0.0
+            name = 'lp_placeholder'
+
+        return tf.constant(reg_mat, dtype=tf.float32, name=name)
+    # END Sep_Regularization._build_reg_mats
+
+    def _calc_reg_penalty(self, reg_type, weights):
+        """Calculate regularization penalty for various reg types in default tf
+        Graph"""
+        if reg_type == 'l1':
+            reg_pen = tf.multiply(
+                self.vals_var['l1'],
+                tf.reduce_sum(tf.abs(weights)))
+        elif reg_type == 'l2':
+            reg_pen = tf.multiply(
+                self.vals_var['l2'],
+                tf.nn.l2_loss(weights))
+        elif reg_type == 'norm2':
+            reg_pen = tf.multiply(
+                self.vals_var['norm2'],
+                tf.square(tf.reduce_sum(tf.square(weights))-self.num_outputs))
+        elif reg_type == 'max':
+            w2 = tf.square(weights)
+            reg_pen = tf.multiply(
+                self.vals_var['max'],
+                tf.trace(tf.matmul( w2, tf.matmul(self.mats['max'], w2), transpose_a=True)))
+
+        elif reg_type == 'max_space':
+            wspace2 = tf.square( tf.slice( weights, [self.input_dims[0], 0],
+                          [self.input_dims[1]*self.input_dims[2], self.num_outputs] ) )
+            reg_pen = tf.multiply( self.vals_var['max_space'],
+                tf.trace(tf.matmul( wspace2, tf.matmul(self.mats['max_space'], wspace2), transpose_a=True)))
+
+        elif reg_type == 'max_filt':
+            wfilt2 = tf.square( tf.slice( weights, [0, 0], [self.input_dims[0], self.num_outputs] ) )
+            reg_pen = tf.multiply(
+                self.vals_var['max_filt'],
+                tf.trace(tf.matmul(wfilt2, tf.matmul(self.mats['max_filt'], wfilt2), transpose_a=True)))
+
+        elif reg_type == 'd2t':
+            wt = tf.slice(weights, [0, 0], [self.input_dims[0], self.num_outputs])
+            reg_pen = tf.multiply( self.vals_var['d2t'],
+                tf.reduce_sum(tf.square( tf.matmul(self.mats['d2t'], wt))))
+
+        elif reg_type == 'd2x':
+            wspace = tf.slice( weights, [self.input_dims[0], 0],
+                               [self.input_dims[1]*self.input_dims[2], self.num_outputs] )
+            reg_pen = tf.multiply( self.vals_var['d2x'],
+                tf.reduce_sum(tf.square(
+                    tf.matmul(self.mats['d2x'], wspace))))
+
+        elif reg_type == 'd2xt':
+            raise TypeError('d2xt does not work with a separable layer.')
+        elif reg_type == 'hadi1':
+            # currently just L1, but could be anything...
+            raise TypeError('Not defined here.')
+        else:
+            reg_pen = tf.constant(0.0)
+        return reg_pen
+    # END Sep_Regularization._calc_reg_penalty
+
+
+

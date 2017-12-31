@@ -6,7 +6,7 @@ from __future__ import division
 import numpy as np
 import tensorflow as tf
 from .regularization import Regularization
-
+from .regularization import Sep_Regularization
 
 class Layer(object):
     """Implementation of fully connected neural network layer
@@ -568,6 +568,11 @@ class sepLayer(Layer):
                 pos_constraint=pos_constraint,
                 log_activations=log_activations )
 
+        # Redefine specialized Regularization object to overwrite default
+        self.reg = Sep_Regularization(
+            input_dims = input_dims,
+            num_outputs = self.reg.num_outputs,
+            vals = reg_initializer)
     # END sepLayer.__init__
 
     def build_graph( self, inputs, params_dict=None ):
