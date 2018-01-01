@@ -447,19 +447,30 @@ class NDN(Network):
 
         assert self.graph is not None, 'Must fit model first.'
         # check input
+        if type(input_data) is not list:
+            input_data = [input_data]
+        if data_indxs is None:
+            data_indxs = np.arange(self.num_examples)
         if layer >= 0:
             assert layer < len(self.networks[ffnet_n].layers), 'This layer does not exist.'
+
+        assert self.graph is not None, 'Must fit model first.'
+
+        # Generate fake_output data and take care of data-filtering, in case necessary
+        num_outputs = len(self.ffnet_out)
+        output_data = [None]*num_outputs
+        data_filters = [None]*num_outputs
+        for nn in range(num_outputs):
+            output_data[nn] = np.zeros([self.num_examples, self.networks[ffnet_n].layers[-1].weights.shape[1]],
+                                   dtype='float32')
+            data_filters[nn] = np.ones( output_data[nn].shape, dtype='float32' )
 
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
 
-        # Generate fake_output data
-        output_data = np.zeros( [self.num_examples, self.networks[ffnet_n].layers[-1].weights.shape[1]],
-                                dtype='float32')
-
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
-            self._restore_params(sess, input_data, output_data)
+            self._restore_params(sess, input_data, output_data, data_filters)
             pred = sess.run(self.networks[ffnet_n].layers[layer].outputs, feed_dict={self.indices: data_indxs})
 
             return pred
