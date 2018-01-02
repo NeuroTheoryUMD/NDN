@@ -411,7 +411,7 @@ class NDN(Network):
 
     # END get_LL
 
-    def eval_models(self, input_data, output_data, data_indxs=None, nulladjusted=False):
+    def eval_models(self, input_data, output_data, data_indxs=None, data_filters=None, nulladjusted=False):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -442,11 +442,16 @@ class NDN(Network):
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
 
-        self.filter_data = False
+        if data_filters is None:
+            self.filter_data = False
+        else:
+            self.filter_data = True
+            if type(data_filters) is not list:
+                data_filters = [data_filters]
         self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
-            self._restore_params(sess, input_data, output_data )
+            self._restore_params(sess, input_data, output_data, data_filters=data_filters )
             LL_neuron = sess.run(self.unit_cost, feed_dict={self.indices: data_indxs})
 
             if nulladjusted:
