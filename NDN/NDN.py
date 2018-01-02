@@ -367,7 +367,7 @@ class NDN(Network):
                 reg_type, reg_val)
     # END set_regularization
 
-    def get_LL(self, input_data, output_data, data_indxs=None):
+    def get_LL(self, input_data, output_data, data_indxs=None, data_filters=None):
         """Get cost from loss function and regularization terms
 
         Args:
@@ -376,7 +376,7 @@ class NDN(Network):
                 model
             data_indxs (numpy array, optional): indexes of data to use in
                 calculating forward pass; if not supplied, all data is used
-
+            data_filters:
         Returns:
             cost (float): value of model's cost function evaluated on previous
                 model data or that used as input
@@ -388,20 +388,30 @@ class NDN(Network):
         """
 
         # check input
+        if type(input_data) is not list:
+            input_data = [input_data]
+        if type(output_data) is not list:
+            output_data = [output_data]
+        self.num_examples = input_data[0].shape[0]
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
+        if data_filters is None:
+            self.filter_data = False
+        else:
+            self.filter_data = True
+            if type(data_filters) is not list:
+                data_filters = [data_filters]
+        self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
-            self._restore_params(sess, input_data, output_data)
+            self._restore_params(sess, input_data, output_data, data_filters=data_filters)
+            cost = sess.run(self.cost, feed_dict={self.indices: data_indxs})
 
-            cost = sess.run(self.cost,
-                            feed_dict={self.indices: data_indxs})
-
-            return cost
+        return cost
 
     # END get_LL
 
-    def eval_models(self, input_data, output_data, data_indxs=None):
+    def eval_models(self, input_data, output_data, data_indxs=None, nulladjusted=False):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -410,6 +420,7 @@ class NDN(Network):
                 model
             data_indxs (numpy array, optional): indexes of data to use in
                 calculating forward pass; if not supplied, all data is used
+            nulladjusted: to explain
 
         Returns:
             cost (float): value of model's cost function evaluated on previous
@@ -421,56 +432,58 @@ class NDN(Network):
 
         """
 
-        assert self.graph is not None, 'Must fit model first.'
         # check input
         if type(input_data) is not list:
             input_data = [input_data]
         if type(output_data) is not list:
             output_data = [output_data]
+        self.num_examples = input_data[0].shape[0]
+
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
 
-        # Take care of data-filtering, in case necessary
-        data_filters = [None]*len(output_data)
-        for nn in range(len(output_data)):
-            data_filters[nn] = np.ones( output_data[nn].shape, dtype='float32' )
+        self.filter_data = False
+        self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
-            self._restore_params(sess, input_data, output_data, data_filters)
+            self._restore_params(sess, input_data, output_data )
             LL_neuron = sess.run(self.unit_cost, feed_dict={self.indices: data_indxs})
 
-            return LL_neuron
+            if nulladjusted:
+                # note that LL_neuron is negative of the true LL, but nullLL is not (so + is actually subtraction)
+                LL_neuron += self.nullLL(output_data[data_indxs, :])
+
+        return LL_neuron
 
     # END get_LL_neuron
 
     def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1, layer=-1):
 
-        assert self.graph is not None, 'Must fit model first.'
         # check input
         if type(input_data) is not list:
             input_data = [input_data]
+        self.num_examples = input_data[0].shape[0]
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
         if layer >= 0:
             assert layer < len(self.networks[ffnet_n].layers), 'This layer does not exist.'
 
-        assert self.graph is not None, 'Must fit model first.'
-
         # Generate fake_output data and take care of data-filtering, in case necessary
+        self.filter_data = False
         num_outputs = len(self.ffnet_out)
         output_data = [None]*num_outputs
-        data_filters = [None]*num_outputs
         for nn in range(num_outputs):
             output_data[nn] = np.zeros([self.num_examples, self.networks[ffnet_n].layers[-1].weights.shape[1]],
-                                   dtype='float32')
-            data_filters[nn] = np.ones( output_data[nn].shape, dtype='float32' )
+                                       dtype='float32')
+
+        self._build_graph()
 
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
+            self._restore_params(sess, input_data, output_data)
 
-            self._restore_params(sess, input_data, output_data, data_filters)
             pred = sess.run(self.networks[ffnet_n].layers[layer].outputs, feed_dict={self.indices: data_indxs})
 
             return pred
@@ -501,13 +514,31 @@ class NDN(Network):
 
     # END get_reg_pen
 
-
     def copy_model(self, tf_seed=0):
         """For the moment, this just makes exact-copy without further elaboration."""
 
         # Assemble network_list
         target = NDN( self.network_list, ffnet_out=self.ffnet_out,
-                          noise_dist=self.noise_dist, tf_seed=tf_seed )
+                      noise_dist=self.noise_dist, tf_seed=tf_seed )
         return target
 
     # END NDN.copy_model
+
+    def nullLL(self, Robs ):
+        """Calculates null-model (constant firing rate) likelihood, given Robs (which determines
+        what firing rate for each cell)"""
+
+        if self.noise_dist == 'gaussian':
+            # In this case, LLnull is just var of data
+            LLnulls = np.var(Robs, axis=0)
+
+        elif self.noise_dist == 'poisson':
+            rbars = np.mean(Robs, axis=0)
+            LLnulls = np.log(rbars)-1
+            # elif self.noise_dist == 'bernoulli':
+        else:
+            LLnulls = [0]*Robs.shape[1]
+            print('Not worked out yet')
+
+        return LLnulls
+    # END NDN.nullLL
