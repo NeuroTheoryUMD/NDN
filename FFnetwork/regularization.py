@@ -231,9 +231,12 @@ class Regularization(object):
             temp = 0
             for ii in range(weights.shape[0]):
                 # different centralizers correspond to different envelope shapes
-                envelope_val = np.power(ii//input_dims[0] - input_dims[1]/2 + 0.5, 2, dtype=float)
+                envelope_val = np.power(ii//self.input_dims[0] - self.input_dims[1]/2 + 0.5, 2, dtype=float)
                 for mu in range(weights.shape[1]):
                     temp += envelope_val * np.power(weights[ii, mu], 2)
+                    # delete this line later:
+                    print(ii//self.input_dims[0] - self.input_dims[1]/2 + 0.5)
+                    # delte this line later ^
             reg_pen = tf.multiply(self.vals_var['centralizer1'], temp)
         else:
             reg_pen = tf.constant(0.0)
@@ -370,7 +373,7 @@ class Sep_Regularization(Regularization):
             temp = 0
             for ii in range(weights.shape[0]):
                 # different centralizers correspond to different envelope shapes
-                envelope_val = np.power(ii//input_dims[0] - input_dims[1]/2 + 0.5, 2, dtype=float)
+                envelope_val = np.power(ii//self.input_dims[0] - self.input_dims[1]/2 + 0.5, 2, dtype=float)
                 for mu in range(weights.shape[1]):
                     temp += envelope_val * np.power(weights[ii, mu], 2)
             reg_pen = tf.multiply(self.vals_var['centralizer1'], temp)
