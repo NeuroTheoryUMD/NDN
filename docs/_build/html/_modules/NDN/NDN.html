@@ -1,0 +1,769 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>NDN.NDN &mdash; Neural Deep Network 2.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Neural Deep Network 2.0 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Neural Deep Network
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Neural Deep Network</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>NDN.NDN</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for NDN.NDN</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Neural deep network&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">tensorflow</span> <span class="k">as</span> <span class="nn">tf</span>
+
+<span class="kn">from</span> <span class="nn">FFnetwork.ffnetwork</span> <span class="k">import</span> <span class="n">FFNetwork</span>
+<span class="kn">from</span> <span class="nn">FFnetwork.ffnetwork</span> <span class="k">import</span> <span class="n">side_network</span>
+<span class="kn">from</span> <span class="nn">.network</span> <span class="k">import</span> <span class="n">Network</span>
+<span class="c1">#from NDNutils import expand_input_dims_to_3d</span>
+<span class="kn">from</span> <span class="nn">NDNutils</span> <span class="k">import</span> <span class="n">concatenate_input_dims</span>
+
+
+<div class="viewcode-block" id="NDN"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN">[docs]</a><span class="k">class</span> <span class="nc">NDN</span><span class="p">(</span><span class="n">Network</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Tensorflow (tf) implementation of network-NIM class</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        network (FFNetwork object): feedforward network</span>
+
+
+
+<span class="sd">    Notes:</span>
+<span class="sd">        One assumption is that the output of all FFnetworks -- whether or not</span>
+<span class="sd">        they are multi-dimensional -- project down into one dimension when input</span>
+<span class="sd">        into a second network. As a result, concatination of multiple streams will</span>
+<span class="sd">        always be in one dimension. If there is a single input into an FFnetwork,</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_allowed_noise_dists</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;gaussian&#39;</span><span class="p">,</span> <span class="s1">&#39;poisson&#39;</span><span class="p">,</span> <span class="s1">&#39;bernoulli&#39;</span><span class="p">]</span>
+    <span class="n">_allowed_layer_types</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;normal&#39;</span><span class="p">,</span> <span class="s1">&#39;conv&#39;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="NDN.__init__"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">network_list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">noise_dist</span><span class="o">=</span><span class="s1">&#39;poisson&#39;</span><span class="p">,</span>
+            <span class="n">ffnet_out</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">input_dim_list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">tf_seed</span><span class="o">=</span><span class="mi">0</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Constructor for network-NIM class</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            network_list (list): created using &#39;FFNetwork_params&#39;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">network_list</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Must specify network list.&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Call __init__() method of super class</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">NDN</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+        <span class="c1"># Set network_list</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">network_list</span><span class="p">,</span> <span class="nb">list</span> <span class="p">):</span>
+            <span class="n">network_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">network_list</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">network_list</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span> <span class="o">=</span> <span class="n">network_list</span>
+
+        <span class="c1"># Determine number of inputs</span>
+        <span class="n">measured_input_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;xstim_n&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">measured_input_list</span> <span class="o">+=</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;xstim_n&#39;</span><span class="p">]</span>
+            <span class="n">measured_input_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">measured_input_list</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">input_dim_list</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">input_dim_list</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">measured_input_list</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_dim_list</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">measured_input_list</span><span class="p">),</span> <span class="s1">&#39;Something_wrong with inputs&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_input_streams</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_dim_list</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ffnet_out</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">ffnet_out</span> <span class="o">=</span> <span class="p">[</span><span class="n">ffnet_out</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ffnet_out</span><span class="p">)):</span>
+            <span class="k">assert</span> <span class="n">ffnet_out</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">,</span> <span class="s1">&#39;ffnet_out has values that are too big&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ffnet_out</span> <span class="o">=</span> <span class="n">ffnet_out</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_sizes</span> <span class="o">=</span> <span class="n">input_dim_list</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_size</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">ffnet_out</span><span class="p">)</span>  <span class="c1"># list of output sizes (for Robs placeholders)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">noise_dist</span> <span class="o">=</span> <span class="n">noise_dist</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tf_seed</span> <span class="o">=</span> <span class="n">tf_seed</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_define_network</span><span class="p">(</span><span class="n">network_list</span><span class="p">)</span>
+
+        <span class="c1"># set parameters for graph (constructed for each train)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">saver</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">merge_summaries</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+    <span class="c1"># END networkNIM.__init__</span>
+
+    <span class="k">def</span> <span class="nf">_define_network</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">network_list</span> <span class="p">):</span>
+        <span class="c1"># Create the FFnetworks</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">networks</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+
+            <span class="c1"># Tabulate network inputs. Note that multiple inputs assumed to be combined along 2nd dim,</span>
+            <span class="c1"># and likewise 1-D outputs assumed to be over &#39;space&#39;</span>
+            <span class="n">input_dims_measured</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;ffnet_n&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">ffnet_n</span> <span class="o">=</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;ffnet_n&#39;</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">mm</span> <span class="ow">in</span> <span class="n">ffnet_n</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="n">ffnet_n</span><span class="p">[</span><span class="n">mm</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">,</span> <span class="s1">&#39;Too many ffnetworks referenced.&#39;</span>
+                    <span class="c1">#print(&#39;network %i:&#39; % nn, mm, input_dims_measured, self.networks[mm].layers[-1].output_dims )</span>
+                    <span class="n">input_dims_measured</span> <span class="o">=</span> <span class="n">concatenate_input_dims</span><span class="p">(</span>
+                        <span class="n">input_dims_measured</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">mm</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">output_dims</span><span class="p">)</span>
+
+            <span class="c1"># Determine external inputs</span>
+            <span class="k">if</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;xstim_n&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">xstim_n</span> <span class="o">=</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;xstim_n&#39;</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">mm</span> <span class="ow">in</span> <span class="n">xstim_n</span><span class="p">:</span>
+                    <span class="c1"># First see if input is not specified at NDN level</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_sizes</span><span class="p">[</span><span class="n">mm</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="c1"># then try to scrape from network_params</span>
+                        <span class="k">assert</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;input_dims&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;External input size not defined.&#39;</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">input_sizes</span><span class="p">[</span><span class="n">mm</span><span class="p">]</span> <span class="o">=</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;input_dims&#39;</span><span class="p">]</span>
+                    <span class="n">input_dims_measured</span> <span class="o">=</span> <span class="n">concatenate_input_dims</span><span class="p">(</span>
+                        <span class="n">input_dims_measured</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_sizes</span><span class="p">[</span><span class="n">mm</span><span class="p">])</span>
+
+            <span class="c1"># Now specific/check input to this network</span>
+            <span class="k">if</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;input_dims&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;input_dims&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">input_dims_measured</span>
+                <span class="c1">#print(&#39;network %i:&#39; % nn, input_dims_measured)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1">#print(&#39;network %i:&#39; % nn, network_list[nn][&#39;input_dims&#39;], input_dims_measured )</span>
+                <span class="k">assert</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;input_dims&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="nb">list</span><span class="p">(</span><span class="n">input_dims_measured</span><span class="p">),</span> <span class="s1">&#39;Input_dims dont match.&#39;</span>
+
+            <span class="c1"># Build networks</span>
+            <span class="k">if</span> <span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;network_type&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="s1">&#39;side&#39;</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;ffnet_n&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;only one input to a side network&#39;</span>
+                <span class="n">network_input_params</span> <span class="o">=</span> <span class="n">network_list</span><span class="p">[</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;ffnet_n&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">side_network</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s1">&#39;side_network_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">nn</span><span class="p">,</span> <span class="n">input_network_params</span><span class="o">=</span><span class="n">network_input_params</span><span class="p">,</span>
+                                 <span class="n">params_dict</span><span class="o">=</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">FFNetwork</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s1">&#39;network_</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">nn</span><span class="p">,</span> <span class="n">params_dict</span><span class="o">=</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">]))</span>
+
+        <span class="c1"># Assemble outputs</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ffnet_out</span><span class="p">)):</span>
+            <span class="n">ffnet_n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ffnet_out</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">output_size</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">ffnet_n</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># END NDN._define_network</span>
+
+    <span class="k">def</span> <span class="nf">_build_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">learning_alg</span><span class="o">=</span><span class="s1">&#39;lbfgs&#39;</span><span class="p">,</span> <span class="n">learning_rate</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">use_gpu</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">params_to_fit</span><span class="o">=</span><span class="kc">None</span> <span class="p">):</span>
+
+        <span class="c1"># Check data_filters if it exists</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">Graph</span><span class="p">()</span>  <span class="c1"># must be initialized before graph creation</span>
+
+        <span class="c1"># for specifying device</span>
+        <span class="k">if</span> <span class="n">use_gpu</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sess_config</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">ConfigProto</span><span class="p">(</span><span class="n">device_count</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;GPU&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sess_config</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">ConfigProto</span><span class="p">(</span><span class="n">device_count</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;GPU&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+
+        <span class="c1"># build model graph</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">as_default</span><span class="p">():</span>
+
+            <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tf_seed</span><span class="p">)</span>
+            <span class="n">tf</span><span class="o">.</span><span class="n">set_random_seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tf_seed</span><span class="p">)</span>
+
+            <span class="c1"># define pipeline for feeding data into model</span>
+            <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">variable_scope</span><span class="p">(</span><span class="s1">&#39;data&#39;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_initialize_data_pipeline</span><span class="p">()</span>
+
+            <span class="c1"># Build network graph</span>
+            <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;network_type&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="s1">&#39;side&#39;</span><span class="p">:</span>
+
+                    <span class="c1"># Specialized inputs to side-network</span>
+                    <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;xstim_n&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> \
+                        <span class="s1">&#39;Cannot have any external inputs into side network.&#39;</span>
+                    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;ffnet_n&#39;</span><span class="p">])</span> <span class="o">==</span> <span class="mi">1</span><span class="p">,</span> \
+                        <span class="s1">&#39;Can only have one network input into a side network.&#39;</span>
+                    <span class="c1"># Pass the entire network into the input of side network</span>
+                    <span class="n">input_network_n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;ffnet_n&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">assert</span> <span class="n">input_network_n</span> <span class="o">&lt;</span> <span class="n">nn</span><span class="p">,</span> <span class="s1">&#39;Must create network for side network first.&#39;</span>
+                    <span class="n">input_cat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">input_network_n</span><span class="p">]</span>
+
+                <span class="k">else</span><span class="p">:</span> <span class="c1"># assume normal network</span>
+                    <span class="c1"># Assemble input streams -- implicitly along input axis 1 (0 is T)</span>
+                    <span class="n">input_cat</span> <span class="o">=</span> <span class="kc">None</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;xstim_n&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;xstim_n&#39;</span><span class="p">]:</span>
+                            <span class="k">if</span> <span class="n">input_cat</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                                <span class="n">input_cat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_in_batch</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">input_cat</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span> <span class="p">(</span><span class="n">input_cat</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_in_batch</span><span class="p">[</span><span class="n">ii</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;ffnet_n&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="s1">&#39;ffnet_n&#39;</span><span class="p">]:</span>
+                            <span class="k">if</span> <span class="n">input_cat</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                                <span class="n">input_cat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">outputs</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">input_cat</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span> <span class="p">(</span><span class="n">input_cat</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">outputs</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">build_graph</span><span class="p">(</span><span class="n">input_cat</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">[</span><span class="n">nn</span><span class="p">])</span>
+
+            <span class="c1"># Define loss function</span>
+            <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">variable_scope</span><span class="p">(</span><span class="s1">&#39;loss&#39;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_define_loss</span><span class="p">()</span>
+
+            <span class="c1"># Define optimization routine</span>
+            <span class="n">var_list</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_fit_variable_list</span><span class="p">(</span><span class="n">params_to_fit</span><span class="p">)</span>
+
+            <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">variable_scope</span><span class="p">(</span><span class="s1">&#39;optimizer&#39;</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_define_optimizer</span><span class="p">(</span> <span class="n">learning_alg</span><span class="o">=</span><span class="n">learning_alg</span><span class="p">,</span> <span class="n">learning_rate</span><span class="o">=</span><span class="n">learning_rate</span><span class="p">,</span>
+                                        <span class="n">var_list</span> <span class="o">=</span> <span class="n">var_list</span> <span class="p">)</span>
+
+            <span class="c1"># add additional ops</span>
+            <span class="c1"># for saving and restoring models (initialized after var creation)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">saver</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">train</span><span class="o">.</span><span class="n">Saver</span><span class="p">()</span>
+            <span class="c1"># collect all summaries into a single op</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">merge_summaries</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">merge_all</span><span class="p">()</span>
+            <span class="c1"># add variable initialization op to graph</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">init</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">global_variables_initializer</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_define_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Loss function that will be used to optimize model parameters&quot;&quot;&quot;</span>
+
+        <span class="n">cost</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit_cost</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ffnet_out</span><span class="p">)):</span>
+            <span class="n">data_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_out_batch</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_data</span><span class="p">:</span>
+                <span class="c1"># this will zero out predictions where there is no data, matching Robs here</span>
+                <span class="n">pred</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ffnet_out</span><span class="p">[</span><span class="n">nn</span><span class="p">]]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">outputs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_filter_batch</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pred</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">ffnet_out</span><span class="p">[</span><span class="n">nn</span><span class="p">]]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">outputs</span>
+
+            <span class="c1"># define cost function</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_dist</span> <span class="o">==</span> <span class="s1">&#39;gaussian&#39;</span><span class="p">:</span>
+                <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="s1">&#39;gaussian_loss&#39;</span><span class="p">):</span>
+                    <span class="c1"># should variable &#39;cost&#39; be defined here too?</span>
+                    <span class="n">cost</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">l2_loss</span><span class="p">(</span><span class="n">data_out</span> <span class="o">-</span> <span class="n">pred</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span> <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">unit_cost</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span>
+                        <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_cost</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">reduce_mean</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">data_out</span><span class="o">-</span><span class="n">pred</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)],</span> <span class="mi">0</span> <span class="p">)</span>
+
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_dist</span> <span class="o">==</span> <span class="s1">&#39;poisson&#39;</span><span class="p">:</span>
+                <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="s1">&#39;poisson_loss&#39;</span><span class="p">):</span>
+                    <span class="n">cost_norm</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">reduce_sum</span><span class="p">(</span><span class="n">data_out</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+                    <span class="n">cost</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="o">-</span><span class="n">tf</span><span class="o">.</span><span class="n">reduce_sum</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span>
+                        <span class="n">tf</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">data_out</span><span class="p">,</span><span class="n">tf</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_log_min</span> <span class="o">+</span> <span class="n">pred</span><span class="p">))</span> <span class="o">-</span> <span class="n">pred</span><span class="p">,</span>
+                        <span class="n">cost_norm</span> <span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">unit_cost</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_cost</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span> <span class="o">-</span><span class="n">tf</span><span class="o">.</span><span class="n">reduce_sum</span><span class="p">(</span>
+                        <span class="n">tf</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">data_out</span><span class="p">,</span><span class="n">tf</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_log_min</span> <span class="o">+</span> <span class="n">pred</span><span class="p">))</span> <span class="o">-</span> <span class="n">pred</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">cost_norm</span> <span class="p">)],</span> <span class="mi">0</span> <span class="p">)</span>
+
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_dist</span> <span class="o">==</span> <span class="s1">&#39;bernoulli&#39;</span><span class="p">:</span>
+                <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="s1">&#39;bernoulli_loss&#39;</span><span class="p">):</span>
+                    <span class="c1"># Check per-cell normalization with cross-entropy</span>
+                    <span class="c1">#cost_norm = tf.maximum( tf.reduce_sum(data_out, axis=0), 1)</span>
+                    <span class="n">cost</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">reduce_mean</span><span class="p">(</span>
+                        <span class="n">tf</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">sigmoid_cross_entropy_with_logits</span><span class="p">(</span><span class="n">labels</span><span class="o">=</span><span class="n">data_out</span><span class="p">,</span><span class="n">logits</span><span class="o">=</span><span class="n">pred</span><span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">unit_cost</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">concat</span><span class="p">(</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_cost</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">reduce_mean</span><span class="p">(</span>
+                        <span class="n">tf</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">sigmoid_cross_entropy_with_logits</span><span class="p">(</span><span class="n">labels</span><span class="o">=</span><span class="n">data_out</span><span class="p">,</span><span class="n">logits</span><span class="o">=</span><span class="n">pred</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span> <span class="p">)],</span> <span class="mi">0</span> <span class="p">)</span>
+                    <span class="c1">#cost = tf.reduce_sum(self.unit_cost)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Cost function not supported.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">cost</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">add_n</span><span class="p">(</span><span class="n">cost</span><span class="p">)</span>
+
+        <span class="c1"># add regularization penalties</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cost_reg</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="s1">&#39;regularization&#39;</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cost_reg</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">define_regularization_loss</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">cost_penalized</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cost</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cost_reg</span><span class="p">)</span>
+
+        <span class="c1"># save summary of cost</span>
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">variable_scope</span><span class="p">(</span><span class="s1">&#39;summaries&#39;</span><span class="p">):</span>
+            <span class="n">tf</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span><span class="s1">&#39;cost&#39;</span><span class="p">,</span> <span class="n">cost</span><span class="p">)</span>
+    <span class="c1"># END NDN._define_loss</span>
+
+    <span class="k">def</span> <span class="nf">_assign_model_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sess</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Functions assigns parameter values to randomly initialized model&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">as_default</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">assign_model_params</span><span class="p">(</span><span class="n">sess</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_write_model_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sess</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Pass write_model_params down to the multiple networks&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">write_model_params</span><span class="p">(</span><span class="n">sess</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_assign_reg_vals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sess</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Loops through all current regularization penalties and updates</span>
+<span class="sd">        parameter values&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">as_default</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">assign_reg_vals</span><span class="p">(</span><span class="n">sess</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_build_fit_variable_list</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">fit_parameter_list</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generates variable list to fit if argument is not none. &#39;fit_parameter_list&#39;</span>
+<span class="sd">        is generated by a &quot;&quot;&quot;</span>
+        <span class="n">var_list</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">fit_parameter_list</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">var_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+                <span class="n">var_list</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">_build_fit_variable_list</span><span class="p">(</span> <span class="n">fit_parameter_list</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">var_list</span>
+    <span class="c1"># END NDN._generate_variable_list</span>
+
+<div class="viewcode-block" id="NDN.variables_to_fit"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.variables_to_fit">[docs]</a>    <span class="k">def</span> <span class="nf">variables_to_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">layers_to_skip</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fit_biases</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generates a list-of-lists-of-lists of correct format to specify all the</span>
+<span class="sd">        variables to fit, as an argument for network.train</span>
+
+<span class="sd">        Inputs:</span>
+<span class="sd">            layers_to_skip: [default=None] this should be a list-of-lists, specifying</span>
+<span class="sd">                a list of layers to skip for each network. If just single list, will assume</span>
+<span class="sd">                this is skipping layers in the first network</span>
+<span class="sd">            fit_biases: [default=False] this can be a single boolean value or list of values</span>
+<span class="sd">                if want networks to have different default-bias-fitting states</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">layers_to_skip</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">layers_to_skip</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">layers_to_skip</span><span class="p">,</span><span class="nb">list</span><span class="p">):</span>
+                <span class="n">layers_to_skip</span> <span class="o">=</span> <span class="p">[</span><span class="n">layers_to_skip</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fit_biases</span><span class="p">,</span><span class="nb">list</span><span class="p">):</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">fit_biases</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">,</span> <span class="s1">&#39;fit_biases list must match the number of networks.&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fit_biases</span> <span class="o">=</span> <span class="p">[</span><span class="n">fit_biases</span><span class="p">]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span>
+
+        <span class="n">fit_list</span> <span class="o">=</span> <span class="p">[]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+            <span class="n">fit_list</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">=</span> <span class="p">[{}]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">num_layers</span>
+            <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">num_layers</span><span class="p">):</span>
+                <span class="n">fit_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="n">layer</span><span class="p">][</span><span class="s1">&#39;weights&#39;</span><span class="p">]</span><span class="o">=</span><span class="kc">True</span>
+                <span class="n">fit_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="n">layer</span><span class="p">][</span><span class="s1">&#39;biases&#39;</span><span class="p">]</span><span class="o">=</span><span class="n">fit_biases</span>
+                <span class="k">if</span> <span class="n">nn</span> <span class="o">&lt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">layers_to_skip</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layers_to_skip</span><span class="p">[</span><span class="n">nn</span><span class="p">]:</span>
+                        <span class="n">fit_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="n">layer</span><span class="p">][</span><span class="s1">&#39;weights&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+                        <span class="n">fit_list</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="n">layer</span><span class="p">][</span><span class="s1">&#39;biases&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">return</span> <span class="n">fit_list</span></div>
+        <span class="c1"># END NDN.set_fit_variables</span>
+
+<div class="viewcode-block" id="NDN.set_regularization"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.set_regularization">[docs]</a>    <span class="k">def</span> <span class="nf">set_regularization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reg_type</span><span class="p">,</span> <span class="n">reg_val</span><span class="p">,</span> <span class="n">ffnet_n</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">layer_target</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add or reassign regularization values</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            reg_type (str): see allowed_reg_types in regularization.py</span>
+<span class="sd">            reg_val (int): corresponding regularization value</span>
+<span class="sd">            ffnet_n(int): which network to assign regularization to (default = 0)</span>
+<span class="sd">            layer_target (int or list of ints): specifies which layers the</span>
+<span class="sd">                current reg_type/reg_val pair is applied to (default all in ffnet_n)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">layer_target</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># set all layers</span>
+            <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+                <span class="n">layer_target</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">ffnet_n</span><span class="p">]</span><span class="o">.</span><span class="n">num_layers</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">layer_target</span><span class="p">,</span><span class="nb">list</span><span class="p">):</span>
+                <span class="n">layer_target</span> <span class="o">=</span> <span class="p">[</span><span class="n">layer_target</span><span class="p">]</span>
+
+        <span class="c1"># set regularization at the layer level</span>
+        <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="n">layer_target</span><span class="p">:</span>
+            <span class="n">new_reg_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">ffnet_n</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span><span class="o">.</span><span class="n">set_regularization</span><span class="p">(</span>
+                <span class="n">reg_type</span><span class="p">,</span> <span class="n">reg_val</span><span class="p">)</span></div>
+    <span class="c1"># END set_regularization</span>
+
+<div class="viewcode-block" id="NDN.get_LL"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.get_LL">[docs]</a>    <span class="k">def</span> <span class="nf">get_LL</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_data</span><span class="p">,</span> <span class="n">output_data</span><span class="p">,</span> <span class="n">data_indxs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_filters</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get cost from loss function and regularization terms</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            input_data (time x input_dim numpy array): input to model</span>
+<span class="sd">            output_data (time x output_dim numpy array): desired output of</span>
+<span class="sd">                model</span>
+<span class="sd">            data_indxs (numpy array, optional): indexes of data to use in</span>
+<span class="sd">                calculating forward pass; if not supplied, all data is used</span>
+<span class="sd">            data_filters:</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            cost (float): value of model&#39;s cost function evaluated on previous</span>
+<span class="sd">                model data or that used as input</span>
+<span class="sd">            reg_pen (float): value of model&#39;s regularization penalty</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If data_in/out time dims don&#39;t match</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># check input</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">input_data</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">input_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">input_data</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">output_data</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">output_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">output_data</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span> <span class="o">=</span> <span class="n">input_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">data_indxs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">data_indxs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data_filters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filter_data</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filter_data</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">data_filters</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+                <span class="n">data_filters</span> <span class="o">=</span> <span class="p">[</span><span class="n">data_filters</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_build_graph</span><span class="p">()</span>
+
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">Session</span><span class="p">(</span><span class="n">graph</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sess_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">sess</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_restore_params</span><span class="p">(</span><span class="n">sess</span><span class="p">,</span> <span class="n">input_data</span><span class="p">,</span> <span class="n">output_data</span><span class="p">,</span> <span class="n">data_filters</span><span class="o">=</span><span class="n">data_filters</span><span class="p">)</span>
+            <span class="n">cost</span> <span class="o">=</span> <span class="n">sess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cost</span><span class="p">,</span> <span class="n">feed_dict</span><span class="o">=</span><span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span> <span class="n">data_indxs</span><span class="p">})</span>
+
+        <span class="k">return</span> <span class="n">cost</span></div>
+
+    <span class="c1"># END get_LL</span>
+
+<div class="viewcode-block" id="NDN.eval_models"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.eval_models">[docs]</a>    <span class="k">def</span> <span class="nf">eval_models</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_data</span><span class="p">,</span> <span class="n">output_data</span><span class="p">,</span> <span class="n">data_indxs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_filters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">nulladjusted</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get cost for each output neuron without regularization terms</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            input_data (time x input_dim numpy array): input to model</span>
+<span class="sd">            output_data (time x output_dim numpy array): desired output of</span>
+<span class="sd">                model</span>
+<span class="sd">            data_indxs (numpy array, optional): indexes of data to use in</span>
+<span class="sd">                calculating forward pass; if not supplied, all data is used</span>
+<span class="sd">            nulladjusted: to explain</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            cost (float): value of model&#39;s cost function evaluated on previous</span>
+<span class="sd">                model data or that used as input</span>
+<span class="sd">            reg_pen (float): value of model&#39;s regularization penalty</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If data_in/out time dims don&#39;t match</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># check input</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">input_data</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">input_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">input_data</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">output_data</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">output_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">output_data</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span> <span class="o">=</span> <span class="n">input_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">data_indxs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">data_indxs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">data_filters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filter_data</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">filter_data</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">data_filters</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+                <span class="n">data_filters</span> <span class="o">=</span> <span class="p">[</span><span class="n">data_filters</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_build_graph</span><span class="p">()</span>
+
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">Session</span><span class="p">(</span><span class="n">graph</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sess_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">sess</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_restore_params</span><span class="p">(</span><span class="n">sess</span><span class="p">,</span> <span class="n">input_data</span><span class="p">,</span> <span class="n">output_data</span><span class="p">,</span> <span class="n">data_filters</span><span class="o">=</span><span class="n">data_filters</span> <span class="p">)</span>
+            <span class="n">LL_neuron</span> <span class="o">=</span> <span class="n">sess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit_cost</span><span class="p">,</span> <span class="n">feed_dict</span><span class="o">=</span><span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span> <span class="n">data_indxs</span><span class="p">})</span>
+
+            <span class="k">if</span> <span class="n">nulladjusted</span><span class="p">:</span>
+                <span class="c1"># note that LL_neuron is negative of the true LL, but nullLL is not (so + is actually subtraction)</span>
+                <span class="n">LL_neuron</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nullLL</span><span class="p">(</span><span class="n">output_data</span><span class="p">[</span><span class="n">data_indxs</span><span class="p">,</span> <span class="p">:])</span>
+
+        <span class="k">return</span> <span class="n">LL_neuron</span></div>
+
+    <span class="c1"># END get_LL_neuron</span>
+
+<div class="viewcode-block" id="NDN.generate_prediction"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.generate_prediction">[docs]</a>    <span class="k">def</span> <span class="nf">generate_prediction</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_data</span><span class="p">,</span> <span class="n">data_indxs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ffnet_n</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">layer</span><span class="o">=-</span><span class="mi">1</span><span class="p">):</span>
+
+        <span class="c1"># check input</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">input_data</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+            <span class="n">input_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">input_data</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span> <span class="o">=</span> <span class="n">input_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">data_indxs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">data_indxs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">layer</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">layer</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">ffnet_n</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">),</span> <span class="s1">&#39;This layer does not exist.&#39;</span>
+
+        <span class="c1"># Generate fake_output data and take care of data-filtering, in case necessary</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filter_data</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">num_outputs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ffnet_out</span><span class="p">)</span>
+        <span class="n">output_data</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">num_outputs</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_outputs</span><span class="p">):</span>
+            <span class="n">output_data</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">ffnet_n</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span>
+                                       <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_build_graph</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">data_indxs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">data_indxs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_examples</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">Session</span><span class="p">(</span><span class="n">graph</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sess_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">sess</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_restore_params</span><span class="p">(</span><span class="n">sess</span><span class="p">,</span> <span class="n">input_data</span><span class="p">,</span> <span class="n">output_data</span><span class="p">)</span>
+
+            <span class="n">pred</span> <span class="o">=</span> <span class="n">sess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">ffnet_n</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span><span class="o">.</span><span class="n">outputs</span><span class="p">,</span> <span class="n">feed_dict</span><span class="o">=</span><span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span> <span class="n">data_indxs</span><span class="p">})</span>
+
+            <span class="k">return</span> <span class="n">pred</span></div>
+
+    <span class="c1"># END NetworkNIM.generate_prediction</span>
+
+<div class="viewcode-block" id="NDN.get_reg_pen"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.get_reg_pen">[docs]</a>    <span class="k">def</span> <span class="nf">get_reg_pen</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return reg penalties in a dictionary&quot;&quot;&quot;</span>
+
+        <span class="n">reg_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">Session</span><span class="p">(</span><span class="n">graph</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">sess_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">sess</span><span class="p">:</span>
+            <span class="c1"># initialize all parameters randomly</span>
+            <span class="n">sess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">init</span><span class="p">)</span>
+
+            <span class="c1"># overwrite randomly initialized values of model with stored values</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_assign_model_params</span><span class="p">(</span><span class="n">sess</span><span class="p">)</span>
+
+            <span class="c1"># update regularization parameter values</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_assign_reg_vals</span><span class="p">(</span><span class="n">sess</span><span class="p">)</span>
+
+            <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="s1">&#39;get_reg_pen&#39;</span><span class="p">):</span>  <span class="c1"># to keep the graph clean-ish</span>
+                <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_networks</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">layer</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">num_layers</span><span class="p">):</span>
+                        <span class="n">reg_dict</span><span class="p">[</span><span class="s1">&#39;net</span><span class="si">%i</span><span class="s1">L</span><span class="si">%i</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">nn</span><span class="p">,</span> <span class="n">layer</span><span class="p">]</span> <span class="o">=</span> \
+                            <span class="bp">self</span><span class="o">.</span><span class="n">networks</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="n">layer</span><span class="p">]</span><span class="o">.</span><span class="n">get_reg_pen</span><span class="p">(</span><span class="n">sess</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">reg_dict</span></div>
+
+    <span class="c1"># END get_reg_pen</span>
+
+<div class="viewcode-block" id="NDN.copy_model"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.copy_model">[docs]</a>    <span class="k">def</span> <span class="nf">copy_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tf_seed</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;For the moment, this just makes exact-copy without further elaboration.&quot;&quot;&quot;</span>
+
+        <span class="c1"># Assemble network_list</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">NDN</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">network_list</span><span class="p">,</span> <span class="n">ffnet_out</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ffnet_out</span><span class="p">,</span>
+                      <span class="n">noise_dist</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">noise_dist</span><span class="p">,</span> <span class="n">tf_seed</span><span class="o">=</span><span class="n">tf_seed</span> <span class="p">)</span>
+        <span class="k">return</span> <span class="n">target</span></div>
+
+    <span class="c1"># END NDN.copy_model</span>
+
+<div class="viewcode-block" id="NDN.nullLL"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDN.NDN.nullLL">[docs]</a>    <span class="k">def</span> <span class="nf">nullLL</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">Robs</span> <span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calculates null-model (constant firing rate) likelihood, given Robs (which determines</span>
+<span class="sd">        what firing rate for each cell)&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_dist</span> <span class="o">==</span> <span class="s1">&#39;gaussian&#39;</span><span class="p">:</span>
+            <span class="c1"># In this case, LLnull is just var of data</span>
+            <span class="n">LLnulls</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">Robs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_dist</span> <span class="o">==</span> <span class="s1">&#39;poisson&#39;</span><span class="p">:</span>
+            <span class="n">rbars</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">Robs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">LLnulls</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">rbars</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span>
+            <span class="c1"># elif self.noise_dist == &#39;bernoulli&#39;:</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">LLnulls</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">Robs</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Not worked out yet&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">LLnulls</span></div></div>
+    <span class="c1"># END NDN.nullLL</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Dan Butts, Matt Whiteway.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'2.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -1,0 +1,520 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>NDN.NDNutils &mdash; Neural Deep Network 2.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Neural Deep Network 2.0 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Neural Deep Network
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Neural Deep Network</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>NDN.NDNutils</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for NDN.NDNutils</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="k">import</span> <span class="n">toeplitz</span>
+
+
+<div class="viewcode-block" id="FFnetwork_params"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDNutils.FFnetwork_params">[docs]</a><span class="k">def</span> <span class="nf">FFnetwork_params</span><span class="p">(</span> <span class="n">input_dims</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">layer_sizes</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">ei_layers</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">act_funcs</span> <span class="o">=</span> <span class="s1">&#39;relu&#39;</span><span class="p">,</span>
+                      <span class="n">reg_list</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">layers_to_normalize</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">xstim_n</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+                      <span class="n">ffnet_n</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">verbose</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                      <span class="n">network_type</span> <span class="o">=</span> <span class="s1">&#39;normal&#39;</span><span class="p">,</span>
+                      <span class="n">num_conv_layers</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="c1"># the below are for convolutional network (SIN-NIM)</span>
+                      <span class="n">sep_layers</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">conv_filter_widths</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                      <span class="n">shift_spacing</span> <span class="o">=</span> <span class="mi">1</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This generates the information for the network_params dictionary that is passed into</span>
+<span class="sd">    the constructor for the NetworkNIM. It has the following input arguments:</span>
+<span class="sd">      -&gt; stim_dims</span>
+<span class="sd">      -&gt; layer_sizes: list of number of subunits in each layer of network. Last layer should match number of</span>
+<span class="sd">            neurons (Robs). Each entry can be a 3-d list, if there is a spatio-filter/temporal arrangement.</span>
+<span class="sd">      -&gt; ei_layers: if this is not none, it should be a list of # of inhibitory units for each layer other than</span>
+<span class="sd">            the output_layer: so list should be of length one-less than layer_sizes. All the non-inhibitory units</span>
+<span class="sd">            are of course excitatory, and having &#39;None&#39; for a layer means it will be unrestricted.</span>
+<span class="sd">      -&gt; act_funcs: (str or list of strs, optional): activation function for network layers; replicated if a</span>
+<span class="sd">            single element.</span>
+<span class="sd">            [&#39;relu&#39;] | &#39;sigmoid&#39; | &#39;tanh&#39; | &#39;identity&#39; | &#39;softplus&#39; | &#39;elu&#39; | &#39;quad&#39; | &#39;lin&#39;</span>
+<span class="sd">      -&gt; xstim_n: data-structure to process (in the case that there are more than one in the model). It should</span>
+<span class="sd">            be &#39;None&#39; if the network will be directed internally (see ffnet_n)</span>
+<span class="sd">      -&gt; ffnet_n: internal network that received input from (has to be None if xstim_n is used)</span>
+<span class="sd">      This function can also add parameters specific to the SinNIM if num_conv_layers &gt; 0</span>
+<span class="sd">      -&gt; conv_layers: number of convolutional layers</span>
+<span class="sd">      -&gt; filter_widths: spatial dimension of filter (if different than stim_dims)</span>
+<span class="sd">      -&gt; shift_spacing: how much shift in between each convolutional operation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">layer_sizes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Must specify layer_sizes.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">xstim_n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">xstim_n</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">xstim_n</span> <span class="o">=</span> <span class="p">[</span><span class="n">xstim_n</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">ffnet_n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;Must assign some input source.&#39;</span>
+    <span class="k">if</span> <span class="n">network_type</span> <span class="ow">is</span> <span class="s1">&#39;side&#39;</span><span class="p">:</span>
+        <span class="n">xstim_n</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">ffnet_n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ffnet_n</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">ffnet_n</span> <span class="o">=</span> <span class="p">[</span><span class="n">ffnet_n</span><span class="p">]</span>
+
+    <span class="c1"># Process input_dims, if applicable</span>
+    <span class="k">if</span> <span class="n">input_dims</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">input_dims</span> <span class="o">=</span> <span class="n">expand_input_dims_to_3d</span><span class="p">(</span> <span class="n">input_dims</span> <span class="p">)</span>
+
+    <span class="c1"># Build layer_sizes, layer_types, and ei_layers</span>
+    <span class="n">num_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">)</span>
+    <span class="n">layer_types</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;normal&#39;</span><span class="p">]</span><span class="o">*</span><span class="n">num_layers</span>
+    <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_conv_layers</span><span class="p">):</span>
+        <span class="n">layer_types</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">=</span><span class="s1">&#39;conv&#39;</span>
+    <span class="k">if</span> <span class="n">sep_layers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sep_layers</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">sep_layers</span> <span class="o">=</span> <span class="p">[</span><span class="n">sep_layers</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="n">sep_layers</span><span class="p">:</span>
+            <span class="n">layer_types</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">=</span><span class="s1">&#39;sep&#39;</span>
+
+    <span class="c1"># Establish positivity constraints</span>
+    <span class="n">pos_constraints</span> <span class="o">=</span> <span class="p">[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_layers</span>
+    <span class="n">num_inh_layers</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_layers</span>
+
+    <span class="c1"># Establish normalization</span>
+    <span class="n">norm_weights</span> <span class="o">=</span> <span class="p">[</span><span class="kc">False</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_layers</span>
+    <span class="k">if</span> <span class="n">layers_to_normalize</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="n">layers_to_normalize</span><span class="p">:</span>
+            <span class="n">norm_weights</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;True&#39;</span>
+
+    <span class="k">if</span> <span class="n">ei_layers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ei_layers</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">ei_layers</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">num_inh_layers</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">=</span> <span class="n">ei_layers</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">nn</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">num_layers</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="n">pos_constraints</span><span class="p">[</span><span class="n">nn</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">act_funcs</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">act_funcs</span> <span class="o">=</span> <span class="p">[</span><span class="n">act_funcs</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_layers</span>
+
+    <span class="c1"># Reformat regularization information into regularization for each layer</span>
+    <span class="n">reg_initializers</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_layers</span><span class="p">):</span>
+        <span class="n">reg_initializers</span><span class="o">.</span><span class="n">append</span><span class="p">({})</span>
+        <span class="k">if</span> <span class="n">reg_list</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">reg_type</span><span class="p">,</span> <span class="n">reg_val_list</span> <span class="ow">in</span> <span class="n">reg_list</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reg_val_list</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">reg_val_list</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">reg_initializers</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="n">reg_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">reg_val_list</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">reg_val_list</span><span class="p">)</span> <span class="o">==</span> <span class="n">num_layers</span><span class="p">,</span> <span class="s1">&#39;reg_list length must match number of layers.&#39;</span>
+                    <span class="k">if</span> <span class="n">reg_val_list</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">reg_initializers</span><span class="p">[</span><span class="n">nn</span><span class="p">][</span><span class="n">reg_type</span><span class="p">]</span> <span class="o">=</span> <span class="n">reg_val_list</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span>
+
+    <span class="n">network_params</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;network_type&#39;</span><span class="p">:</span> <span class="n">network_type</span><span class="p">,</span>
+        <span class="s1">&#39;xstim_n&#39;</span><span class="p">:</span> <span class="n">xstim_n</span><span class="p">,</span>
+        <span class="s1">&#39;ffnet_n&#39;</span><span class="p">:</span> <span class="n">ffnet_n</span><span class="p">,</span>
+        <span class="s1">&#39;input_dims&#39;</span><span class="p">:</span> <span class="n">input_dims</span><span class="p">,</span>
+        <span class="s1">&#39;layer_sizes&#39;</span><span class="p">:</span> <span class="n">layer_sizes</span><span class="p">,</span>
+        <span class="s1">&#39;layer_types&#39;</span><span class="p">:</span> <span class="n">layer_types</span><span class="p">,</span>
+        <span class="s1">&#39;activation_funcs&#39;</span><span class="p">:</span> <span class="n">act_funcs</span><span class="p">,</span>
+        <span class="s1">&#39;pos_constraints&#39;</span><span class="p">:</span> <span class="n">pos_constraints</span><span class="p">,</span>
+        <span class="s1">&#39;normalize_weights&#39;</span><span class="p">:</span> <span class="n">norm_weights</span><span class="p">,</span>
+        <span class="s1">&#39;num_inh&#39;</span><span class="p">:</span> <span class="n">num_inh_layers</span><span class="p">,</span>
+        <span class="s1">&#39;reg_initializers&#39;</span><span class="p">:</span> <span class="n">reg_initializers</span> <span class="p">}</span>
+
+    <span class="c1"># if convolutional, add the following SinNIM-specific fields</span>
+    <span class="k">if</span> <span class="n">num_conv_layers</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">conv_filter_widths</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">conv_filter_widths</span> <span class="o">=</span> <span class="p">[</span><span class="n">conv_filter_widths</span><span class="p">]</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">conv_filter_widths</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">num_conv_layers</span><span class="p">:</span>
+            <span class="n">conv_filter_widths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">network_params</span><span class="p">[</span><span class="s1">&#39;conv_filter_widths&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">conv_filter_widths</span>
+
+        <span class="n">network_params</span><span class="p">[</span><span class="s1">&#39;shift_spacing&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">shift_spacing</span><span class="p">]</span><span class="o">*</span><span class="n">num_conv_layers</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">input_dims</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span> <span class="s1">&#39;Input dimensions: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">input_dims</span><span class="p">)</span> <span class="p">)</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_conv_layers</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39;Conv Layer &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">nn</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39; (&#39;</span> <span class="o">+</span> <span class="n">act_funcs</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;): [E&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">-</span><span class="n">num_inh_layers</span><span class="p">[</span><span class="n">nn</span><span class="p">])</span>
+            <span class="n">s</span> <span class="o">+=</span> <span class="s1">&#39;/I&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">num_inh_layers</span><span class="p">[</span><span class="n">nn</span><span class="p">])</span> <span class="o">+</span> <span class="s1">&#39;]&#39;</span>
+            <span class="k">if</span> <span class="n">pos_constraints</span><span class="p">[</span><span class="n">nn</span><span class="p">]:</span>
+                <span class="n">s</span> <span class="o">+=</span> <span class="s1">&#39; +&#39;</span>
+            <span class="k">if</span> <span class="n">conv_filter_widths</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">+=</span> <span class="s1">&#39;  </span><span class="se">\t</span><span class="s1">filter width = &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">conv_filter_widths</span><span class="p">[</span><span class="n">nn</span><span class="p">])</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">nn</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_conv_layers</span><span class="p">,</span><span class="n">num_layers</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39;Layer &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">nn</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39; (&#39;</span> <span class="o">+</span> <span class="n">act_funcs</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;): [E&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">layer_sizes</span><span class="p">[</span><span class="n">nn</span><span class="p">]</span><span class="o">-</span><span class="n">num_inh_layers</span><span class="p">[</span><span class="n">nn</span><span class="p">])</span>
+            <span class="n">s</span> <span class="o">+=</span> <span class="s1">&#39;/I&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">num_inh_layers</span><span class="p">[</span><span class="n">nn</span><span class="p">])</span> <span class="o">+</span> <span class="s1">&#39;]&#39;</span>
+            <span class="k">if</span> <span class="n">pos_constraints</span><span class="p">[</span><span class="n">nn</span><span class="p">]:</span>
+                <span class="n">s</span> <span class="o">+=</span> <span class="s1">&#39; +&#39;</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">network_params</span></div>
+<span class="c1"># END createNIMparams</span>
+
+
+<div class="viewcode-block" id="expand_input_dims_to_3d"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDNutils.expand_input_dims_to_3d">[docs]</a><span class="k">def</span> <span class="nf">expand_input_dims_to_3d</span><span class="p">(</span><span class="n">input_size</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Utility function to turn inputs into 3-d vectors&quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_size</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">input3d</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">input_size</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">input3d</span> <span class="o">=</span> <span class="n">input_size</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">input3d</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">input3d</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">input3d</span></div>
+
+
+<div class="viewcode-block" id="concatenate_input_dims"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDNutils.concatenate_input_dims">[docs]</a><span class="k">def</span> <span class="nf">concatenate_input_dims</span><span class="p">(</span><span class="n">parent_input_size</span><span class="p">,</span> <span class="n">added_input_size</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Utility function to concatenate two sets of input_dims vectors</span>
+<span class="sd">    -- parent_input_size can be none, if added_input_size is first</span>
+<span class="sd">    -- otherwise its assumed parent_input_size is already 3-d, but</span>
+<span class="sd">        added input size might have to be formatted.&quot;&quot;&quot;</span>
+
+    <span class="n">cat_dims</span> <span class="o">=</span> <span class="n">expand_input_dims_to_3d</span><span class="p">(</span> <span class="n">added_input_size</span> <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">parent_input_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Sum full vector along the second dimension (first spatial)</span>
+        <span class="k">assert</span> <span class="n">parent_input_size</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">cat_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s1">&#39;First dimension of inputs do not agree.&#39;</span>
+        <span class="k">assert</span> <span class="n">parent_input_size</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="n">cat_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="s1">&#39;Last dimension of inputs do not agree.&#39;</span>
+        <span class="n">cat_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">parent_input_size</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">cat_dims</span></div>
+
+
+<div class="viewcode-block" id="shift_mat_zpad"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDNutils.shift_mat_zpad">[docs]</a><span class="k">def</span> <span class="nf">shift_mat_zpad</span><span class="p">(</span> <span class="n">x</span><span class="p">,</span> <span class="n">shift</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span> <span class="p">):</span>
+    <span class="c1"># Takes a vector or matrix and shifts it along dimension dim by amount shift using zero-padding.</span>
+    <span class="c1"># Positive shifts move the matrix right or down</span>
+
+    <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;only works in 2 dims or less at the moment.&#39;</span>
+    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">oneDarray</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">xcopy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="mi">1</span><span class="p">])</span>
+        <span class="n">xcopy</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">xcopy</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">oneDarray</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">sz</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">xcopy</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">sz</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">shift</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">shift</span><span class="p">,</span> <span class="n">sz</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">xcopy</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">sz</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="n">shift</span><span class="p">,</span> <span class="p">:]</span>
+            <span class="n">xshifted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">dim</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="o">-</span><span class="n">shift</span><span class="p">,</span> <span class="n">sz</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">xcopy</span><span class="p">[</span><span class="o">-</span><span class="n">shift</span><span class="p">:,</span> <span class="p">:]</span>
+            <span class="n">xshifted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">b</span><span class="p">,</span> <span class="n">a</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">dim</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">shift</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">sz</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">shift</span><span class="p">))</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">xcopy</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="n">sz</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">shift</span><span class="p">]</span>
+            <span class="n">xshifted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">dim</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">sz</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="n">shift</span><span class="p">))</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="n">xcopy</span><span class="p">[:,</span> <span class="o">-</span><span class="n">shift</span><span class="p">:]</span>
+            <span class="n">xshifted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">b</span><span class="p">,</span> <span class="n">a</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">dim</span><span class="p">)</span>
+
+    <span class="c1"># If the shift in one direction is bigger than the size of the stimulus in that direction return a zero matrix</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">abs</span><span class="p">(</span><span class="n">shift</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">sz</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">or</span> <span class="p">(</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">abs</span><span class="p">(</span><span class="n">shift</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">sz</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="n">xshifted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">sz</span><span class="p">)</span>
+
+    <span class="c1"># Make into single-dimension if it started that way</span>
+    <span class="k">if</span> <span class="n">oneDarray</span><span class="p">:</span>
+        <span class="n">xshifted</span> <span class="o">=</span> <span class="n">xshifted</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">xshifted</span></div>
+<span class="c1"># END shit_mat_zpad</span>
+
+
+<div class="viewcode-block" id="create_time_embedding"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDNutils.create_time_embedding">[docs]</a><span class="k">def</span> <span class="nf">create_time_embedding</span><span class="p">(</span><span class="n">stim</span><span class="p">,</span> <span class="n">pdims</span><span class="p">,</span> <span class="n">up_fac</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">tent_spacing</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    # All the arguments starting with a p are part of params structure which I will fix later</span>
+<span class="sd">    # Takes a Txd stimulus matrix and creates a time-embedded matrix of size Tx(d*L), where L is the desired</span>
+<span class="sd">    # number of time lags.</span>
+<span class="sd">    # If stim is a 3d array, the spatial dimensions are folded into the 2nd dimension.</span>
+<span class="sd">    # Assumes zero-padding.</span>
+<span class="sd">    # Optional up-sampling of stimulus and tent-basis representation for filter estimation.</span>
+<span class="sd">    # Note that xmatrix is formatted so that adjacent time lags are adjacent within a time-slice of the xmatrix, thus</span>
+<span class="sd">    # x(t, 1:nLags) gives all time lags of the first spatial pixel at time t.</span>
+<span class="sd">    #</span>
+<span class="sd">    # INPUTS:</span>
+<span class="sd">    #           stim: simulus matrix (time must be in the first dim).</span>
+<span class="sd">    #           params: struct of simulus params (see NIM.create_stim_params)</span>
+<span class="sd">    # OUTPUTS:</span>
+<span class="sd">    #           xmat: time-embedded stim matrix</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Note for myself: pdims[0] is nLags and the rest is spatial dimension</span>
+
+    <span class="n">sz</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">stim</span><span class="p">))</span>
+
+    <span class="c1"># If there are two spatial dims, fold them into one</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sz</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">stim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">stim</span><span class="p">,</span> <span class="p">(</span><span class="n">sz</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">sz</span><span class="p">[</span><span class="mi">1</span><span class="p">:])))</span>
+
+    <span class="c1"># No support for more than two spatial dimensions</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sz</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="nb">print</span> <span class="s1">&#39;More than two spatial dimensions not supported, but creating xmatrix anyways...&#39;</span>
+
+    <span class="c1"># Check that the size of stim matches with the specified stim_params structure</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">pdims</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">!=</span> <span class="n">sz</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="nb">print</span> <span class="s1">&#39;Stimulus dimension mismatch&#39;</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span>
+
+    <span class="n">modstim</span> <span class="o">=</span> <span class="n">stim</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="c1"># Up-sample stimulus if required</span>
+    <span class="k">if</span> <span class="n">up_fac</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">modstim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">modstim</span><span class="p">,</span> <span class="n">up_fac</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>  <span class="c1"># Repeats the stimulus along the time dimension</span>
+        <span class="n">sz</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">modstim</span><span class="p">))</span>  <span class="c1"># Since we have a new value for time dimension</span>
+
+    <span class="c1"># If using tent-basis representation</span>
+    <span class="k">if</span> <span class="n">tent_spacing</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># Create a tent-basis (triangle) filter</span>
+        <span class="n">tent_filter</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">tent_spacing</span><span class="p">)</span><span class="o">/</span><span class="n">tent_spacing</span><span class="p">,</span> <span class="mi">1</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">tent_spacing</span><span class="p">)</span><span class="o">/</span><span class="n">tent_spacing</span><span class="p">)</span> <span class="o">/</span> <span class="n">tent_spacing</span>
+        <span class="c1"># Apply to the stimulus</span>
+        <span class="n">filtered_stim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">sz</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tent_filter</span><span class="p">)):</span>
+            <span class="n">filtered_stim</span> <span class="o">=</span> <span class="n">filtered_stim</span> <span class="o">+</span> <span class="n">shift_mat_zpad</span><span class="p">(</span><span class="n">modstim</span><span class="p">,</span> <span class="n">ii</span><span class="o">-</span><span class="n">tent_spacing</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">tent_filter</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+        <span class="n">modstim</span> <span class="o">=</span> <span class="n">filtered_stim</span>
+
+    <span class="n">sz</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">modstim</span><span class="p">))</span>
+    <span class="n">lag_spacing</span> <span class="o">=</span> <span class="n">tent_spacing</span>  <span class="c1"># If ptent_spacing is not given in input then manually put lag_spacing = 1</span>
+    <span class="c1"># For temporal-only stimuli (this method can be faster if you&#39;re not using tent-basis rep)</span>
+    <span class="c1"># For myself, add: &amp; tent_spacing is empty (= &amp; isempty...).  Since isempty(tent_spa...) is equivalent to</span>
+    <span class="c1"># its value being 1 I added this condition to the if below temporarily:</span>
+    <span class="k">if</span> <span class="n">sz</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">tent_spacing</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">xmat</span> <span class="o">=</span> <span class="n">toeplitz</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">modstim</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">sz</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">modstim</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">pdims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># Otherwise loop over lags and manually shift the stim matrix</span>
+        <span class="n">xmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">sz</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">pdims</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">lag</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pdims</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="k">for</span> <span class="n">xx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sz</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+                <span class="n">xmat</span><span class="p">[:,</span> <span class="n">xx</span><span class="o">*</span><span class="n">pdims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">lag</span><span class="p">]</span> <span class="o">=</span> <span class="n">shift_mat_zpad</span><span class="p">(</span><span class="n">modstim</span><span class="p">[:,</span> <span class="n">xx</span><span class="p">],</span> <span class="n">lag_spacing</span><span class="o">*</span><span class="n">lag</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">xmat</span></div>
+<span class="c1"># END create_time_embedding</span>
+
+
+<div class="viewcode-block" id="spikes_to_Robs"><a class="viewcode-back" href="../../source/NDN.html#NDN.NDNutils.spikes_to_Robs">[docs]</a><span class="k">def</span> <span class="nf">spikes_to_Robs</span><span class="p">(</span> <span class="n">spks</span><span class="p">,</span> <span class="n">NT</span><span class="p">,</span> <span class="n">dt</span> <span class="p">):</span>
+
+    <span class="n">bins_to_use</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">NT</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">dt</span>
+    <span class="n">Robs</span><span class="p">,</span> <span class="n">bin_edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span> <span class="n">spks</span><span class="o">.</span><span class="n">flatten</span><span class="p">(),</span> <span class="n">bins</span><span class="o">=</span><span class="n">bins_to_use</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="p">)</span>
+    <span class="n">Robs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span> <span class="n">Robs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">Robs</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Dan Butts, Matt Whiteway.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'2.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

@@ -38,11 +38,10 @@ class NDN(Network):
             ffnet_out=-1,
             input_dim_list = None,
             tf_seed=0 ):
-
         """Constructor for network-NIM class
 
         Args:
-            network_list: created using 'FFNetwork_params'
+            network_list (list): created using 'FFNetwork_params'
         """
 
         if network_list is None:
@@ -273,8 +272,8 @@ class NDN(Network):
         self.cost_penalized = tf.add(self.cost, self.cost_reg)
 
         # save summary of cost
-        with tf.variable_scope('summaries'):
-            tf.summary.scalar('cost', cost)
+        # with tf.variable_scope('summaries'):
+        tf.summary.scalar('cost', self.cost)
     # END NDN._define_loss
 
     def _assign_model_params(self, sess):

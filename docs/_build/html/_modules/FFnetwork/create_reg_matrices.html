@@ -1,0 +1,441 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>FFnetwork.create_reg_matrices &mdash; Neural Deep Network 2.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Neural Deep Network 2.0 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Neural Deep Network
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Neural Deep Network</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>FFnetwork.create_reg_matrices</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for FFnetwork.create_reg_matrices</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">scipy.sparse</span> <span class="k">as</span> <span class="nn">sp</span>
+
+<div class="viewcode-block" id="create_Tikhonov_matrix"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.create_reg_matrices.create_Tikhonov_matrix">[docs]</a><span class="k">def</span> <span class="nf">create_Tikhonov_matrix</span><span class="p">(</span> <span class="n">stim_dims</span><span class="p">,</span> <span class="n">reg_type</span><span class="p">,</span> <span class="n">boundary_conditions</span><span class="o">=</span><span class="kc">None</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tmat = create_Tikhonov_matrix(stim_params, direction, order)</span>
+
+<span class="sd">    Creates a matrix specifying a an L2-regularization operator of the form</span>
+<span class="sd">    ||T*k||^2. Currently only supports second derivative/Laplacian operations</span>
+
+<span class="sd">    INPUTS:</span>
+<span class="sd">        stim_params: parameter struct associated with the target stimulus.</span>
+<span class="sd">            must contain .dims field specifying the number of stimulus elements along each dimension</span>
+<span class="sd">            &lt;.boundary_conds&gt; specifies boundary conditions: Inf is free boundary, 0 is tied to 0, and -1 is periodic</span>
+<span class="sd">            &lt;.split_pts&gt; specifies an &#39;internal boundary&#39; over which we dont want to smooth. [direction split_ind split_bnd]</span>
+<span class="sd">        direction: direction of the derivative relative to the stimulus dimensions. e.g. 1 is along the first dim, 2 is along the second, [1 2] is a laplacian</span>
+
+<span class="sd">    OUTPUTS:</span>
+<span class="sd">        Tmat: sparse matrix specifying the desired Tikhonov operation</span>
+
+<span class="sd">    # Boundary conditions would be ideally a dictionary with each reg type listed. Assumed infinity without</span>
+<span class="sd">    #   Currently not implemented</span>
+
+<span class="sd">    The method of computing sparse differencing matrices used here is adapted from</span>
+<span class="sd">    Bryan C. Smith&#39;s and Andrew V. Knyazev&#39;s function &quot;laplacian&quot;, available</span>
+<span class="sd">    here: http://www.mathworks.com/matlabcentral/fileexchange/27279-laplacian-in-1d-2d-or-3d</span>
+<span class="sd">    Written in Matlab by James McFarland, adapted into python by Dan Butts</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+    <span class="n">nLags</span> <span class="o">=</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># first dimension is assumed to represent time lags</span>
+    <span class="n">nPix</span> <span class="o">=</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="c1"># additional dimensions are spatial (Nx and Ny)</span>
+    <span class="n">allowed_reg_types</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;d2xt&#39;</span><span class="p">,</span> <span class="s1">&#39;d2x&#39;</span><span class="p">,</span> <span class="s1">&#39;d2t&#39;</span><span class="p">]</span>
+
+    <span class="c1">#assert (ischar(reg_type) &amp;&amp; ismember(reg_type, allowed_reg_types), &#39;not an allowed regularization type&#39;);</span>
+
+    <span class="c1">#has_split = ~isempty(stim_params.split_pts);</span>
+    <span class="n">et</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="n">nLags</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span> <span class="p">)</span>
+    <span class="n">ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span> <span class="p">)</span>
+    <span class="n">ey</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span> <span class="p">)</span>
+
+    <span class="c1"># Boundary conditions (currently not implemented)</span>
+    <span class="c1">#if isinf(stim_params.boundary_conds(1)) # if temporal dim has free boundary</span>
+    <span class="c1">#et[0, [0, -1]] = 0  # constrain temporal boundary to zero: all else are free</span>
+    <span class="c1">#if isinf(stim_params.boundary_conds(2)) # if first spatial dim has free boundary</span>
+    <span class="n">ex</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1">#if isinf(stim_params.boundary_conds(3)); # if second spatial dim has free boundary</span>
+    <span class="n">ey</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">if</span> <span class="n">nPix</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>       <span class="c1"># for 0-spatial-dimensional stimuli can only do temporal</span>
+
+        <span class="k">assert</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;d2t&#39;</span><span class="p">,</span> <span class="s1">&#39;Can only do temporal reg for stimuli without spatial dims&#39;</span>
+
+        <span class="n">Tmat</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">et</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">et</span><span class="p">,</span><span class="n">et</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">nLags</span><span class="p">,</span> <span class="n">nLags</span> <span class="p">)</span>
+        <span class="c1">#if stim_params.boundary_conds(1) == -1 # if periodic boundary cond</span>
+        <span class="c1">#    Tmat(end, 1) = 1;</span>
+        <span class="c1">#    Tmat(1, end) = 1;</span>
+
+    <span class="k">elif</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span> <span class="c1"># for 1 - spatial dimensional stimuli</span>
+        <span class="k">if</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;d2t&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">nLags</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;No d2t regularization possible with no lags.&#39;</span>
+
+            <span class="c1">#D1t = spdiags([et - 2 * et et], [-1 0 1], nLags, nLags)&#39;;</span>
+            <span class="n">D1t</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">et</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">et</span><span class="p">,</span><span class="n">et</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">nLags</span><span class="p">,</span> <span class="n">nLags</span><span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="c1">#    if stim_params.boundary_conds(1) == -1 % if periodic boundary cond</span>
+            <span class="c1">#        D1t(end, 1) = 1;</span>
+            <span class="c1">#        D1t(1, end) = 1;</span>
+            <span class="n">Ix</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">Tmat</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">Ix</span><span class="p">,</span> <span class="n">D1t</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;d2x&#39;</span><span class="p">:</span>
+            <span class="n">It</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nLags</span><span class="p">)</span>
+            <span class="c1"># Matlab code: D1x = spdiags([ex -2*ex ex], [-1 0 1], nPix(1), nPix(1))&#39;;</span>
+            <span class="n">D1x</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">ex</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">ex</span><span class="p">,</span><span class="n">ex</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="p">))</span>
+            <span class="c1">#if stim_params.boundary_conds(2) == -1 % if periodic boundary cond</span>
+            <span class="c1">#    D1x(end, 1) = 1;</span>
+            <span class="c1">#    D1x(1, end) = 1;</span>
+
+            <span class="n">Tmat</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span> <span class="n">D1x</span><span class="p">,</span> <span class="n">It</span> <span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;d2xt&#39;</span><span class="p">:</span>
+            <span class="c1"># D1t = spdiags([et - 2 * et et], [-1 0 1], nLags, nLags)&#39;;</span>
+            <span class="n">D1t</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">et</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">et</span><span class="p">,</span><span class="n">et</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">nLags</span><span class="p">,</span><span class="n">nLags</span> <span class="p">)</span> <span class="p">))</span>
+            <span class="c1">#if stim_params.boundary_conds(1) == -1 % if periodic boundary cond</span>
+            <span class="c1">#    D1t(end, 1) = 1;</span>
+            <span class="c1">#    D1t(1, end) = 1;</span>
+
+            <span class="c1">#D1x = spdiags([ex - 2 * ex ex], [-1 0 1], nPix(1), nPix(1))&#39;;</span>
+            <span class="n">D1x</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">ex</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">ex</span><span class="p">,</span><span class="n">ex</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="p">))</span>
+            <span class="c1">#if stim_params.boundary_conds(2) == -1 % if periodic boundary cond</span>
+            <span class="c1">#    D1x(end, 1) = 1;</span>
+            <span class="c1">#    D1x(1, end) = 1;</span>
+
+            <span class="n">It</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nLags</span><span class="p">)</span>
+            <span class="n">Ix</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">Tmat</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">Ix</span><span class="p">,</span> <span class="n">D1t</span><span class="p">)</span> <span class="o">+</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">D1x</span><span class="p">,</span> <span class="n">It</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span> <span class="c1"># for stimuli with 2-spatial dimensions</span>
+        <span class="k">if</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;d2t&#39;</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">nLags</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;No d2t regularization possible with no lags.&#39;</span>
+            <span class="c1"># D1t = spdiags([et - 2 * et et], [-1 0 1], nLags, nLags)&#39;;</span>
+            <span class="n">D1t</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">et</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">et</span><span class="p">,</span><span class="n">et</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">nLags</span><span class="p">,</span> <span class="n">nLags</span><span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="c1">#if stim_params.boundary_conds(1) == -1 % if periodic boundary cond</span>
+            <span class="c1">#    D1t(end, 1) = 1;</span>
+            <span class="c1">#    D1t(1, end) = 1;</span>
+
+            <span class="n">Ix</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">Iy</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="n">Tmat</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span> <span class="n">Iy</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">Ix</span><span class="p">,</span><span class="n">D1t</span><span class="p">)</span> <span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;d2x&#39;</span><span class="p">:</span>
+            <span class="n">It</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nLags</span><span class="p">)</span>
+            <span class="n">Ix</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">Iy</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="c1"># D1x = spdiags([ex - 2 * ex ex], [-1 0 1], nPix(1), nPix(1))&#39;;</span>
+            <span class="n">D1x</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">ex</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">ex</span><span class="p">,</span><span class="n">ex</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="p">))</span>
+            <span class="c1">#if stim_params.boundary_conds(2) == -1 % if periodic boundary cond</span>
+            <span class="c1">#    D1x(end, 1) = 1</span>
+            <span class="c1">#    D1x(1, end) = 1</span>
+
+            <span class="c1"># D1y = spdiags([ey - 2 * ey ey], [-1 0 1], nPix(2), nPix(2))&#39;;</span>
+            <span class="n">D1y</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">ey</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">ey</span><span class="p">,</span><span class="n">ey</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="p">)</span> <span class="p">))</span>
+            <span class="c1">#if stim_params.boundary_conds(3) == -1 % if periodic boundary cond</span>
+            <span class="c1">#    D1y(end, 1) = 1;</span>
+            <span class="c1">#    D1y(1, end) = 1;</span>
+
+            <span class="n">Tmat</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span> <span class="n">Iy</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">D1x</span><span class="p">,</span><span class="n">It</span><span class="p">)</span> <span class="p">)</span> <span class="o">+</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span> <span class="n">D1y</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">Ix</span><span class="p">,</span><span class="n">It</span><span class="p">)</span> <span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;d2xt&#39;</span><span class="p">:</span>
+            <span class="n">It</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">nLags</span><span class="p">)</span>
+            <span class="n">Ix</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">Iy</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+            <span class="c1"># D1t = spdiags([et - 2 * et et], [-1 0 1], nLags, nLags)&#39;;</span>
+            <span class="n">D1t</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">et</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">et</span><span class="p">,</span><span class="n">et</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">nLags</span><span class="p">,</span> <span class="n">nLags</span><span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="c1">#if stim_params.boundary_conds(1) == -1 # if periodic boundary cond</span>
+            <span class="c1">#    D1t(end, 1) = 1</span>
+            <span class="c1">#    D1t(1, end) = 1</span>
+
+            <span class="c1"># D1x = spdiags([ex - 2 * ex ex], [-1 0 1], nPix(1), nPix(1))&#39;;</span>
+            <span class="n">D1x</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">ex</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">ex</span><span class="p">,</span><span class="n">ex</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">)</span> <span class="p">))</span>
+            <span class="c1">#if stim_params.boundary_conds(2) == -1 % if periodic boundary cond</span>
+            <span class="c1">#    D1x(end, 1) = 1;</span>
+            <span class="c1">#    D1x(1, end) = 1;</span>
+
+            <span class="c1"># D1y = spdiags([ey - 2 * ey ey], [-1 0 1], nPix(2), nPix(2))&#39;;</span>
+            <span class="n">D1y</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">sp</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">(</span>
+                <span class="n">sp</span><span class="o">.</span><span class="n">spdiags</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span> <span class="p">(</span><span class="n">ey</span><span class="p">,</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">ey</span><span class="p">,</span><span class="n">ey</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">stim_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="p">)</span> <span class="p">))</span>
+            <span class="c1">#if stim_params.boundary_conds(3) == -1 % if periodic boundary cond</span>
+            <span class="c1">#    D1y(end, 1) = 1;</span>
+            <span class="c1">#    D1y(1, end) = 1;</span>
+
+            <span class="n">Tmat</span> <span class="o">=</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span> <span class="n">D1y</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">Ix</span><span class="p">,</span><span class="n">It</span><span class="p">)</span> <span class="p">)</span> <span class="o">+</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span> <span class="n">Iy</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">D1x</span><span class="p">,</span><span class="n">It</span><span class="p">)</span> <span class="p">)</span> <span class="o">+</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span> <span class="n">Iy</span><span class="p">,</span> <span class="n">sp</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">Ix</span><span class="p">,</span><span class="n">D1t</span><span class="p">)</span> <span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Unsupported reg type.&#39;</span><span class="p">)</span>
+            <span class="n">Tmat</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">Tmat</span> <span class="o">=</span> <span class="n">Tmat</span><span class="o">.</span><span class="n">toarray</span><span class="p">()</span>  <span class="c1"># make dense matrix before sending home</span>
+
+    <span class="k">return</span> <span class="n">Tmat</span></div>
+
+
+<div class="viewcode-block" id="create_maxpenalty_matrix"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.create_reg_matrices.create_maxpenalty_matrix">[docs]</a><span class="k">def</span> <span class="nf">create_maxpenalty_matrix</span><span class="p">(</span> <span class="n">input_dims</span><span class="p">,</span> <span class="n">reg_type</span> <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tmat = create_Tikhonov_matrix(stim_params, direction, order)</span>
+
+<span class="sd">    Creates a matrix specifying a an L2-regularization operator of the form</span>
+<span class="sd">    ||T*k||^2. Currently only supports second derivative/Laplacian operations</span>
+
+<span class="sd">    INPUTS:</span>
+<span class="sd">        stim_params: parameter struct associated with the target stimulus.</span>
+<span class="sd">            must contain .dims field specifying the number of stimulus elements along each dimension</span>
+<span class="sd">            &lt;.boundary_conds&gt; specifies boundary conditions: Inf is free boundary, 0 is tied to 0, and -1 is periodic</span>
+<span class="sd">            &lt;.split_pts&gt; specifies an &#39;internal boundary&#39; over which we dont want to smooth. [direction split_ind split_bnd]</span>
+<span class="sd">        direction: direction of the derivative relative to the stimulus dimensions. e.g. 1 is along the first dim, 2 is along the second, [1 2] is a laplacian</span>
+
+<span class="sd">    OUTPUTS:</span>
+<span class="sd">        Tmat: sparse matrix specifying the desired Tikhonov operation</span>
+
+<span class="sd">    # Boundary conditions would be ideally a dictionary with each reg type listed. Assumed infinity without</span>
+<span class="sd">    #   Currently not implemented</span>
+
+<span class="sd">    The method of computing sparse differencing matrices used here is adapted from</span>
+<span class="sd">    Bryan C. Smith&#39;s and Andrew V. Knyazev&#39;s function &quot;laplacian&quot;, available</span>
+<span class="sd">    here: http://www.mathworks.com/matlabcentral/fileexchange/27279-laplacian-in-1d-2d-or-3d</span>
+<span class="sd">    Written in Matlab by James McFarland, adapted into python by Dan Butts</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">allowed_reg_types</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;max&#39;</span><span class="p">,</span> <span class="s1">&#39;max_filt&#39;</span><span class="p">,</span> <span class="s1">&#39;max_space&#39;</span><span class="p">]</span>
+    <span class="c1">#assert (ischar(reg_type) &amp;&amp; ismember(reg_type, allowed_reg_types), &#39;not an allowed regularization type&#39;);</span>
+
+    <span class="n">num_filt</span> <span class="o">=</span> <span class="n">input_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># first dimension is assumed to represent filters</span>
+    <span class="n">num_pix</span> <span class="o">=</span> <span class="n">input_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="c1"># additional dimensions are spatial (Nx and Ny)</span>
+    <span class="n">NK</span> <span class="o">=</span> <span class="n">num_filt</span> <span class="o">*</span> <span class="n">num_pix</span>
+
+    <span class="n">rmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="n">NK</span><span class="p">,</span><span class="n">NK</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;max&#39;</span><span class="p">:</span>
+        <span class="c1"># Simply subtract the diagonal from all-ones</span>
+        <span class="n">rmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">([</span><span class="n">NK</span><span class="p">,</span><span class="n">NK</span><span class="p">],</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">NK</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;max_filt&#39;</span><span class="p">:</span>
+        <span class="n">ek</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">([</span><span class="n">num_filt</span><span class="p">,</span> <span class="n">num_filt</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">num_filt</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">rmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">num_pix</span><span class="p">),</span> <span class="n">ek</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">reg_type</span> <span class="ow">is</span> <span class="s1">&#39;max_space&#39;</span><span class="p">:</span>
+        <span class="n">ex</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">([</span><span class="n">num_pix</span><span class="p">,</span> <span class="n">num_pix</span><span class="p">])</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">num_pix</span><span class="p">)</span>
+        <span class="n">rmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">kron</span><span class="p">(</span><span class="n">ex</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">num_filt</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Havent made this type of reg yet. What you are getting wont work.&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">rmat</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Dan Butts, Matt Whiteway.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'2.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

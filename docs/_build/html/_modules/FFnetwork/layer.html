@@ -1,0 +1,841 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>FFnetwork.layer &mdash; Neural Deep Network 2.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Neural Deep Network 2.0 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Neural Deep Network
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <!-- Local TOC -->
+              <div class="local-toc"></div>
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Neural Deep Network</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>FFnetwork.layer</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for FFnetwork.layer</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Basic layer definitions&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">tensorflow</span> <span class="k">as</span> <span class="nn">tf</span>
+<span class="kn">from</span> <span class="nn">.regularization</span> <span class="k">import</span> <span class="n">Regularization</span>
+<span class="kn">from</span> <span class="nn">.regularization</span> <span class="k">import</span> <span class="n">Sep_Regularization</span>
+
+<div class="viewcode-block" id="Layer"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer">[docs]</a><span class="k">class</span> <span class="nc">Layer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Implementation of fully connected neural network layer</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        scope (str): name scope for variables and operations in layer</span>
+<span class="sd">        input_dims (list): inputs to layer</span>
+<span class="sd">        output_dims (list): outputs of layer</span>
+<span class="sd">        outputs (tf Tensor): output of layer</span>
+<span class="sd">        num_inh (int): number of inhibitory units in layer</span>
+<span class="sd">        weights_ph (tf placeholder): placeholder for weights in layer</span>
+<span class="sd">        biases_ph (tf placeholder): placeholder for biases in layer</span>
+<span class="sd">        weights_var (tf Tensor): weights in layer</span>
+<span class="sd">        biases_var (tf Tensor): biases in layer</span>
+<span class="sd">        weights (numpy array): shadow variable of `weights_var` that allows for </span>
+<span class="sd">            easier manipulation outside of tf sessions</span>
+<span class="sd">        biases (numpy array): shadow variable of `biases_var` that allows for </span>
+<span class="sd">            easier manipulation outside of tf sessions</span>
+<span class="sd">        activation_func (tf activation function): activation function in layer</span>
+<span class="sd">        reg (Regularization object): holds regularizations values and matrices</span>
+<span class="sd">            (as tf constants) for layer</span>
+<span class="sd">        ei_mask_var (tf constant): mask of +/-1s to multiply output of layer</span>
+<span class="sd">        ei_mask (list): mask of +/-1s to multiply output of layer; shadows </span>
+<span class="sd">            `ei_mask_tf` for easier manipulation outside of tf sessions</span>
+<span class="sd">        pos_constraint (bool): positivity constraint on weights in layer</span>
+<span class="sd">        log (bool): use tf summary writers on layer output</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Layer.__init__"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">scope</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">input_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># this can be a list up to 3-dimensions</span>
+            <span class="n">filter_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">output_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">activation_func</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">,</span>
+            <span class="n">normalize_weights</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">weights_initializer</span><span class="o">=</span><span class="s1">&#39;trunc_normal&#39;</span><span class="p">,</span>
+            <span class="n">biases_initializer</span><span class="o">=</span><span class="s1">&#39;zeros&#39;</span><span class="p">,</span>
+            <span class="n">reg_initializer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">num_inh</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">pos_constraint</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">log_activations</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Constructor for Layer class</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            scope (str): name scope for variables and operations in layer</span>
+<span class="sd">            input_dims (int or list): dimensions of input data</span>
+<span class="sd">            output_dims (int or list): dimensions of output data</span>
+<span class="sd">            activation_func (str, optional): pointwise function applied to  </span>
+<span class="sd">                output of affine transformation</span>
+<span class="sd">                [&#39;relu&#39;] | &#39;sigmoid&#39; | &#39;tanh&#39; | &#39;identity&#39; | &#39;softplus&#39; | </span>
+<span class="sd">                &#39;elu&#39; | &#39;quad&#39;</span>
+<span class="sd">            weights_initializer (str, optional): initializer for the weights</span>
+<span class="sd">                [&#39;trunc_normal&#39;] | &#39;normal&#39; | &#39;zeros&#39;</span>
+<span class="sd">            biases_initializer (str, optional): initializer for the biases</span>
+<span class="sd">                &#39;trunc_normal&#39; | &#39;normal&#39; | [&#39;zeros&#39;]</span>
+<span class="sd">            reg_initializer (dict, optional): see Regularizer docs for info</span>
+<span class="sd">            num_inh (int, optional): number of inhibitory units in layer</span>
+<span class="sd">            pos_constraint (bool, optional): True to constrain layer weights to </span>
+<span class="sd">                be positive</span>
+<span class="sd">            log_activations (bool, optional): True to use tf.summary on layer </span>
+<span class="sd">                activations</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            TypeError: If `variable_scope` is not specified</span>
+<span class="sd">            TypeError: If `inputs` is not specified</span>
+<span class="sd">            TypeError: If `num_inputs` or `num_outputs` is not specified</span>
+<span class="sd">            ValueError: If `num_inh` is greater than total number of units</span>
+<span class="sd">            ValueError: If `activation_func` is not a valid string</span>
+<span class="sd">            ValueError: If `weights_initializer` is not a valid string</span>
+<span class="sd">            ValueError: If `biases_initializer` is not a valid string</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># check for required inputs</span>
+        <span class="k">if</span> <span class="n">scope</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Must specify layer scope&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">input_dims</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">output_dims</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Must specify both input and output dimensions&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">scope</span> <span class="o">=</span> <span class="n">scope</span>
+
+        <span class="c1"># Make input, output, and filter sizes explicit</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">input_dims</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_dims</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">input_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">input_dims</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">input_dims</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output_dims</span><span class="p">,</span><span class="nb">list</span><span class="p">):</span>
+            <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">output_dims</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">output_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">num_outputs</span> <span class="o">=</span> <span class="n">output_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">output_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">output_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">num_outputs</span> <span class="o">=</span> <span class="n">output_dims</span>
+            <span class="n">output_dims</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">output_dims</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span> <span class="o">=</span> <span class="n">input_dims</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_dims</span> <span class="o">=</span> <span class="n">output_dims</span>
+        <span class="c1"># default to have N filts for N outputs in base layer class</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_filters</span> <span class="o">=</span> <span class="n">num_outputs</span>
+        <span class="k">if</span> <span class="n">filter_dims</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">filter_dims</span> <span class="o">=</span> <span class="n">input_dims</span>
+        <span class="n">num_inputs</span> <span class="o">=</span> <span class="n">filter_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">filter_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">filter_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filter_dims</span> <span class="o">=</span> <span class="n">filter_dims</span>
+
+        <span class="c1"># resolve activation function string</span>
+        <span class="k">if</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;relu&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">relu</span>
+        <span class="k">elif</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;sigmoid&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">sigmoid</span>
+        <span class="k">elif</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;tanh&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">tanh</span>
+        <span class="k">elif</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;lin&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">identity</span>
+        <span class="k">elif</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">identity</span>
+        <span class="k">elif</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;softplus&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">softplus</span>
+        <span class="k">elif</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;quad&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">square</span>
+        <span class="k">elif</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;elu&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">elu</span>
+        <span class="k">elif</span> <span class="n">activation_func</span> <span class="o">==</span> <span class="s1">&#39;exp&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">exp</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid activation function &#39;&#39;</span><span class="si">%s</span><span class="s1">&#39;&#39;&#39;</span> <span class="o">%</span>
+                             <span class="n">activation_func</span><span class="p">)</span>
+
+        <span class="c1"># create excitatory/inhibitory mask</span>
+        <span class="k">if</span> <span class="n">num_inh</span> <span class="o">&gt;</span> <span class="n">num_outputs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Too many inhibitory units designated&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">num_outputs</span> <span class="o">-</span> <span class="n">num_inh</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_inh</span>
+
+        <span class="c1"># save positivity constraint on weights</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pos_constraint</span> <span class="o">=</span> <span class="n">pos_constraint</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">normalize_weights</span> <span class="o">=</span> <span class="n">normalize_weights</span>
+
+        <span class="c1"># use tf&#39;s summary writer to save layer activation histograms</span>
+        <span class="k">if</span> <span class="n">log_activations</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">log</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># Set up layer regularization</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reg</span> <span class="o">=</span> <span class="n">Regularization</span><span class="p">(</span>
+            <span class="n">input_dims</span><span class="o">=</span><span class="n">filter_dims</span><span class="p">,</span>
+            <span class="n">num_outputs</span><span class="o">=</span><span class="n">num_outputs</span><span class="p">,</span>
+            <span class="n">vals</span><span class="o">=</span><span class="n">reg_initializer</span><span class="p">)</span>
+
+        <span class="c1"># Initialize weight values</span>
+        <span class="n">weight_dims</span> <span class="o">=</span> <span class="p">(</span><span class="n">num_inputs</span><span class="p">,</span> <span class="n">num_outputs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">weights_initializer</span> <span class="o">==</span> <span class="s1">&#39;trunc_normal&#39;</span><span class="p">:</span>
+            <span class="n">init_weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">weight_dims</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">weights_initializer</span> <span class="o">==</span> <span class="s1">&#39;normal&#39;</span><span class="p">:</span>
+            <span class="n">init_weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">weight_dims</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">weights_initializer</span> <span class="o">==</span> <span class="s1">&#39;zeros&#39;</span><span class="p">:</span>
+            <span class="n">init_weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">weight_dims</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid weights_initializer &#39;&#39;</span><span class="si">%s</span><span class="s1">&#39;&#39;&#39;</span> <span class="o">%</span>
+                             <span class="n">weights_initializer</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pos_constraint</span><span class="p">:</span>
+            <span class="n">init_weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">init_weights</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">normalize_weights</span><span class="p">:</span>
+            <span class="n">init_weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">init_weights</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">init_weights</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="p">)</span> <span class="p">)</span>
+
+        <span class="c1"># Initialize numpy array that will feed placeholder</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weights</span> <span class="o">=</span> <span class="n">init_weights</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Initialize bias values</span>
+        <span class="n">bias_dims</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_outputs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">biases_initializer</span> <span class="o">==</span> <span class="s1">&#39;trunc_normal&#39;</span><span class="p">:</span>
+            <span class="n">init_biases</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">bias_dims</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">biases_initializer</span> <span class="o">==</span> <span class="s1">&#39;normal&#39;</span><span class="p">:</span>
+            <span class="n">init_biases</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="n">bias_dims</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">biases_initializer</span> <span class="o">==</span> <span class="s1">&#39;zeros&#39;</span><span class="p">:</span>
+            <span class="n">init_biases</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">bias_dims</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Invalid biases_initializer &#39;&#39;</span><span class="si">%s</span><span class="s1">&#39;&#39;&#39;</span> <span class="o">%</span>
+                             <span class="n">biases_initializer</span><span class="p">)</span>
+        <span class="c1"># Initialize numpy array that will feed placeholder</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">biases</span> <span class="o">=</span> <span class="n">init_biases</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Define tensorflow variables as placeholders</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weights_ph</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">biases_ph</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+    <span class="c1"># END Layer.__init__</span>
+
+    <span class="k">def</span> <span class="nf">_define_layer_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Define tensor-flow versions of variables (placeholder and variables)</span>
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="s1">&#39;weights_init&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">weights_ph</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">placeholder_with_default</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span>
+                <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;weights_ph&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">Variable</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">weights_ph</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;weights_var&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Initialize biases placeholder/variable</span>
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="s1">&#39;biases_init&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">biases_ph</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">placeholder_with_default</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">biases</span><span class="p">,</span>
+                <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">biases</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;biases_ph&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">Variable</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">biases_ph</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+                <span class="n">name</span><span class="o">=</span><span class="s1">&#39;biases_var&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Check for need of ei_mask</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ei_mask</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ei_mask</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask_var</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">constant</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;ei_mask&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask_var</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># END Layer._define_layer_variables</span>
+
+<div class="viewcode-block" id="Layer.build_graph"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer.build_graph">[docs]</a>    <span class="k">def</span> <span class="nf">build_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">params_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scope</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_define_layer_variables</span><span class="p">()</span>
+
+            <span class="c1"># Define computation</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_constraint</span><span class="p">:</span>
+                <span class="n">pre</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span>
+                    <span class="n">inputs</span><span class="p">,</span>
+                    <span class="n">tf</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="p">)),</span> <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pre</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+                    <span class="n">tf</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">normalize_weights</span><span class="p">:</span>
+                <span class="n">wnorms</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">reduce_sum</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span> <span class="p">)</span> <span class="p">)</span>
+                <span class="n">pre</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span> <span class="n">pre</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">wnorms</span><span class="p">,</span> <span class="mf">1e-6</span><span class="p">)</span> <span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask_var</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">post</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span><span class="p">(</span><span class="n">pre</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask_var</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">post</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span><span class="p">(</span><span class="n">pre</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">post</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">:</span>
+            <span class="n">tf</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="s1">&#39;act_pre&#39;</span><span class="p">,</span> <span class="n">pre</span><span class="p">)</span>
+            <span class="n">tf</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="s1">&#39;act_post&#39;</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span></div>
+    <span class="c1"># END layer.build_graph</span>
+
+<div class="viewcode-block" id="Layer.assign_layer_params"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer.assign_layer_params">[docs]</a>    <span class="k">def</span> <span class="nf">assign_layer_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sess</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read weights/biases in numpy arrays into tf Variables&quot;&quot;&quot;</span>
+        <span class="n">sess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="o">.</span><span class="n">initializer</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span><span class="o">.</span><span class="n">initializer</span><span class="p">],</span>
+            <span class="n">feed_dict</span><span class="o">=</span><span class="p">{</span><span class="bp">self</span><span class="o">.</span><span class="n">weights_ph</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span>
+                       <span class="bp">self</span><span class="o">.</span><span class="n">biases_ph</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">biases</span><span class="p">})</span></div>
+
+<div class="viewcode-block" id="Layer.write_layer_params"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer.write_layer_params">[docs]</a>    <span class="k">def</span> <span class="nf">write_layer_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sess</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Write weights/biases in tf Variables to numpy arrays&quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">weights</span> <span class="o">=</span> <span class="n">sess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_constraint</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">normalize_weights</span><span class="p">:</span>
+            <span class="n">wnorm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">),</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+            <span class="n">wnorm</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">wnorm</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">weights</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">weights</span><span class="p">,</span> <span class="n">wnorm</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">biases</span> <span class="o">=</span> <span class="n">sess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span><span class="p">)</span></div>
+    <span class="c1"># END Layer.write_layer_params</span>
+
+<div class="viewcode-block" id="Layer.define_regularization_loss"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer.define_regularization_loss">[docs]</a>    <span class="k">def</span> <span class="nf">define_regularization_loss</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Wrapper function for building regularization portion of graph&quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scope</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">define_reg_loss</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Layer.set_regularization"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer.set_regularization">[docs]</a>    <span class="k">def</span> <span class="nf">set_regularization</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reg_type</span><span class="p">,</span> <span class="n">reg_val</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Wrapper function for setting regularization&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">set_reg_val</span><span class="p">(</span><span class="n">reg_type</span><span class="p">,</span> <span class="n">reg_val</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Layer.assign_reg_vals"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer.assign_reg_vals">[docs]</a>    <span class="k">def</span> <span class="nf">assign_reg_vals</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sess</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Wrapper function for assigning regularization values&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">assign_reg_vals</span><span class="p">(</span><span class="n">sess</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Layer.get_reg_pen"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.Layer.get_reg_pen">[docs]</a>    <span class="k">def</span> <span class="nf">get_reg_pen</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sess</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Wrapper function for returning regularization penalty struct&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">get_reg_penalty</span><span class="p">(</span><span class="n">sess</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="convLayer"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.convLayer">[docs]</a><span class="k">class</span> <span class="nc">convLayer</span><span class="p">(</span><span class="n">Layer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Implementation of fully connected neural network layer</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        scope (str): name scope for variables and operations in layer</span>
+<span class="sd">        num_inputs (int): number of inputs to layer</span>
+<span class="sd">        num_outputs (int): number of outputs of layer</span>
+<span class="sd">        outputs (tf Tensor): output of layer</span>
+<span class="sd">        num_inh (int): number of inhibitory units in layer</span>
+<span class="sd">        weights_ph (tf placeholder): placeholder for weights in layer</span>
+<span class="sd">        biases_ph (tf placeholder): placeholder for biases in layer</span>
+<span class="sd">        weights_var (tf Tensor): weights in layer</span>
+<span class="sd">        biases_var (tf Tensor): biases in layer</span>
+<span class="sd">        weights (numpy array): shadow variable of `weights_var` that allows for</span>
+<span class="sd">            easier manipulation outside of tf sessions</span>
+<span class="sd">        biases (numpy array): shadow variable of `biases_var` that allows for</span>
+<span class="sd">            easier manipulation outside of tf sessions</span>
+<span class="sd">        activation_func (tf activation function): activation function in layer</span>
+<span class="sd">        reg (Regularization object): holds regularizations values and matrices</span>
+<span class="sd">            (as tf constants) for layer</span>
+<span class="sd">        ei_mask_var (tf constant): mask of +/-1s to multiply output of layer</span>
+<span class="sd">        ei_mask (list): mask of +/-1s to multiply output of layer; shadows</span>
+<span class="sd">            `ei_mask_tf` for easier manipulation outside of tf sessions</span>
+<span class="sd">        pos_constraint (bool): positivity constraint on weights in layer</span>
+<span class="sd">        log (bool): use tf summary writers on layer output</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="convLayer.__init__"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.convLayer.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">scope</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">input_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="c1"># this can be a list up to 3-dimensions</span>
+            <span class="n">num_filters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">filter_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="c1"># this can be a list up to 3-dimensions</span>
+            <span class="n">shift_spacing</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">activation_func</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">,</span>
+            <span class="n">normalize_weights</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">weights_initializer</span><span class="o">=</span><span class="s1">&#39;trunc_normal&#39;</span><span class="p">,</span>
+            <span class="n">biases_initializer</span><span class="o">=</span><span class="s1">&#39;zeros&#39;</span><span class="p">,</span>
+            <span class="n">reg_initializer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">num_inh</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">pos_constraint</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">log_activations</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Constructor for convLayer class</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            scope (str): name scope for variables and operations in layer</span>
+<span class="sd">            input_dims (int): dimension of input data</span>
+<span class="sd">            num_outputs (int): dimension of output data</span>
+<span class="sd">            activation_func (str, optional): pointwise function applied to</span>
+<span class="sd">                output of affine transformation</span>
+<span class="sd">                [&#39;relu&#39;] | &#39;sigmoid&#39; | &#39;tanh&#39; | &#39;identity&#39; | &#39;softplus&#39; | &#39;elu&#39; | &#39;quad&#39;</span>
+<span class="sd">            weights_initializer (str, optional): initializer for the weights</span>
+<span class="sd">                [&#39;trunc_normal&#39;] | &#39;normal&#39; | &#39;zeros&#39;</span>
+<span class="sd">            biases_initializer (str, optional): initializer for the biases</span>
+<span class="sd">                &#39;trunc_normal&#39; | &#39;normal&#39; | [&#39;zeros&#39;]</span>
+<span class="sd">            reg_initializer (dict, optional): see Regularizer docs for info</span>
+<span class="sd">            num_inh (int, optional): number of inhibitory units in layer</span>
+<span class="sd">            pos_constraint (bool, optional): True to constrain layer weights to be</span>
+<span class="sd">                positive</span>
+<span class="sd">            log_activations (bool, optional): True to use tf.summary on layer</span>
+<span class="sd">                activations</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            TypeError: If `variable_scope` is not specified</span>
+<span class="sd">            TypeError: If `inputs` is not specified</span>
+<span class="sd">            TypeError: If `num_inputs` or `num_outputs` is not specified</span>
+<span class="sd">            ValueError: If `num_inh` is greater than total number of units</span>
+<span class="sd">            ValueError: If `activation_func` is not a valid string</span>
+<span class="sd">            ValueError: If `weights_initializer` is not a valid string</span>
+<span class="sd">            ValueError: If `biases_initializer` is not a valid string</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Error checking</span>
+        <span class="k">assert</span> <span class="n">pos_constraint</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;No positive constraint should be applied to this layer.&#39;</span>
+
+        <span class="c1"># Process stim and filter dimensions (potentially both passed in as num_inputs list)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">input_dims</span><span class="p">,</span> <span class="nb">list</span> <span class="p">):</span>
+            <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_dims</span><span class="p">)</span><span class="o">&lt;</span><span class="mi">3</span><span class="p">:</span>
+                <span class="n">input_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">input_dims</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">input_dims</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>  <span class="c1"># assume 1-dimensional (space)</span>
+
+        <span class="k">if</span> <span class="n">filter_dims</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">filter_dims</span> <span class="o">=</span> <span class="n">input_dims</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filter_dims</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">filter_dims</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+                    <span class="n">filter_dims</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">filter_dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">filter_dims</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># If output dimensions already established, just strip out num_filters</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">num_filters</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">num_filters</span> <span class="o">=</span> <span class="n">num_filters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Calculate number of shifts (for output)</span>
+        <span class="n">num_shifts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">input_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">num_shifts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">shift_spacing</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">input_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">num_shifts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">/</span><span class="n">shift_spacing</span><span class="p">))</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">convLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+                <span class="n">scope</span><span class="o">=</span><span class="n">scope</span><span class="p">,</span>
+                <span class="n">input_dims</span> <span class="o">=</span> <span class="n">input_dims</span><span class="p">,</span>
+                <span class="n">filter_dims</span> <span class="o">=</span> <span class="n">filter_dims</span><span class="p">,</span>
+                <span class="n">output_dims</span> <span class="o">=</span> <span class="n">num_filters</span><span class="p">,</span>   <span class="c1"># Note difference from layer</span>
+                <span class="n">activation_func</span><span class="o">=</span><span class="n">activation_func</span><span class="p">,</span>
+                <span class="n">normalize_weights</span><span class="o">=</span><span class="n">normalize_weights</span><span class="p">,</span>
+                <span class="n">weights_initializer</span><span class="o">=</span><span class="n">weights_initializer</span><span class="p">,</span>
+                <span class="n">biases_initializer</span><span class="o">=</span><span class="n">biases_initializer</span><span class="p">,</span>
+                <span class="n">reg_initializer</span><span class="o">=</span><span class="n">reg_initializer</span><span class="p">,</span>
+                <span class="n">num_inh</span><span class="o">=</span><span class="n">num_inh</span><span class="p">,</span>
+                <span class="n">pos_constraint</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>  <span class="c1"># Note difference from layer</span>
+                <span class="n">log_activations</span><span class="o">=</span><span class="n">log_activations</span> <span class="p">)</span>
+
+        <span class="c1"># siLayer-specific properties</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shift_spacing</span> <span class="o">=</span> <span class="n">shift_spacing</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_shifts</span> <span class="o">=</span> <span class="n">num_shifts</span>
+        <span class="c1"># Changes in properties from Layer</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">num_filters</span><span class="p">]</span> <span class="o">+</span> <span class="n">num_shifts</span>  <span class="c1"># note this is implicitly multi-dimensional</span></div>
+
+    <span class="c1"># END convLayer.__init__</span>
+
+<div class="viewcode-block" id="convLayer.build_graph"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.convLayer.build_graph">[docs]</a>    <span class="k">def</span> <span class="nf">build_graph</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">params_dict</span><span class="o">=</span><span class="kc">None</span> <span class="p">):</span>
+
+        <span class="k">assert</span> <span class="n">params_dict</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;Incorrect siLayer initialization.&#39;</span>
+        <span class="c1"># Unfold siLayer-specific parameters for building graph</span>
+        <span class="n">filter_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">filter_dims</span>
+        <span class="n">num_shifts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_shifts</span>
+
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scope</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_define_layer_variables</span><span class="p">()</span>
+
+            <span class="c1"># Computation performed in the layer</span>
+            <span class="c1"># Reshape of inputs (4-D):</span>
+            <span class="n">input_dims</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+            <span class="c1"># this is reverse-order from Matlab: [space-2, space-1, lags, and num_examples]</span>
+            <span class="n">shaped_input</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">input_dims</span><span class="p">)</span>
+
+            <span class="c1"># Reshape weights (4:D:</span>
+            <span class="n">conv_filter_dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">filter_size</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">filter_size</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">filter_size</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_filters</span> <span class="p">]</span>
+            <span class="n">ws_conv</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="p">,</span> <span class="n">conv_filter_dims</span><span class="p">)</span>
+            <span class="c1"># this is reverse-order from Matlab: [space-2, space-1, lags] and num_filters is explicitly last dim</span>
+
+            <span class="c1"># Make strides list</span>
+            <span class="n">strides</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">conv_filter_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">strides</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shift_spacing</span>
+            <span class="k">if</span> <span class="n">conv_filter_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">strides</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shift_spacing</span>
+
+            <span class="n">pre</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">conv2d</span><span class="p">(</span> <span class="n">shaped_input</span><span class="p">,</span> <span class="n">ws_conv</span><span class="p">,</span> <span class="n">strides</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="s1">&#39;SAME&#39;</span> <span class="p">)</span> <span class="c1">#, data_format=&quot;NCHW&quot;)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask_var</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">post</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span><span class="p">(</span><span class="n">pre</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask_var</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">post</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span><span class="p">(</span><span class="n">pre</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">post</span><span class="p">,</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_filters</span> <span class="o">*</span> <span class="n">num_shifts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_shifts</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">:</span>
+            <span class="n">tf</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="s1">&#39;act_pre&#39;</span><span class="p">,</span> <span class="n">pre</span><span class="p">)</span>
+            <span class="n">tf</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="s1">&#39;act_post&#39;</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span></div></div>
+    <span class="c1"># END convLayer.build_graph</span>
+
+
+<div class="viewcode-block" id="sepLayer"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.sepLayer">[docs]</a><span class="k">class</span> <span class="nc">sepLayer</span><span class="p">(</span><span class="n">Layer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Implementation of fully connected neural network layer</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        scope (str): name scope for variables and operations in layer</span>
+<span class="sd">        input_dims (int): 3-d list of numbers for input dimensions</span>
+<span class="sd">        output_dims (int): 3-d list of numbers for input dimensions</span>
+<span class="sd">        outputs (tf Tensor): output of layer</span>
+<span class="sd">        num_inh (int): number of inhibitory units in layer</span>
+<span class="sd">        weights_ph (tf placeholder): placeholder for weights in layer</span>
+<span class="sd">        biases_ph (tf placeholder): placeholder for biases in layer</span>
+<span class="sd">        weights_var (tf Tensor): weights in layer</span>
+<span class="sd">        biases_var (tf Tensor): biases in layer</span>
+<span class="sd">        weights (numpy array): shadow variable of `weights_var` that allows for</span>
+<span class="sd">            easier manipulation outside of tf sessions</span>
+<span class="sd">        biases (numpy array): shadow variable of `biases_var` that allows for</span>
+<span class="sd">            easier manipulation outside of tf sessions</span>
+<span class="sd">        activation_func (tf activation function): activation function in layer</span>
+<span class="sd">        reg (Regularization object): holds regularizations values and matrices</span>
+<span class="sd">            (as tf constants) for layer</span>
+<span class="sd">        ei_mask_var (tf constant): mask of +/-1s to multiply output of layer</span>
+<span class="sd">        ei_mask (list): mask of +/-1s to multiply output of layer; shadows</span>
+<span class="sd">            `ei_mask_tf` for easier manipulation outside of tf sessions</span>
+<span class="sd">        pos_constraint (bool): positivity constraint on weights in layer</span>
+<span class="sd">        log (bool): use tf summary writers on layer output</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="sepLayer.__init__"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.sepLayer.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">scope</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">input_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="c1"># this can be a list up to 3-dimensions</span>
+            <span class="n">output_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">activation_func</span><span class="o">=</span><span class="s1">&#39;relu&#39;</span><span class="p">,</span>
+            <span class="n">normalize_weights</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">weights_initializer</span><span class="o">=</span><span class="s1">&#39;trunc_normal&#39;</span><span class="p">,</span>
+            <span class="n">biases_initializer</span><span class="o">=</span><span class="s1">&#39;zeros&#39;</span><span class="p">,</span>
+            <span class="n">reg_initializer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">num_inh</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">pos_constraint</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">log_activations</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Constructor for convLayer class</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            scope (str): name scope for variables and operations in layer</span>
+<span class="sd">            input_dims (int): dimensions of input data</span>
+<span class="sd">            output_dims (int): dimensions of output data</span>
+<span class="sd">            activation_func (str, optional): pointwise function applied to</span>
+<span class="sd">                output of affine transformation</span>
+<span class="sd">                [&#39;relu&#39;] | &#39;sigmoid&#39; | &#39;tanh&#39; | &#39;identity&#39; | &#39;softplus&#39; | &#39;elu&#39; | &#39;quad&#39;</span>
+<span class="sd">            weights_initializer (str, optional): initializer for the weights</span>
+<span class="sd">                [&#39;trunc_normal&#39;] | &#39;normal&#39; | &#39;zeros&#39;</span>
+<span class="sd">            biases_initializer (str, optional): initializer for the biases</span>
+<span class="sd">                &#39;trunc_normal&#39; | &#39;normal&#39; | [&#39;zeros&#39;]</span>
+<span class="sd">            reg_initializer (dict, optional): see Regularizer docs for info</span>
+<span class="sd">            num_inh (int, optional): number of inhibitory units in layer</span>
+<span class="sd">            pos_constraint (bool, optional): True to constrain layer weights to be</span>
+<span class="sd">                positive</span>
+<span class="sd">            log_activations (bool, optional): True to use tf.summary on layer</span>
+<span class="sd">                activations</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            TypeError: If `variable_scope` is not specified</span>
+<span class="sd">            TypeError: If `inputs` is not specified</span>
+<span class="sd">            TypeError: If `num_inputs` or `num_outputs` is not specified</span>
+<span class="sd">            ValueError: If `num_inh` is greater than total number of units</span>
+<span class="sd">            ValueError: If `activation_func` is not a valid string</span>
+<span class="sd">            ValueError: If `weights_initializer` is not a valid string</span>
+<span class="sd">            ValueError: If `biases_initializer` is not a valid string</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Process stim and filter dimensions (potentially both passed in as num_inputs list)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span> <span class="n">input_dims</span><span class="p">,</span> <span class="nb">list</span> <span class="p">):</span>
+            <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_dims</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="n">input_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">input_dims</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">input_dims</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>  <span class="c1"># assume 1-dimensional (space)</span>
+
+        <span class="c1"># Determine filter dimensions (first dim + space_dims</span>
+        <span class="n">num_space</span> <span class="o">=</span> <span class="n">input_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">filter_dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">num_space</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">sepLayer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+                <span class="n">scope</span><span class="o">=</span><span class="n">scope</span><span class="p">,</span>
+                <span class="n">input_dims</span> <span class="o">=</span> <span class="n">input_dims</span><span class="p">,</span>
+                <span class="n">filter_dims</span> <span class="o">=</span> <span class="n">filter_dims</span><span class="p">,</span>
+                <span class="n">output_dims</span> <span class="o">=</span> <span class="n">output_dims</span><span class="p">,</span>
+                <span class="n">activation_func</span><span class="o">=</span><span class="n">activation_func</span><span class="p">,</span>
+                <span class="n">normalize_weights</span><span class="o">=</span><span class="n">normalize_weights</span><span class="p">,</span>
+                <span class="n">weights_initializer</span><span class="o">=</span><span class="n">weights_initializer</span><span class="p">,</span>
+                <span class="n">biases_initializer</span><span class="o">=</span><span class="n">biases_initializer</span><span class="p">,</span>
+                <span class="n">reg_initializer</span><span class="o">=</span><span class="n">reg_initializer</span><span class="p">,</span>
+                <span class="n">num_inh</span><span class="o">=</span><span class="n">num_inh</span><span class="p">,</span>
+                <span class="n">pos_constraint</span><span class="o">=</span><span class="n">pos_constraint</span><span class="p">,</span>
+                <span class="n">log_activations</span><span class="o">=</span><span class="n">log_activations</span> <span class="p">)</span>
+
+        <span class="c1"># Redefine specialized Regularization object to overwrite default</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reg</span> <span class="o">=</span> <span class="n">Sep_Regularization</span><span class="p">(</span>
+            <span class="n">input_dims</span> <span class="o">=</span> <span class="n">input_dims</span><span class="p">,</span>
+            <span class="n">num_outputs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reg</span><span class="o">.</span><span class="n">num_outputs</span><span class="p">,</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">reg_initializer</span><span class="p">)</span></div>
+    <span class="c1"># END sepLayer.__init__</span>
+
+<div class="viewcode-block" id="sepLayer.build_graph"><a class="viewcode-back" href="../../source/FFnetwork.html#FFnetwork.layer.sepLayer.build_graph">[docs]</a>    <span class="k">def</span> <span class="nf">build_graph</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="n">params_dict</span><span class="o">=</span><span class="kc">None</span> <span class="p">):</span>
+
+        <span class="k">with</span> <span class="n">tf</span><span class="o">.</span><span class="n">name_scope</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scope</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_define_layer_variables</span><span class="p">()</span>
+
+            <span class="c1"># Section weights into first dimension and space</span>
+            <span class="n">kts</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">slice</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+                            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_filters</span><span class="p">]</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="n">ksp</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">slice</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">weights_var</span><span class="p">,</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">0</span><span class="p">],</span>
+                            <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_filters</span><span class="p">]</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="c1"># Note that much manipulation is necessary to prepare for the outer product with matrices</span>
+
+            <span class="c1"># Normalize ksp (which type of normalization?)</span>
+            <span class="n">wnorms</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">reduce_sum</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">ksp</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+            <span class="n">ksp</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">ksp</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">wnorms</span><span class="p">,</span> <span class="mf">1e-6</span><span class="p">))</span>
+
+            <span class="c1">#print(&#39;ts&#39;, kts)</span>
+            <span class="c1">#print(&#39;sp&#39;, ksp )</span>
+            <span class="n">weights_full</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span> <span class="n">tf</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+                <span class="n">tf</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">ksp</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span><span class="n">tf</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">kts</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span>
+                <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">num_filters</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_dims</span><span class="p">)]</span> <span class="p">)</span> <span class="p">)</span>
+            <span class="c1">#print(weights_full)</span>
+
+            <span class="c1"># Define computation</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos_constraint</span><span class="p">:</span>
+                <span class="n">pre</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span>
+                    <span class="n">inputs</span><span class="p">,</span>
+                    <span class="n">tf</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">weights_full</span><span class="p">)),</span> <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">pre</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+                    <span class="n">tf</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">weights_full</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">biases_var</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask_var</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">post</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span><span class="p">(</span><span class="n">pre</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">ei_mask_var</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">post</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">activation_func</span><span class="p">(</span><span class="n">pre</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span> <span class="o">=</span> <span class="n">post</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">:</span>
+            <span class="n">tf</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="s1">&#39;act_pre&#39;</span><span class="p">,</span> <span class="n">pre</span><span class="p">)</span>
+            <span class="n">tf</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="s1">&#39;act_post&#39;</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span></div></div>
+    <span class="c1"># END sepLayer._build_layer</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Dan Butts, Matt Whiteway.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'2.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

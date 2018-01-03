@@ -1,0 +1,788 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>NDN package &mdash; Neural Deep Network 2.0 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../genindex.html"/>
+        <link rel="search" title="Search" href="../search.html"/>
+    <link rel="top" title="Neural Deep Network 2.0 documentation" href="../index.html"/> 
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> Neural Deep Network
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                2.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <!-- Local TOC -->
+              <div class="local-toc"><ul>
+<li><a class="reference internal" href="#">NDN package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-NDN.NDN">NDN.NDN module</a></li>
+<li><a class="reference internal" href="#module-NDN.NDNutils">NDN.NDNutils module</a></li>
+<li><a class="reference internal" href="#module-NDN.network">NDN.network module</a></li>
+<li><a class="reference internal" href="#module-NDN">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Neural Deep Network</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> &raquo;</li>
+        
+      <li>NDN package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../_sources/source/NDN.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="ndn-package">
+<h1>NDN package<a class="headerlink" href="#ndn-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-NDN.NDN">
+<span id="ndn-ndn-module"></span><h2>NDN.NDN module<a class="headerlink" href="#module-NDN.NDN" title="Permalink to this headline">¶</a></h2>
+<p>Neural deep network</p>
+<dl class="class">
+<dt id="NDN.NDN.NDN">
+<em class="property">class </em><code class="descclassname">NDN.NDN.</code><code class="descname">NDN</code><span class="sig-paren">(</span><em>network_list=None</em>, <em>noise_dist='poisson'</em>, <em>ffnet_out=-1</em>, <em>input_dim_list=None</em>, <em>tf_seed=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#NDN.network.Network" title="NDN.network.Network"><code class="xref py py-class docutils literal"><span class="pre">NDN.network.Network</span></code></a></p>
+<p>Tensorflow (tf) implementation of network-NIM class</p>
+<dl class="attribute">
+<dt id="NDN.NDN.NDN.network">
+<code class="descname">network</code><a class="headerlink" href="#NDN.NDN.NDN.network" title="Permalink to this definition">¶</a></dt>
+<dd><p><em>FFNetwork object</em> – feedforward network</p>
+</dd></dl>
+
+<p class="rubric">Notes</p>
+<p>One assumption is that the output of all FFnetworks – whether or not
+they are multi-dimensional – project down into one dimension when input
+into a second network. As a result, concatination of multiple streams will
+always be in one dimension. If there is a single input into an FFnetwork,</p>
+<dl class="method">
+<dt id="NDN.NDN.NDN.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>network_list=None</em>, <em>noise_dist='poisson'</em>, <em>ffnet_out=-1</em>, <em>input_dim_list=None</em>, <em>tf_seed=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor for network-NIM class</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>network_list</strong> (<em>list</em>) – created using ‘FFNetwork_params’</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.checkpoint_model">
+<code class="descname">checkpoint_model</code><span class="sig-paren">(</span><em>sess</em>, <em>save_file</em><span class="sig-paren">)</span><a class="headerlink" href="#NDN.NDN.NDN.checkpoint_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checkpoint model parameters in tf Variables</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>sess</strong> (<em>tf.Session object</em>) – current session object to run graph</li>
+<li><strong>save_file</strong> (<em>str</em>) – full path to output file</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.copy_model">
+<code class="descname">copy_model</code><span class="sig-paren">(</span><em>tf_seed=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.copy_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.copy_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>For the moment, this just makes exact-copy without further elaboration.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.eval_models">
+<code class="descname">eval_models</code><span class="sig-paren">(</span><em>input_data</em>, <em>output_data</em>, <em>data_indxs=None</em>, <em>data_filters=None</em>, <em>nulladjusted=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.eval_models"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.eval_models" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get cost for each output neuron without regularization terms</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input_data</strong> (<em>time x input_dim numpy array</em>) – input to model</li>
+<li><strong>output_data</strong> (<em>time x output_dim numpy array</em>) – desired output of
+model</li>
+<li><strong>data_indxs</strong> (<em>numpy array</em><em>, </em><em>optional</em>) – indexes of data to use in
+calculating forward pass; if not supplied, all data is used</li>
+<li><strong>nulladjusted</strong> – to explain</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><dl class="docutils">
+<dt>value of model’s cost function evaluated on previous</dt>
+<dd><p class="first last">model data or that used as input</p>
+</dd>
+</dl>
+<p>reg_pen (float): value of model’s regularization penalty</p>
+</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">cost (float)</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If data_in/out time dims don’t match</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.generate_prediction">
+<code class="descname">generate_prediction</code><span class="sig-paren">(</span><em>input_data</em>, <em>data_indxs=None</em>, <em>ffnet_n=-1</em>, <em>layer=-1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.generate_prediction"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.generate_prediction" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.get_LL">
+<code class="descname">get_LL</code><span class="sig-paren">(</span><em>input_data</em>, <em>output_data</em>, <em>data_indxs=None</em>, <em>data_filters=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.get_LL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.get_LL" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get cost from loss function and regularization terms</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input_data</strong> (<em>time x input_dim numpy array</em>) – input to model</li>
+<li><strong>output_data</strong> (<em>time x output_dim numpy array</em>) – desired output of
+model</li>
+<li><strong>data_indxs</strong> (<em>numpy array</em><em>, </em><em>optional</em>) – indexes of data to use in
+calculating forward pass; if not supplied, all data is used</li>
+<li><strong>data_filters</strong> – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><dl class="docutils">
+<dt>value of model’s cost function evaluated on previous</dt>
+<dd><p class="first last">model data or that used as input</p>
+</dd>
+</dl>
+<p>reg_pen (float): value of model’s regularization penalty</p>
+</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">cost (float)</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If data_in/out time dims don’t match</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.get_reg_pen">
+<code class="descname">get_reg_pen</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.get_reg_pen"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.get_reg_pen" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return reg penalties in a dictionary</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.load_model">
+<code class="descname">load_model</code><span class="sig-paren">(</span><em>save_file</em><span class="sig-paren">)</span><a class="headerlink" href="#NDN.NDN.NDN.load_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restore previously saved network object</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>save_file</strong> (<em>str</em>) – full path to saved model</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>save_file</cite> is not a valid filename</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.nullLL">
+<code class="descname">nullLL</code><span class="sig-paren">(</span><em>Robs</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.nullLL"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.nullLL" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates null-model (constant firing rate) likelihood, given Robs (which determines
+what firing rate for each cell)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.restore_model">
+<code class="descname">restore_model</code><span class="sig-paren">(</span><em>save_file</em>, <em>input_data</em>, <em>output_data</em><span class="sig-paren">)</span><a class="headerlink" href="#NDN.NDN.NDN.restore_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restore previously checkpointed model parameters in tf Variables</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>sess</strong> (<em>tf.Session object</em>) – current session object to run graph</li>
+<li><strong>save_file</strong> (<em>str</em>) – full path to saved model</li>
+<li><strong>input_data</strong> (<em>time x input_dim numpy array</em>) – input to network</li>
+<li><strong>output_data</strong> (<em>time x output_dim numpy array</em>) – desired output of
+network</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>save_file</cite> is not a valid filename</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.save_model">
+<code class="descname">save_model</code><span class="sig-paren">(</span><em>save_file</em><span class="sig-paren">)</span><a class="headerlink" href="#NDN.NDN.NDN.save_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Save full network object using dill (extension of pickle)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>save_file</strong> (<em>str</em>) – full path to output file</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.set_regularization">
+<code class="descname">set_regularization</code><span class="sig-paren">(</span><em>reg_type</em>, <em>reg_val</em>, <em>ffnet_n=0</em>, <em>layer_target=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.set_regularization"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.set_regularization" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add or reassign regularization values</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>reg_type</strong> (<em>str</em>) – see allowed_reg_types in regularization.py</li>
+<li><strong>reg_val</strong> (<em>int</em>) – corresponding regularization value</li>
+<li><strong>ffnet_n</strong> (<em>int</em>) – which network to assign regularization to (default = 0)</li>
+<li><strong>layer_target</strong> (<em>int</em><em> or </em><em>list of ints</em>) – specifies which layers the
+current reg_type/reg_val pair is applied to (default all in ffnet_n)</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.train">
+<code class="descname">train</code><span class="sig-paren">(</span><em>input_data=None</em>, <em>output_data=None</em>, <em>train_indxs=None</em>, <em>test_indxs=None</em>, <em>fit_parameter_list=None</em>, <em>data_filters=None</em>, <em>learning_alg='lbfgs'</em>, <em>learning_rate=0.001</em>, <em>use_gpu=False</em>, <em>batch_size=128</em>, <em>epochs_training=10000</em>, <em>epochs_disp=None</em>, <em>epochs_ckpt=None</em>, <em>epochs_early_stop=None</em>, <em>epochs_summary=None</em>, <em>early_stop=False</em>, <em>output_dir=None</em><span class="sig-paren">)</span><a class="headerlink" href="#NDN.NDN.NDN.train" title="Permalink to this definition">¶</a></dt>
+<dd><p>Network training function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input_data</strong> (<em>list</em>) – input to network; each element should be a
+time x input_dim numpy array</li>
+<li><strong>output_data</strong> (<em>list of matrices</em>) – desired output of network; each element should
+be a time x output_dim numpy array</li>
+<li><strong>train_indxs</strong> (<em>numpy array</em><em>, </em><em>optional</em>) – subset of data to use for
+training</li>
+<li><strong>test_indxs</strong> (<em>numpy array</em><em>, </em><em>optional</em>) – subset of data to use for
+testing; if available these are used when displaying updates,
+and are also the indices used for early stopping if enabled</li>
+<li><strong>fit_parameter_list</strong> (<em>list-of-lists</em><em>, </em><em>optional</em>) – default none
+Generated by ‘fit_variables’ (if not none) to reference which
+variables in the model to fit.</li>
+<li><strong>data_filters</strong> (<em>list of matrices</em>) – matrices as same size as output_data
+that zeros out predictions where data is absent</li>
+<li><strong>learning_alg</strong> (<em>str</em><em>, </em><em>optional</em>) – algorithm used for learning
+parameters.
+[‘lbfgs’] | ‘adam’</li>
+<li><strong>learning_rate</strong> (<em>float</em><em>, </em><em>optional</em>) – learning rate used by the
+gradient descent-based optimizers (‘adam’). Default is 1e-3.</li>
+<li><strong>use_gpu</strong> (<em>bool</em>) – </li>
+<li><strong>batch_size</strong> (<em>int</em><em>, </em><em>optional</em>) – batch size used by the gradient
+descent-based optimizers (adam).</li>
+<li><strong>epochs_training</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs for gradient
+descent-based optimizers</li>
+<li><strong>epochs_disp</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs between updates to
+the console</li>
+<li><strong>epochs_ckpt</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs between saving
+checkpoint files</li>
+<li><strong>epochs_early_stop</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs between checks
+for early stopping</li>
+<li><strong>epochs_summary</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs between saving
+network summary information</li>
+<li><strong>early_stop</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True, training exits when the
+cost function evaluated on test_indxs begins to increase</li>
+<li><strong>output_dir</strong> (<em>str</em><em>, </em><em>optional</em>) – absolute path for saving checkpoint
+files and summary files; must be present if either epochs_ckpt
+or epochs_summary is not ‘None’. If <cite>output_dir</cite> is not ‘None’,
+the graph will automatically be saved.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">number of total training epochs</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">epoch (int)</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>input_data</cite> and <cite>output_data</cite> don’t share time dim</li>
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If data time dim doesn’t match that specified in model</li>
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>epochs_ckpt</cite> is not None and output_dir is ‘None’</li>
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>epochs_summary</cite> is not ‘None’ and <cite>output_dir</cite> is
+‘None’</li>
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>early_stop</cite> is True and <cite>test_indxs</cite> is ‘None’</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.NDN.NDN.variables_to_fit">
+<code class="descname">variables_to_fit</code><span class="sig-paren">(</span><em>layers_to_skip=None</em>, <em>fit_biases=False</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDN.html#NDN.variables_to_fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDN.NDN.variables_to_fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generates a list-of-lists-of-lists of correct format to specify all the
+variables to fit, as an argument for network.train</p>
+<dl class="docutils">
+<dt>Inputs:</dt>
+<dd><dl class="first last docutils">
+<dt>layers_to_skip: [default=None] this should be a list-of-lists, specifying</dt>
+<dd>a list of layers to skip for each network. If just single list, will assume
+this is skipping layers in the first network</dd>
+<dt>fit_biases: [default=False] this can be a single boolean value or list of values</dt>
+<dd>if want networks to have different default-bias-fitting states</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-NDN.NDNutils">
+<span id="ndn-ndnutils-module"></span><h2>NDN.NDNutils module<a class="headerlink" href="#module-NDN.NDNutils" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="NDN.NDNutils.FFnetwork_params">
+<code class="descclassname">NDN.NDNutils.</code><code class="descname">FFnetwork_params</code><span class="sig-paren">(</span><em>input_dims=None</em>, <em>layer_sizes=None</em>, <em>ei_layers=None</em>, <em>act_funcs='relu'</em>, <em>reg_list=None</em>, <em>layers_to_normalize=None</em>, <em>xstim_n=0</em>, <em>ffnet_n=None</em>, <em>verbose=True</em>, <em>network_type='normal'</em>, <em>num_conv_layers=0</em>, <em>sep_layers=None</em>, <em>conv_filter_widths=None</em>, <em>shift_spacing=1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDNutils.html#FFnetwork_params"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDNutils.FFnetwork_params" title="Permalink to this definition">¶</a></dt>
+<dd><p>This generates the information for the network_params dictionary that is passed into
+the constructor for the NetworkNIM. It has the following input arguments:</p>
+<blockquote>
+<div><p>-&gt; stim_dims
+-&gt; layer_sizes: list of number of subunits in each layer of network. Last layer should match number of</p>
+<blockquote>
+<div>neurons (Robs). Each entry can be a 3-d list, if there is a spatio-filter/temporal arrangement.</div></blockquote>
+<dl class="docutils">
+<dt>-&gt; ei_layers: if this is not none, it should be a list of # of inhibitory units for each layer other than</dt>
+<dd>the output_layer: so list should be of length one-less than layer_sizes. All the non-inhibitory units
+are of course excitatory, and having ‘None’ for a layer means it will be unrestricted.</dd>
+<dt>-&gt; act_funcs: (str or list of strs, optional): activation function for network layers; replicated if a</dt>
+<dd>single element.
+[‘relu’] | ‘sigmoid’ | ‘tanh’ | ‘identity’ | ‘softplus’ | ‘elu’ | ‘quad’ | ‘lin’</dd>
+<dt>-&gt; xstim_n: data-structure to process (in the case that there are more than one in the model). It should</dt>
+<dd>be ‘None’ if the network will be directed internally (see ffnet_n)</dd>
+</dl>
+<p>-&gt; ffnet_n: internal network that received input from (has to be None if xstim_n is used)
+This function can also add parameters specific to the SinNIM if num_conv_layers &gt; 0
+-&gt; conv_layers: number of convolutional layers
+-&gt; filter_widths: spatial dimension of filter (if different than stim_dims)
+-&gt; shift_spacing: how much shift in between each convolutional operation</p>
+</div></blockquote>
+</dd></dl>
+
+<dl class="function">
+<dt id="NDN.NDNutils.concatenate_input_dims">
+<code class="descclassname">NDN.NDNutils.</code><code class="descname">concatenate_input_dims</code><span class="sig-paren">(</span><em>parent_input_size</em>, <em>added_input_size</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDNutils.html#concatenate_input_dims"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDNutils.concatenate_input_dims" title="Permalink to this definition">¶</a></dt>
+<dd><p>Utility function to concatenate two sets of input_dims vectors
+– parent_input_size can be none, if added_input_size is first
+– otherwise its assumed parent_input_size is already 3-d, but</p>
+<blockquote>
+<div>added input size might have to be formatted.</div></blockquote>
+</dd></dl>
+
+<dl class="function">
+<dt id="NDN.NDNutils.create_time_embedding">
+<code class="descclassname">NDN.NDNutils.</code><code class="descname">create_time_embedding</code><span class="sig-paren">(</span><em>stim</em>, <em>pdims</em>, <em>up_fac=1</em>, <em>tent_spacing=1</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDNutils.html#create_time_embedding"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDNutils.create_time_embedding" title="Permalink to this definition">¶</a></dt>
+<dd><p># All the arguments starting with a p are part of params structure which I will fix later
+# Takes a Txd stimulus matrix and creates a time-embedded matrix of size Tx(d*L), where L is the desired
+# number of time lags.
+# If stim is a 3d array, the spatial dimensions are folded into the 2nd dimension.
+# Assumes zero-padding.
+# Optional up-sampling of stimulus and tent-basis representation for filter estimation.
+# Note that xmatrix is formatted so that adjacent time lags are adjacent within a time-slice of the xmatrix, thus
+# x(t, 1:nLags) gives all time lags of the first spatial pixel at time t.
+#
+# INPUTS:
+#           stim: simulus matrix (time must be in the first dim).
+#           params: struct of simulus params (see NIM.create_stim_params)
+# OUTPUTS:
+#           xmat: time-embedded stim matrix</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="NDN.NDNutils.expand_input_dims_to_3d">
+<code class="descclassname">NDN.NDNutils.</code><code class="descname">expand_input_dims_to_3d</code><span class="sig-paren">(</span><em>input_size</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDNutils.html#expand_input_dims_to_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDNutils.expand_input_dims_to_3d" title="Permalink to this definition">¶</a></dt>
+<dd><p>Utility function to turn inputs into 3-d vectors</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="NDN.NDNutils.shift_mat_zpad">
+<code class="descclassname">NDN.NDNutils.</code><code class="descname">shift_mat_zpad</code><span class="sig-paren">(</span><em>x</em>, <em>shift</em>, <em>dim=0</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDNutils.html#shift_mat_zpad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDNutils.shift_mat_zpad" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="NDN.NDNutils.spikes_to_Robs">
+<code class="descclassname">NDN.NDNutils.</code><code class="descname">spikes_to_Robs</code><span class="sig-paren">(</span><em>spks</em>, <em>NT</em>, <em>dt</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/NDNutils.html#spikes_to_Robs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.NDNutils.spikes_to_Robs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="module-NDN.network">
+<span id="ndn-network-module"></span><h2>NDN.network module<a class="headerlink" href="#module-NDN.network" title="Permalink to this headline">¶</a></h2>
+<p>Basic network-building tools</p>
+<dl class="class">
+<dt id="NDN.network.Network">
+<em class="property">class </em><code class="descclassname">NDN.network.</code><code class="descname">Network</code><a class="reference internal" href="../_modules/NDN/network.html#Network"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.network.Network" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>Base class for neural networks</p>
+<dl class="method">
+<dt id="NDN.network.Network.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/network.html#Network.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.network.Network.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Constructor for Network class; model architecture should be defined elsewhere</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.network.Network.checkpoint_model">
+<code class="descname">checkpoint_model</code><span class="sig-paren">(</span><em>sess</em>, <em>save_file</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/network.html#Network.checkpoint_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.network.Network.checkpoint_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Checkpoint model parameters in tf Variables</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>sess</strong> (<em>tf.Session object</em>) – current session object to run graph</li>
+<li><strong>save_file</strong> (<em>str</em>) – full path to output file</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="NDN.network.Network.load_model">
+<em class="property">classmethod </em><code class="descname">load_model</code><span class="sig-paren">(</span><em>save_file</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/network.html#Network.load_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.network.Network.load_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restore previously saved network object</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>save_file</strong> (<em>str</em>) – full path to saved model</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>save_file</cite> is not a valid filename</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.network.Network.restore_model">
+<code class="descname">restore_model</code><span class="sig-paren">(</span><em>save_file</em>, <em>input_data</em>, <em>output_data</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/network.html#Network.restore_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.network.Network.restore_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restore previously checkpointed model parameters in tf Variables</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>sess</strong> (<em>tf.Session object</em>) – current session object to run graph</li>
+<li><strong>save_file</strong> (<em>str</em>) – full path to saved model</li>
+<li><strong>input_data</strong> (<em>time x input_dim numpy array</em>) – input to network</li>
+<li><strong>output_data</strong> (<em>time x output_dim numpy array</em>) – desired output of
+network</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>save_file</cite> is not a valid filename</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.network.Network.save_model">
+<code class="descname">save_model</code><span class="sig-paren">(</span><em>save_file</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/network.html#Network.save_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.network.Network.save_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Save full network object using dill (extension of pickle)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>save_file</strong> (<em>str</em>) – full path to output file</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="NDN.network.Network.train">
+<code class="descname">train</code><span class="sig-paren">(</span><em>input_data=None</em>, <em>output_data=None</em>, <em>train_indxs=None</em>, <em>test_indxs=None</em>, <em>fit_parameter_list=None</em>, <em>data_filters=None</em>, <em>learning_alg='lbfgs'</em>, <em>learning_rate=0.001</em>, <em>use_gpu=False</em>, <em>batch_size=128</em>, <em>epochs_training=10000</em>, <em>epochs_disp=None</em>, <em>epochs_ckpt=None</em>, <em>epochs_early_stop=None</em>, <em>epochs_summary=None</em>, <em>early_stop=False</em>, <em>output_dir=None</em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/NDN/network.html#Network.train"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#NDN.network.Network.train" title="Permalink to this definition">¶</a></dt>
+<dd><p>Network training function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>input_data</strong> (<em>list</em>) – input to network; each element should be a
+time x input_dim numpy array</li>
+<li><strong>output_data</strong> (<em>list of matrices</em>) – desired output of network; each element should
+be a time x output_dim numpy array</li>
+<li><strong>train_indxs</strong> (<em>numpy array</em><em>, </em><em>optional</em>) – subset of data to use for
+training</li>
+<li><strong>test_indxs</strong> (<em>numpy array</em><em>, </em><em>optional</em>) – subset of data to use for
+testing; if available these are used when displaying updates,
+and are also the indices used for early stopping if enabled</li>
+<li><strong>fit_parameter_list</strong> (<em>list-of-lists</em><em>, </em><em>optional</em>) – default none
+Generated by ‘fit_variables’ (if not none) to reference which
+variables in the model to fit.</li>
+<li><strong>data_filters</strong> (<em>list of matrices</em>) – matrices as same size as output_data
+that zeros out predictions where data is absent</li>
+<li><strong>learning_alg</strong> (<em>str</em><em>, </em><em>optional</em>) – algorithm used for learning
+parameters.
+[‘lbfgs’] | ‘adam’</li>
+<li><strong>learning_rate</strong> (<em>float</em><em>, </em><em>optional</em>) – learning rate used by the
+gradient descent-based optimizers (‘adam’). Default is 1e-3.</li>
+<li><strong>use_gpu</strong> (<em>bool</em>) – </li>
+<li><strong>batch_size</strong> (<em>int</em><em>, </em><em>optional</em>) – batch size used by the gradient
+descent-based optimizers (adam).</li>
+<li><strong>epochs_training</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs for gradient
+descent-based optimizers</li>
+<li><strong>epochs_disp</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs between updates to
+the console</li>
+<li><strong>epochs_ckpt</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs between saving
+checkpoint files</li>
+<li><strong>epochs_early_stop</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs between checks
+for early stopping</li>
+<li><strong>epochs_summary</strong> (<em>int</em><em>, </em><em>optional</em>) – number of epochs between saving
+network summary information</li>
+<li><strong>early_stop</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True, training exits when the
+cost function evaluated on test_indxs begins to increase</li>
+<li><strong>output_dir</strong> (<em>str</em><em>, </em><em>optional</em>) – absolute path for saving checkpoint
+files and summary files; must be present if either epochs_ckpt
+or epochs_summary is not ‘None’. If <cite>output_dir</cite> is not ‘None’,
+the graph will automatically be saved.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">number of total training epochs</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first">epoch (int)</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>input_data</cite> and <cite>output_data</cite> don’t share time dim</li>
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If data time dim doesn’t match that specified in model</li>
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>epochs_ckpt</cite> is not None and output_dir is ‘None’</li>
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>epochs_summary</cite> is not ‘None’ and <cite>output_dir</cite> is
+‘None’</li>
+<li><code class="xref py py-exc docutils literal"><span class="pre">ValueError</span></code> – If <cite>early_stop</cite> is True and <cite>test_indxs</cite> is ‘None’</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-NDN">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-NDN" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, Dan Butts, Matt Whiteway.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../',
+            VERSION:'2.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../_static/jquery.js"></script>
+      <script type="text/javascript" src="../_static/underscore.js"></script>
+      <script type="text/javascript" src="../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

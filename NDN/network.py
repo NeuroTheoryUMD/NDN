@@ -185,7 +185,7 @@ class Network(object):
                 the graph will automatically be saved.
 
         Returns:
-            epoch (int): number of total training epochs
+            int: number of total training epochs
 
         Raises:
             ValueError: If `input_data` and `output_data` don't share time dim
@@ -258,7 +258,8 @@ class Network(object):
                     tf.gfile.DeleteRecursively(summary_dir_train)
                 os.makedirs(summary_dir_train)
                 train_writer = tf.summary.FileWriter(
-                    summary_dir_train, sess.graph)
+                    summary_dir_train, graph=sess.graph)
+                train_writer.flush()
 
                 # remake testing summary directories
                 summary_dir_test = os.path.join(
@@ -268,8 +269,8 @@ class Network(object):
                         tf.gfile.DeleteRecursively(summary_dir_test)
                     os.makedirs(summary_dir_test)
                     test_writer = tf.summary.FileWriter(
-                        summary_dir_test, sess.graph)
-
+                        summary_dir_test, graph=sess.graph)
+                    test_writer.flush()
 
             #with tf.variable_scope('optimizer'):
             #    self._define_optimizer(var_list)
@@ -346,9 +347,10 @@ class Network(object):
                     feed_dict={self.indices: batch_indxs})
 
             # print training updates
+            display_output = False
             if epochs_disp is not None and \
                     (epoch % epochs_disp == epochs_disp - 1 or epoch == 0):
-
+                display_output = True
                 cost = sess.run(
                     self.cost,
                     feed_dict={self.indices: train_indxs_perm})
@@ -374,17 +376,19 @@ class Network(object):
             if epochs_summary is not None and \
                     (epoch % epochs_summary == epochs_summary - 1
                      or epoch == 0):
+                if not display_output and epochs_disp is not None:
+                    print('\nEpoch %03d:' % epoch)
+                print('Writing train summary')
                 summary = sess.run(
                     self.merge_summaries,
                     feed_dict={self.indices: train_indxs})
                 train_writer.add_summary(summary, epoch)
-                print('Writing train summary')
                 if test_indxs is not None:
+                    print('Writing test summary')
                     summary = sess.run(
                         self.merge_summaries,
                         feed_dict={self.indices: test_indxs})
                     test_writer.add_summary(summary, epoch)
-                    print('Writing test summary')
 
             # check for early stopping
             if early_stop and \
