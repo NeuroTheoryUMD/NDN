@@ -30,7 +30,7 @@ class Regularization(object):
 
     _allowed_reg_types = ['l1', 'l2', 'norm2',
                           'd2t', 'd2x', 'd2xt',
-                          'max', 'max_filt', 'max_space', 'hadi1']
+                          'max', 'max_filt', 'max_space', 'centralizer1']
 
     def __init__(self, input_dims=None, num_outputs=None, vals=None):
         """Constructor for Regularization class
@@ -171,6 +171,8 @@ class Regularization(object):
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
+#        elif reg_type is 'centralizer1':
+#            name = reg_type + '_reg'
         else:
             reg_mat = 0.0
             name = 'lp_placeholder'
@@ -223,11 +225,15 @@ class Regularization(object):
                 self.vals_var['d2xt'],
                 tf.reduce_sum(tf.square(
                     tf.matmul(self.mats['d2xt'], weights))))
-        elif reg_type == 'hadi1':
-            # currently just L1, but could be anything...
-            reg_pen = tf.multiply(
-                self.vals_var['hadi1'],
-                tf.reduce_sum(tf.abs(weights)))
+        elif reg_type == 'centralizer1':
+            # currently works only for 1 spatial dimension
+            temp = 0
+            for ii in range(weights.shape[0]):
+                # different centralizers correspond to different envelope shapes
+                envelope_val = np.power(ii//input_dims[0] - input_dims[1]/2 + 0.5, 2, dtype=float)
+                for mu in range(weights.shape[1]):
+                    temp += envelope_val * np.power(weights[ii, mu], 2)
+            reg_pen = tf.multiply(self.vals_var['centralizer1'], temp)
         else:
             reg_pen = tf.constant(0.0)
         return reg_pen
@@ -304,6 +310,8 @@ class Sep_Regularization(Regularization):
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 [1, self.input_dims[1], self.input_dims[2]], reg_type)
             name = reg_type + '_reg'
+#        elif reg_type is 'centralizer1':
+#            name = reg_type + '_reg'
         else:
             reg_mat = 0.0
             name = 'lp_placeholder'
@@ -355,12 +363,19 @@ class Sep_Regularization(Regularization):
             reg_pen = tf.multiply( self.vals_var['d2x'],
                 tf.reduce_sum(tf.square(
                     tf.matmul(self.mats['d2x'], wspace))))
+        
+        elif reg_type == 'centralizer1':
+            # currently works only for 1 spatial dimension
+            temp = 0
+            for ii in range(weights.shape[0]):
+                # different centralizers correspond to different envelope shapes
+                envelope_val = np.power(ii//input_dims[0] - input_dims[1]/2 + 0.5, 2, dtype=float)
+                for mu in range(weights.shape[1]):
+                    temp += envelope_val * np.power(weights[ii, mu], 2)
+            reg_pen = tf.multiply(self.vals_var['centralizer1'], temp)
 
         elif reg_type == 'd2xt':
             raise TypeError('d2xt does not work with a separable layer.')
-        elif reg_type == 'hadi1':
-            # currently just L1, but could be anything...
-            raise TypeError('Not defined here.')
         else:
             reg_pen = tf.constant(0.0)
         return reg_pen
