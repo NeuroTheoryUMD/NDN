@@ -318,26 +318,32 @@ class NDN(Network):
             """
 
         if layers_to_skip is None:
-            layers_to_skip = []
+            layers_to_skip = [[]]*self.num_networks
         else:
-            if not isinstance(layers_to_skip,list):
-                layers_to_skip = [layers_to_skip]
-        if isinstance(fit_biases,list):
-            assert len(fit_biases) == self.num_networks, 'fit_biases list must match the number of networks.'
-        else:
-            fit_biases = [fit_biases]*self.num_networks
+            # Assume a single list is referring to the first network by default
+            if not isinstance(layers_to_skip, list):
+                layers_to_skip = [[layers_to_skip]]
+            else:
+                if not isinstance( layers_to_skip[0], list): # then assume just meant for first network
+                    layers_to_skip = [layers_to_skip]
 
-        fit_list = []*self.num_networks
+        if not isinstance(fit_biases, list):
+            fit_biases = [fit_biases]*self.num_networks
+        # here assume a single list is referring to each network
+        assert len(fit_biases) == self.num_networks, 'fit_biases must be a list over networks'
+        for nn in range(self.num_networks):
+            if not isinstance(fit_biases[nn], list):
+                fit_biases[nn] = [fit_biases[nn]]*len(self.networks[nn].layers)
+        fit_list = [[]]*self.num_networks
         for nn in range(self.num_networks):
             fit_list[nn] = [{}]*self.networks[nn].num_layers
             for layer in range(self.networks[nn].num_layers):
-                fit_list[nn][layer]['weights']=True
-                fit_list[nn][layer]['biases']=fit_biases
-                if nn <= len(layers_to_skip):
+                fit_list[nn][layer] = {'weights': True, 'biases': False}
+                fit_list[nn][layer]['biases'] = fit_biases[nn][layer]
+                if nn < len(layers_to_skip):
                     if layer in layers_to_skip[nn]:
                         fit_list[nn][layer]['weights'] = False
                         fit_list[nn][layer]['biases'] = False
-
         return fit_list
         # END NDN.set_fit_variables
 
