@@ -285,7 +285,6 @@ class Sep_Regularization(Regularization):
 
         Args:
             reg_type (str): see `_allowed_reg_types` for options
-
         """
 
         if reg_type is 'd2t':
@@ -301,7 +300,7 @@ class Sep_Regularization(Regularization):
             raise TypeError('d2xt does not work with a separable layer.')
         elif reg_type is 'max':
             reg_mat = makeRmats.create_maxpenalty_matrix(
-                [self.input_dims[0]+self.input_dims[1]*self.input_dims[2]], reg_type)
+                [self.input_dims[0]+self.input_dims[1]*self.input_dims[2],1,1], reg_type)
             name = reg_type + '_reg'
         elif reg_type is 'max_filter':
             reg_mat = makeRmats.create_maxpenalty_matrix(
