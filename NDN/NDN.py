@@ -102,7 +102,7 @@ class NDN(Network):
             if network_list[nn]['ffnet_n'] is not None:
                 ffnet_n = network_list[nn]['ffnet_n']
                 for mm in ffnet_n:
-                    assert ffnet_n[mm] <= self.num_networks, 'Too many ffnetworks referenced.'
+                    assert mm <= self.num_networks, 'Too many ffnetworks referenced.'
                     #print('network %i:' % nn, mm, input_dims_measured, self.networks[mm].layers[-1].output_dims )
                     input_dims_measured = concatenate_input_dims(
                         input_dims_measured, self.networks[mm].layers[-1].output_dims)

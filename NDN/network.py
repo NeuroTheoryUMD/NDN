@@ -135,7 +135,7 @@ class Network(object):
             learning_rate=1e-3,
             use_gpu=False,
             batch_size=128,
-            epochs_training=10000,
+            epochs_training=100,
             epochs_disp=None,
             epochs_ckpt=None,
             epochs_early_stop=None,
@@ -259,7 +259,6 @@ class Network(object):
                 os.makedirs(summary_dir_train)
                 train_writer = tf.summary.FileWriter(
                     summary_dir_train, graph=sess.graph)
-                train_writer.flush()
 
                 # remake testing summary directories
                 summary_dir_test = os.path.join(
@@ -270,7 +269,6 @@ class Network(object):
                     os.makedirs(summary_dir_test)
                     test_writer = tf.summary.FileWriter(
                         summary_dir_test, graph=sess.graph)
-                    test_writer.flush()
 
             #with tf.variable_scope('optimizer'):
             #    self._define_optimizer(var_list)
@@ -378,17 +376,31 @@ class Network(object):
                      or epoch == 0):
                 if not display_output and epochs_disp is not None:
                     print('\nEpoch %03d:' % epoch)
+
+                # model summary
                 print('Writing train summary')
+                # run_options = tf.RunOptions(
+                #     trace_level=tf.RunOptions.FULL_TRACE)
+                # run_metadata = tf.RunMetadata()
+                # summary = sess.run(
+                #     self.merge_summaries,
+                #     feed_dict={self.indices: train_indxs},
+                #     options=run_options,
+                #     run_metadata=run_metadata)
+                # train_writer.add_run_metadata(run_metadata, 'epoch_%d' % epoch)
                 summary = sess.run(
                     self.merge_summaries,
                     feed_dict={self.indices: train_indxs})
+
                 train_writer.add_summary(summary, epoch)
+                train_writer.flush()
                 if test_indxs is not None:
                     print('Writing test summary')
                     summary = sess.run(
                         self.merge_summaries,
                         feed_dict={self.indices: test_indxs})
                     test_writer.add_summary(summary, epoch)
+                    test_writer.flush()
 
             # check for early stopping
             if early_stop and \
