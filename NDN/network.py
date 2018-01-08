@@ -119,7 +119,7 @@ class Network(object):
                 var_list=var_list,
                 method='L-BFGS-B',
                 options={
-                    'maxiter': 10000,
+                    'maxiter': 500,
                     'disp': False})
     # END _define_optimizer
 
