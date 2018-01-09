@@ -148,8 +148,8 @@ class FFNetwork(object):
     def _define_network(self, network_params):
 
         layer_sizes = [self.input_dims] + network_params['layer_sizes']
-
         self.layers = []
+
         for nn in range(self.num_layers):
 
             if self.layer_types[nn] is 'normal':
@@ -182,16 +182,15 @@ class FFNetwork(object):
                               pos_constraint=network_params['pos_constraints'][nn],
                               log_activations=network_params['log_activations'] ) )
 
-
             elif self.layer_types[nn] is 'conv':
 
                 if network_params['conv_filter_widths'][nn] is None:
-                    conv_filter_size = layer_sizes[nn+1]
+                    conv_filter_size = layer_sizes[nn]
                 else:
                     conv_filter_size = [layer_sizes[nn][0], network_params['conv_filter_widths'][nn], 1]
                     if layer_sizes[nn][2] > 1:
                         conv_filter_size[2] = network_params['conv_filter_widths'][nn]
-
+                
                 self.layers.append(
                     convLayer( scope='conv_layer_%i' % nn,
                                input_dims=layer_sizes[nn],
