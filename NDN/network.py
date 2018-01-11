@@ -107,11 +107,11 @@ class Network(object):
         """Loss function that will be used to optimize model parameters"""
         raise NotImplementedError
 
-    def _define_optimizer(self, learning_alg='adam', learning_rate=1e-3, var_list=None):
+    def _define_optimizer(self, learning_alg='adam', opt_params=None, var_list=None):
         """Define one step of the optimization routine"""
 
         if learning_alg == 'adam':
-            self.train_step = tf.train.AdamOptimizer(learning_rate). \
+            self.train_step = tf.train.AdamOptimizer(opt_params['learning_rate']). \
                 minimize(self.cost_penalized, var_list=var_list)
         elif learning_alg == 'lbfgs':
             self.train_step = tf.contrib.opt.ScipyOptimizerInterface(
@@ -119,8 +119,9 @@ class Network(object):
                 var_list=var_list,
                 method='L-BFGS-B',
                 options={
-                    'maxiter': 500,
-                    'disp': False})
+                    'maxiter': opt_params['maxiter'],
+                    #'pgtol': opt_params['pgtol'],
+                    'disp': opt_params['display']})
     # END _define_optimizer
 
     def train(
@@ -132,16 +133,7 @@ class Network(object):
             fit_parameter_list=None,
             data_filters=None,
             learning_alg='lbfgs',
-            learning_rate=1e-3,
-            use_gpu=False,
-            batch_size=128,
-            epochs_training=100,
-            epochs_disp=None,
-            epochs_ckpt=None,
-            epochs_early_stop=None,
-            epochs_summary=None,
-            early_stop=False,
-            output_dir=None):
+            opt_params = None ):
         """Network training function
 
         Args:
@@ -162,27 +154,33 @@ class Network(object):
             learning_alg (str, optional): algorithm used for learning
                 parameters.
                 ['lbfgs'] | 'adam'
-            learning_rate (float, optional): learning rate used by the
-                gradient descent-based optimizers ('adam'). Default is 1e-3.
-            use_gpu (bool):
-            batch_size (int, optional): batch size used by the gradient
-                descent-based optimizers (adam).
-            epochs_training (int, optional): number of epochs for gradient 
-                descent-based optimizers
-            epochs_disp (int, optional): number of epochs between updates to 
-                the console
-            epochs_ckpt (int, optional): number of epochs between saving 
-                checkpoint files
-            epochs_early_stop (int, optional): number of epochs between checks
-                for early stopping
-            epochs_summary (int, optional): number of epochs between saving
-                network summary information
-            early_stop (bool, optional): if True, training exits when the
-                cost function evaluated on test_indxs begins to increase
-            output_dir (str, optional): absolute path for saving checkpoint
-                files and summary files; must be present if either epochs_ckpt  
-                or epochs_summary is not 'None'. If `output_dir` is not 'None',
-                the graph will automatically be saved.
+            opt_params: dictionary with optimizer-specific parameters:
+                both:
+                    display [default = None]
+                    use_gpu [bool, default = False]
+                lbfgs:
+                    max_iter [def 500]
+                adam:
+                    learning_rate (float, optional): learning rate used by the
+                        gradient descent-based optimizers ('adam'). Default is 1e-3.
+                    batch_size (int, optional): batch size used by the gradient
+                        descent-based optimizers (adam).
+                    epochs_training (int, optional): number of epochs for gradient
+                        descent-based optimizers
+                    epochs_disp (int, optional): number of epochs between updates to
+                        the console
+                    epochs_ckpt (int, optional): number of epochs between saving
+                        checkpoint files
+                    epochs_early_stop (int, optional): number of epochs between checks
+                        for early stopping
+                    early_stop (bool, optional): if True, training exits when the
+                        cost function evaluated on test_indxs begins to increase
+                    epochs_summary (int, optional): number of epochs between saving
+                        network summary information
+                    output_dir (str, optional): absolute path for saving checkpoint
+                        files and summary files; must be present if either epochs_ckpt
+                        or epochs_summary is not 'None'. If `output_dir` is not 'None',
+                        the graph will automatically be saved.
 
         Returns:
             int: number of total training epochs
@@ -219,19 +217,17 @@ class Network(object):
                 raise ValueError('Output dim0 must match model values')
             if self.filter_data:
                 assert data_filters[nn].shape == temp_data.shape, 'data_filter sizes must match output_data'
-        if epochs_ckpt is not None and output_dir is None:
-            raise ValueError('output_dir must be specified to save model')
-        if epochs_summary is not None and output_dir is None:
-            raise ValueError('output_dir must be specified to save summaries')
-        if early_stop and test_indxs is None:
-            raise ValueError('test_indxs must be specified for early stopping')
 
+        # Check format of opt_params (and add some defaults)
+        if opt_params is None:
+            opt_params = {}
+        opt_params = self.optimizer_defaults( opt_params, learning_alg, test_indxs )
+        print(opt_params)
         if train_indxs is None:
             train_indxs = np.arange(self.num_examples)
 
         # Build graph: self.build_graph must be defined in child of network
-        self._build_graph( learning_alg=learning_alg, learning_rate=learning_rate, use_gpu=use_gpu,
-                           params_to_fit=fit_parameter_list )
+        self._build_graph( learning_alg=learning_alg, opt_params=opt_params, params_to_fit=fit_parameter_list )
 
         # Define optimization routine -- moved within graph
         # with tf.variable_scope('optimizer'):
@@ -242,10 +238,11 @@ class Network(object):
             # handle output directories
             train_writer = None
             test_writer = None
+            output_dir = opt_params['output_dir']
             if output_dir is not None:
 
                 # remake checkpoint directory
-                if epochs_ckpt is not None:
+                if opt_params['epochs_ckpt'] is not None:
                     ckpts_dir = os.path.join(output_dir, 'ckpts')
                     if os.path.isdir(ckpts_dir):
                         tf.gfile.DeleteRecursively(ckpts_dir)
@@ -284,14 +281,7 @@ class Network(object):
                     test_writer=test_writer,
                     train_indxs=train_indxs,
                     test_indxs=test_indxs,
-                    batch_size=batch_size,
-                    epochs_training=epochs_training,
-                    epochs_disp=epochs_disp,
-                    epochs_ckpt=epochs_ckpt,
-                    epochs_early_stop=epochs_early_stop,
-                    epochs_summary=epochs_summary,
-                    early_stop=early_stop,
-                    output_dir=output_dir)
+                    opt_params = opt_params )
             elif learning_alg == 'lbfgs':
                 self.train_step.minimize(
                     sess, feed_dict={self.indices: train_indxs})
@@ -312,23 +302,16 @@ class Network(object):
             test_writer=None,
             train_indxs=None,
             test_indxs=None,
-            batch_size=None,
-            epochs_training=None,
-            epochs_disp=None,
-            epochs_ckpt=None,
-            epochs_early_stop=None,
-            epochs_summary=None,
-            early_stop=None,
-            output_dir=None):
+            opt_params=None ):
         """Training function for adam optimizer to clean up code in `train`"""
 
-        num_batches = train_indxs.shape[0] // batch_size
+        num_batches = train_indxs.shape[0] // opt_params['batch_size']
 
-        if early_stop:
+        if opt_params['early_stop']:
             prev_cost = float('Inf')
 
         # start training loop
-        for epoch in range(epochs_training):
+        for epoch in range(opt_params['epochs_training']):
 
             # shuffle data before each pass
             train_indxs_perm = np.random.permutation(train_indxs)
@@ -337,8 +320,8 @@ class Network(object):
             for batch in range(num_batches):
                 # get training indices for this batch
                 batch_indxs = train_indxs_perm[
-                              batch * batch_size:
-                              (batch + 1) * batch_size]
+                              batch * opt_params['batch_size']:
+                              (batch + 1) * opt_params['batch_size']]
                 # one step of optimization routine
                 sess.run(
                     self.train_step,
@@ -346,8 +329,8 @@ class Network(object):
 
             # print training updates
             display_output = False
-            if epochs_disp is not None and \
-                    (epoch % epochs_disp == epochs_disp - 1 or epoch == 0):
+            if opt_params['epochs_disp'] is not None and \
+                    (epoch % opt_params['epochs_disp'] == opt_params['epochs_disp'] - 1 or epoch == 0):
                 display_output = True
                 cost = sess.run(
                     self.cost,
@@ -363,18 +346,18 @@ class Network(object):
                     print('   test cost = %2.5f' % cost_test)
 
             # save model checkpoints
-            if epochs_ckpt is not None and \
-                    (epoch % epochs_ckpt == epochs_ckpt - 1 or epoch == 0):
+            if opt_params['epochs_ckpt'] is not None and \
+                    (epoch % opt_params['epochs_ckpt'] == opt_params['epochs_ckpt'] - 1 or epoch == 0):
                 save_file = os.path.join(
-                    output_dir, 'ckpts',
+                    opt_params['output_dir'], 'ckpts',
                     str('epoch_%05g.ckpt' % epoch))
                 self.checkpoint_model(sess, save_file)
 
             # save model summaries
-            if epochs_summary is not None and \
-                    (epoch % epochs_summary == epochs_summary - 1
+            if opt_params['epochs_summary'] is not None and \
+                    (epoch % opt_params['epochs_summary'] == opt_params['epochs_summary'] - 1
                      or epoch == 0):
-                if not display_output and epochs_disp is not None:
+                if not display_output and opt_params['display'] is not None:
                     print('\nEpoch %03d:' % epoch)
 
                 # model summary
@@ -403,8 +386,8 @@ class Network(object):
                     test_writer.flush()
 
             # check for early stopping
-            if early_stop and \
-                    epoch % epochs_early_stop == epochs_early_stop - 1:
+            if opt_params['early_stop'] and \
+                    epoch % opt_params['epochs_early_stop'] == opt_params['epochs_early_stop'] - 1:
 
                 cost_test = sess.run(
                     self.cost,
@@ -413,16 +396,16 @@ class Network(object):
                 if cost_test >= prev_cost:
 
                     # save model checkpoint if desired and necessary
-                    if epochs_ckpt is not None and \
-                            epochs_ckpt != epochs_early_stop:
+                    if opt_params['epochs_ckpt'] is not None and \
+                            opt_params['epochs_ckpt'] != opt_params['epochs_early_stop']:
                         save_file = os.path.join(
-                            output_dir, 'ckpts',
+                            opt_params['output_dir'], 'ckpts',
                             str('epoch_%05g.ckpt' % epoch))
                         self.checkpoint_model(sess, save_file)
 
                     # save model summaries if desired and necessary
-                    if epochs_summary is not None and \
-                            epochs_summary != epochs_early_stop:
+                    if opt_params['epochs_summary'] is not None and \
+                            opt_params['epochs_summary'] != opt_params['epochs_early_stop']:
                         summary = sess.run(
                             self.merge_summaries,
                             feed_dict={self.indices: train_indxs})
@@ -566,3 +549,51 @@ class Network(object):
 
         with file(save_file, 'rb') as f:
             return dill.load(f)
+
+    @classmethod
+    def optimizer_defaults(cls, opt_params, learning_alg, test_indxs ):
+        """Sets defaults for different optimizers. Currently only 'adam' and lbfgs"""
+        # Non-optimizer specific defaults
+        if 'display' not in opt_params:
+            opt_params['display'] = None
+        if 'use_gpu' not in opt_params:
+            opt_params['use_gpu'] = False
+        if 'output_dir' not in opt_params:
+            opt_params['output_dir'] = None
+
+        if learning_alg is 'adam':
+            if 'learning_rate' not in opt_params:
+                opt_params['learning_rate'] = 1e-3
+            if 'batch_size' not in opt_params:
+                opt_params['batch_size'] = 128
+            if 'epochs_training' not in opt_params:
+                opt_params['epochs_training'] = 100
+            if 'epochs_ckpt' not in opt_params:
+                opt_params['epochs_ckpt'] = None
+            if 'epochs_early_stop' not in opt_params:
+                opt_params['epochs_early_stop'] = None
+            if 'epochs_summary' not in opt_params:
+                opt_params['epochs_summary'] = None
+            if 'early_stop' not in opt_params:
+                opt_params['early_stop']= False
+
+            # Check values entered
+            if opt_params['epochs_ckpt'] is not None and opt_params['output_dir'] is None:
+                raise ValueError('output_dir must be specified to save model')
+            if opt_params['epochs_summary'] is not None and opt_params['output_dir'] is None:
+                raise ValueError('output_dir must be specified to save summaries')
+            if opt_params['early_stop'] and test_indxs is None:
+                raise ValueError('test_indxs must be specified for early stopping')
+
+        else:  # lbfgs
+            if 'maxiter' not in opt_params:
+                opt_params['maxiter'] = 500
+            # The iteration will stop when max{ | proj g_i | i = 1, ..., n} <= pgtol
+            # where pg_i is the i-th component of the projected gradient.
+            if 'pgtol' not in opt_params:
+                opt_params['pgtol'] = 1e-05
+            if opt_params['display'] is None:
+                opt_params['display'] = False
+
+        return opt_params
+    # END network.optimizer_defaults

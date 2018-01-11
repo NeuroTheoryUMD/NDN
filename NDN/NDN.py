@@ -145,14 +145,14 @@ class NDN(Network):
 
     # END NDN._define_network
 
-    def _build_graph(self, learning_alg='lbfgs', learning_rate=1e-3, use_gpu=False, params_to_fit=None ):
+    def _build_graph(self, learning_alg='lbfgs', opt_params=None, params_to_fit=None ):
 
         # Check data_filters if it exists
 
         self.graph = tf.Graph()  # must be initialized before graph creation
 
         # for specifying device
-        if use_gpu:
+        if opt_params['use_gpu']:
             self.sess_config = tf.ConfigProto(device_count={'GPU': 1})
         else:
             self.sess_config = tf.ConfigProto(device_count={'GPU': 0})
@@ -208,7 +208,7 @@ class NDN(Network):
             var_list = self._build_fit_variable_list(params_to_fit)
 
             with tf.variable_scope('optimizer'):
-                self._define_optimizer( learning_alg=learning_alg, learning_rate=learning_rate,
+                self._define_optimizer( learning_alg=learning_alg, opt_params = opt_params,
                                         var_list = var_list )
 
             # add additional ops

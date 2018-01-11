@@ -43,7 +43,7 @@ class Layer(object):
             filter_dims=None,
             output_dims=None,
             activation_func='relu',
-            normalize_weights=False,
+            normalize_weights=0,
             weights_initializer='trunc_normal',
             biases_initializer='zeros',
             reg_initializer=None,
@@ -60,6 +60,8 @@ class Layer(object):
                 output of affine transformation
                 ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 
                 'elu' | 'quad'
+            normalize_weights (int): whether to normalize weights '1', or not '0'
+                [0] | 1
             weights_initializer (str, optional): initializer for the weights
                 ['trunc_normal'] | 'normal' | 'zeros'
             biases_initializer (str, optional): initializer for the biases
@@ -170,7 +172,7 @@ class Layer(object):
                              weights_initializer)
         if pos_constraint:
             init_weights = np.maximum(init_weights, 0)
-        if normalize_weights:
+        if normalize_weights > 0:
             init_weights = np.divide(init_weights, np.sqrt( np.sum(np.square(init_weights), axis=0) ) )
 
         # Initialize numpy array that will feed placeholder
@@ -245,7 +247,7 @@ class Layer(object):
                 pre = tf.add(
                     tf.matmul(inputs, self.weights_var), self.biases_var)
 
-            if self.normalize_weights:
+            if self.normalize_weights > 0:
                 wnorms = tf.sqrt( tf.reduce_sum( tf.square(self.weights_var), axis=0 ) )
                 pre = tf.divide( pre, tf.maximum(wnorms, 1e-6) )
 
@@ -276,7 +278,7 @@ class Layer(object):
         if self.pos_constraint:
             self.weights = np.maximum(self.weights, 0)
 
-        if self.normalize_weights:
+        if self.normalize_weights > 0:
             wnorm = np.sqrt(np.sum(np.square(self.weights),axis=0))
             wnorm[np.where(wnorm == 0)] = 1
             self.weights = np.divide(self.weights, wnorm)
@@ -338,7 +340,7 @@ class convLayer(Layer):
             filter_dims=None, # this can be a list up to 3-dimensions
             shift_spacing=1,
             activation_func='relu',
-            normalize_weights=False,
+            normalize_weights=0,
             weights_initializer='trunc_normal',
             biases_initializer='zeros',
             reg_initializer=None,
@@ -356,6 +358,8 @@ class convLayer(Layer):
                 ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 'elu' | 'quad'
             weights_initializer (str, optional): initializer for the weights
                 ['trunc_normal'] | 'normal' | 'zeros'
+            normalize_weights (int): whether to normalize weights '1', or not '0'
+                [0] | 1
             biases_initializer (str, optional): initializer for the biases
                 'trunc_normal' | 'normal' | ['zeros']
             reg_initializer (dict, optional): see Regularizer docs for info
@@ -505,7 +509,7 @@ class sepLayer(Layer):
             input_dims=None, # this can be a list up to 3-dimensions
             output_dims=None,
             activation_func='relu',
-            normalize_weights=False,
+            normalize_weights=0,
             weights_initializer='trunc_normal',
             biases_initializer='zeros',
             reg_initializer=None,
@@ -521,6 +525,9 @@ class sepLayer(Layer):
             activation_func (str, optional): pointwise function applied to
                 output of affine transformation
                 ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 'elu' | 'quad'
+            normalize_weights (int): type of normalization to apply to the weights. Default [0]
+                is to normalize across the first dimension (time/filters), but '1' will
+                normalize across spatial dimensions instead, and '2' will normalize both
             weights_initializer (str, optional): initializer for the weights
                 ['trunc_normal'] | 'normal' | 'zeros'
             biases_initializer (str, optional): initializer for the biases
@@ -587,9 +594,13 @@ class sepLayer(Layer):
                             [self.input_dims[1]*self.input_dims[2], self.num_filters] ) )
             # Note that much manipulation is necessary to prepare for the outer product with matrices
 
-            # Normalize ksp (which type of normalization?)
-            wnorms = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
-            ksp = tf.divide(ksp, tf.maximum(wnorms, 1e-6))
+            # Normalize weights (one or both dimensions)
+            if self.normalize_weights in [0, 2]:
+                wnorms = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
+                kts = tf.divide(kts, tf.maximum(wnorms, 1e-6))
+            if self.normalize_weights in [1, 2]:
+                wnorms = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
+                ksp = tf.divide(ksp, tf.maximum(wnorms, 1e-6))
 
             #print('ts', kts)
             #print('sp', ksp )
@@ -600,9 +611,8 @@ class sepLayer(Layer):
 
             # Define computation
             if self.pos_constraint:
-                pre = tf.add(tf.matmul(
-                    inputs,
-                    tf.maximum(0.0, weights_full)), self.biases_var)
+                pre = tf.add( tf.matmul(
+                    inputs, tf.maximum(0.0, weights_full)), self.biases_var)
             else:
                 pre = tf.add(
                     tf.matmul(inputs, weights_full), self.biases_var)

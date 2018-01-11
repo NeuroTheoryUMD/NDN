@@ -190,7 +190,7 @@ class FFNetwork(object):
                     conv_filter_size = [layer_sizes[nn][0], network_params['conv_filter_widths'][nn], 1]
                     if layer_sizes[nn][2] > 1:
                         conv_filter_size[2] = network_params['conv_filter_widths'][nn]
-                
+
                 self.layers.append(
                     convLayer( scope='conv_layer_%i' % nn,
                                input_dims=layer_sizes[nn],
