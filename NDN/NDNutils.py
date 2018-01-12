@@ -72,10 +72,10 @@ def FFnetwork_params( input_dims = None,
     num_inh_layers = [0] * num_layers
 
     # Establish normalization
-    norm_weights = [False] * num_layers
+    norm_weights = [0] * num_layers
     if layers_to_normalize is not None:
         for nn in layers_to_normalize:
-            norm_weights[nn] = 'True'
+            norm_weights[nn] = 1
 
     if ei_layers is not None:
         for nn in range(len(ei_layers)):

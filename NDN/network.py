@@ -108,7 +108,8 @@ class Network(object):
         raise NotImplementedError
 
     def _define_optimizer(self, learning_alg='adam', opt_params=None, var_list=None):
-        """Define one step of the optimization routine"""
+        """Define one step of the optimization routine
+        L-BGFS algorithm described https://docs.scipy.org/doc/scipy-0.18.1/reference/optimize.minimize-lbfgsb.html"""
 
         if learning_alg == 'adam':
             self.train_step = tf.train.AdamOptimizer(opt_params['learning_rate']). \
@@ -120,7 +121,9 @@ class Network(object):
                 method='L-BFGS-B',
                 options={
                     'maxiter': opt_params['maxiter'],
-                    #'pgtol': opt_params['pgtol'],
+                    'gtol': opt_params['grad_tol'],
+                    'ftol': opt_params['func_tol'],
+                    'eps': opt_params['eps'],
                     'disp': opt_params['display']})
     # END _define_optimizer
 
@@ -588,8 +591,12 @@ class Network(object):
                 opt_params['maxiter'] = 500
             # The iteration will stop when max{ | proj g_i | i = 1, ..., n} <= pgtol
             # where pg_i is the i-th component of the projected gradient.
-            if 'pgtol' not in opt_params:
-                opt_params['pgtol'] = 1e-05
+            if 'func_tol' not in opt_params:
+                opt_params['func_tol'] = 2.220446049250313e-09
+            if 'grad_tol' not in opt_params:
+                opt_params['grad_tol'] = 1e-05
+            if 'eps' not in opt_params:
+                opt_params['eps'] = 1e-08
             # Convert display variable to boolean
             if opt_params['display'] is None:
                 opt_params['display'] = False

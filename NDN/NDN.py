@@ -146,8 +146,11 @@ class NDN(Network):
     # END NDN._define_network
 
     def _build_graph(self, learning_alg='lbfgs', opt_params=None, params_to_fit=None ):
+        """NDN._build_graph"""
 
-        # Check data_filters if it exists
+        # Take care of optimize parameters if necessary
+        if opt_params is None:
+            opt_params = self.optimizer_defaults( {}, learning_alg )
 
         self.graph = tf.Graph()  # must be initialized before graph creation
 
