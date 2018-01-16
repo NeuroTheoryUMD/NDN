@@ -345,8 +345,9 @@ class Network(object):
                 cost = sess.run(
                     self.cost,
                     feed_dict={self.indices: train_indxs_perm})
-                print('\nEpoch %03d:' % epoch)
-                print('   train cost = %2.5f' % cost)
+                #print('Epoch %03d:' % epoch)
+                #print('   train cost = %2.5f' % cost)
+                print('Epoch %03d:  train cost = %2.5f' % (epoch, cost) )
 
                 # print additional testing info
                 if test_indxs is not None:
@@ -368,7 +369,7 @@ class Network(object):
                     (epoch % opt_params['epochs_summary'] == opt_params['epochs_summary'] - 1
                      or epoch == 0):
                 if not display_output and opt_params['display'] is not None:
-                    print('\nEpoch %03d:' % epoch)
+                    print('Epoch %03d:' % epoch)
 
                 # model summary
                 print('Writing train summary')
