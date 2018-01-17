@@ -1,18 +1,25 @@
-## INSTALL SPHINX 
+Welcome! This guide walks you through how to automatically generate 
+documentation for this python project using the 
+[sphinx](http://www.sphinx-doc.org/en/stable/index.html) package in python, and 
+how to publish it on 
+[Read the Docs](https://readthedocs.org/)
+so that users can easily access and search your documentation.
+
+## 1. INSTALL SPHINX (general instructions [here](http://www.sphinx-doc.org/en/stable/tutorial.html))
 
 ### Install Sphinx from the command line:
 
 ```
-pip install Sphinx
+$ pip install Sphinx
 ```
 
 ### sphinx-quickstart
 
-Next we want to set up the source directory for the documetnation. First cd to 
-root of project directory and enter:
+Next we want to set up the source directory for the documetnation. In the 
+command line, `cd` to the root of the project directory and enter:
 
 ```
-sphinx-quickstart
+$ sphinx-quickstart
 ```
 
 You'll be prompted to enter a number of user options. For most you can just 
@@ -24,10 +31,16 @@ accept the defaults, but you'll want to change the following:
 * `mathjax`: y (allows mathjax in documentation)
 * `githubpages`: y (allows integration with github)
 
-## SETUP CONF.PY FILE
+## 2. SET UP CONF.PY FILE
+Now that sphinx is installed, we want to configure it to automatically parse our
+meticulously maintained docstrings and generate html pages that display said 
+information in a readable and searchable way. 
+More details on the Google-style python docstrings used in this project can be 
+found 
+[here](http://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html).
 
 ### Set project path
-In the conf.py file, uncomment the following lines at the top so that the conf 
+In the `conf.py` file, uncomment the following lines at the top so that the conf 
 file (located in `./docs`) can find the project (located above in `./`):
 
 ```python
@@ -43,15 +56,24 @@ Change the theme to something nicer than the default:
 html_theme = 'sphinx_rtd_theme'
 ```
 
-Find themes available through sphinx 
-[here](http://www.sphinx-doc.org/en/stable/theming.html)
+Find the themes available through sphinx 
+[here](http://www.sphinx-doc.org/en/stable/theming.html).
 
 ### Allow allow parsing of google-style docstrings
-Add `sphinx.ext.napoleon` to extensions 
+Add `sphinx.ext.napoleon` to the `extensions` variable:
+
+```python
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.mathjax',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.githubpages',
+    'sphinx.ext.napoleon'] 
+```
 
 ### Include documentation for __init__ functions
 If you want to document `__init__()` functions for python classes, add the 
-following functions to the end of the conf.py file 
+following functions to the end of the `conf.py` file 
 (thanks to https://stackoverflow.com/a/5599712):
 
 ```python
@@ -67,8 +89,10 @@ def setup(app):
 ### Include inherited attributes and methods in documentation
 This can help if you want users to be able to find all available attributes and
 methods, including those that are inherited, for python classes. Add
-`:inherited-members:` to modules in `./docs/source/*.rst` files. For example, in
-the `./docs/source/NDN.rst` file you would add
+`:inherited-members:` to each module in the `./docs/source/*.rst` files. For 
+example, to show attributes and methods that the `NDN.network` module inherits 
+from its base classes, the `network` module in the `./docs/source/NDN.rst` file 
+should look like:
 
 ```
 NDN\.network module
@@ -81,30 +105,62 @@ NDN\.network module
     :inherited-members:
 ```
 
-to show attributes and methods that the `NDN.network` module inherits from its 
-base classes.
-
 ### Get autodocs working
-From the `./docs` directory, run
+In the command line, from the `./docs` directory, run:
 
 ```
-sphinx-apidoc -o source/ ../
+$ sphinx-apidoc -o source/ ../
 ```
 
-in the command line. For some reason this is necessary to get 
-autodocs working.
+For some reason this is necessary to get autodocs working.
 
 ### Build the documentation
-In the command line, run
+In the command line, run:
 
 ```
-make html
+$ make html
 ```
 
-find landing page at
-/docs/_build/html/index.html
+You'll then be able to find the documentation landing page at
+`/docs/_build/html/index.html`
 
-## INTEGRATE DOCS WITH GITHUB
-1. create account with readthedocs.org
+## 3. ADD A NEW PAGE 
+Docstrings are useful for understanding how individual functions work, but do 
+not help too much for a new user of the codebase. To facilitate learning how the
+code works we will want to create tutorial pages that demonstrate how to use certain
+features of the code.
 
-2. 
+
+## 4. PUBLISH THE DOCUMENTATION (general instructions [here](http://dont-be-afraid-to-commit.readthedocs.io/en/latest/documentation.html))
+Now that we've built our documentation, we want to publish it on the web. 
+Fortunately, Read the Docs and GitHub make this super simple. The following steps
+are mostly copy-and-pasted from the general instructions above.
+
+### Exclude unwanted directories
+We do not want to commit the rendered files to github, just the source. To 
+exclude these, add them to `.gitignore`:
+
+```
+_build
+_static
+_templates
+```
+
+Then push the updated files to GitHub.
+
+### Create an account with readthedocs.org
+Follow the instructions here, they should be self-explanatory.
+
+And now, just like magic, Read the Docs will watch your GitHub project and 
+update the documentation every night.
+
+But wait! You can do better, if you really think it is necessary. On GitHub:
+1. select **settings** for your project (not for your account!) in the 
+navigation panel on the right-hand side
+2. choose **Webhooks & Services**
+3. enable `ReadTheDocs` under **Add Service** dropdown
+
+...and now, every time you push documents to GitHub, ReadTheDocs will be 
+informed that you have new documents to be published. It's not magic, they say,
+but it's pretty close. Close enough for me.
+
