@@ -59,8 +59,9 @@ html_theme = 'sphinx_rtd_theme'
 Find the themes available through sphinx 
 [here](http://www.sphinx-doc.org/en/stable/theming.html).
 
-### Allow allow parsing of google-style docstrings
-Add `sphinx.ext.napoleon` to the `extensions` variable:
+### Allow parsing of google-style docstrings
+Add `sphinx.ext.napoleon` to the `extensions` variable in `conf.py`, so that it
+looks something like this:
 
 ```python
 extensions = [
@@ -71,7 +72,7 @@ extensions = [
     'sphinx.ext.napoleon'] 
 ```
 
-### Include documentation for __init__ functions
+### Include documentation for class constructors
 If you want to document `__init__()` functions for python classes, add the 
 following functions to the end of the `conf.py` file 
 (thanks to https://stackoverflow.com/a/5599712):
@@ -115,7 +116,7 @@ $ sphinx-apidoc -o source/ ../
 For some reason this is necessary to get autodocs working.
 
 ### Build the documentation
-In the command line, run:
+In the directory, run:
 
 ```
 $ make html
@@ -126,10 +127,49 @@ You'll then be able to find the documentation landing page at
 
 ## 3. ADD A NEW PAGE 
 Docstrings are useful for understanding how individual functions work, but do 
-not help too much for a new user of the codebase. To facilitate learning how the
-code works we will want to create tutorial pages that demonstrate how to use certain
-features of the code.
+not help too much for a new user of the code. To facilitate learning how the
+code works we will want to create tutorial pages that demonstrate how to use 
+certain features of the code.
 
+In the directory containing the `index.rst` file, add a new file called 
+`tutorial-example.rst`. This will look something like:
+
+```
+################
+Tutorial Example
+################
+
+Here's some content written in reStructured Text (.rst), a markup language 
+commonly used for technical documentation
+```
+
+Tell sphinx where this file is by adding `tutorial-example` to the 
+`.. toctree::` section in the `index.rst` file, so that it looks something like
+this:
+
+```
+.. toctree::
+   :maxdepth: 2
+
+   tutorial-example
+   another-tutorial-example
+```
+
+Note: I tried to clean up the `./docs` directory by adding the sub-directory
+`./docs/tutorials/`. You can do this if you tell sphinx how to find these files; 
+the `index.rst` file would then look something like:
+
+```
+.. toctree::
+   :maxdepth: 2
+
+   tutorials/tutorial-example
+   tutorials/another-tutorial-example
+```
+ 
+However, sphinx adds some nice navigation buttons (previous/next) at the bottom
+of the tutorial pages, but *only if they are in the same directory as* 
+`index.rst`. Small price to pay.
 
 ## 4. PUBLISH THE DOCUMENTATION (general instructions [here](http://dont-be-afraid-to-commit.readthedocs.io/en/latest/documentation.html))
 Now that we've built our documentation, we want to publish it on the web. 
@@ -149,7 +189,7 @@ _templates
 Then push the updated files to GitHub.
 
 ### Create an account with readthedocs.org
-Follow the instructions here, they should be self-explanatory.
+Follow the instructions there, they should be self-explanatory.
 
 And now, just like magic, Read the Docs will watch your GitHub project and 
 update the documentation every night.
