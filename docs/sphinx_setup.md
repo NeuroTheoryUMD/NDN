@@ -1,28 +1,36 @@
 ## INSTALL SPHINX 
 
-### 1. install Sphinx:
-`pip install Sphinx`
+1. install Sphinx:
 
-### 2. sphinx-quickstart
-Next we want to set up the source directory for the documetnationcd to root of project directory and enter:
-`sphinx-quickstart`
+```pip install Sphinx```
 
-3. Enter root path for documentation:
-`./docs`
+2. sphinx-quickstart
 
-4. Choose all default options *except*:
-autodoc: y
-viewcode: y
-mathjax: y
-githubpages: y
+Next we want to set up the source directory for the documetnation. First cd to 
+root of project directory and enter:
+
+```sphinx-quickstart```
+
+You'll be prompted to enter a number of user options. For most you can just 
+accept the defaults, but you'll want to change the following:
+
+* Enter root path for documentation: `./docs`
+* `autodoc`: y (allows automatic parsing of docstrings)
+* `viewcode`: y (links documentation to source code)
+* `mathjax`: y (allows mathjax in documentation)
+* `githubpages`: y (allows integration with github)
 
 ## SETUP CONF.PY FILE
 In conf.py file, 
 
-1. uncomment the following lines at the top:
+1. uncomment the following lines at the top so that the conf file (located in 
+./docs) can find the project in the root file:
+
+```python
 import os
 import sys
 sys.path.insert(0, os.path.abspath('../..'))
+```
 
 2. change the theme to something nicer than default
 html_theme = 'sphinx_rtd_theme' (personal preference) or 'classic'
