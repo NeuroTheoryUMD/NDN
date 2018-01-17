@@ -11,6 +11,7 @@ FFnetwork\.create\_reg\_matrices module
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 FFnetwork\.ffnetwork module
 ---------------------------
@@ -19,6 +20,7 @@ FFnetwork\.ffnetwork module
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 FFnetwork\.layer module
 -----------------------
@@ -27,6 +29,7 @@ FFnetwork\.layer module
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 FFnetwork\.regularization module
 --------------------------------
@@ -35,6 +38,7 @@ FFnetwork\.regularization module
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 FFnetwork\.side\_network module
 -------------------------------
@@ -43,6 +47,7 @@ FFnetwork\.side\_network module
     :members:
     :undoc-members:
     :show-inheritance:
+    :inherited-members:
 
 
 Module contents

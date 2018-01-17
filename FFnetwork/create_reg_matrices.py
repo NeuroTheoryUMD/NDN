@@ -1,43 +1,49 @@
 import numpy as np
 import scipy.sparse as sp
 
-def create_Tikhonov_matrix( stim_dims, reg_type, boundary_conditions=None ):
+
+def create_Tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
     """
-    Tmat = create_Tikhonov_matrix(stim_params, direction, order)
+    Usage: Tmat = create_Tikhonov_matrix(stim_dims, reg_type, boundary_cond)
 
     Creates a matrix specifying a an L2-regularization operator of the form
-    ||T*k||^2. Currently only supports second derivative/Laplacian operations
+    ||T*k||^2, where T is a matrix and k is a vector of parameters. Currently 
+    only supports second derivative/Laplacian operations
 
-    INPUTS:
-        stim_params: parameter struct associated with the target stimulus.
-            must contain .dims field specifying the number of stimulus elements along each dimension
-            <.boundary_conds> specifies boundary conditions: Inf is free boundary, 0 is tied to 0, and -1 is periodic
-            <.split_pts> specifies an 'internal boundary' over which we dont want to smooth. [direction split_ind split_bnd]
-        direction: direction of the derivative relative to the stimulus dimensions. e.g. 1 is along the first dim, 2 is along the second, [1 2] is a laplacian
+    Args:
+        stim_dims (list of ints): dimensions associated with the target 
+            stimulus, in the form [num_lags, num_x_pix, num_y_pix]
+        reg_type (str): specify form of the regularization matrix
+            'd2xt' | 'd2x' | 'd2t'
+        boundary_conditions (None): would ideally be a dictionary with each reg 
+            type listed; currently unused
 
-    OUTPUTS:
-        Tmat: sparse matrix specifying the desired Tikhonov operation
+    Returns:
+        scipy array: matrix specifying the desired Tikhonov operator
 
-    # Boundary conditions would be ideally a dictionary with each reg type listed. Assumed infinity without
-    #   Currently not implemented
-
-    The method of computing sparse differencing matrices used here is adapted from
-    Bryan C. Smith's and Andrew V. Knyazev's function "laplacian", available
-    here: http://www.mathworks.com/matlabcentral/fileexchange/27279-laplacian-in-1d-2d-or-3d
-    Written in Matlab by James McFarland, adapted into python by Dan Butts
+    Notes:
+        The method of computing sparse differencing matrices used here is 
+        adapted from Bryan C. Smith's and Andrew V. Knyazev's function 
+        "laplacian", available here: 
+        http://www.mathworks.com/matlabcentral/fileexchange/27279-laplacian-in-1d-2d-or-3d
+        Written in Matlab by James McFarland, adapted into python by Dan Butts
+        
     """
 
+    # first dimension is assumed to represent time lags
+    nLags = stim_dims[0]
 
-    nLags = stim_dims[0] # first dimension is assumed to represent time lags
-    nPix = stim_dims[1]*stim_dims[2] # additional dimensions are spatial (Nx and Ny)
+    # additional dimensions are spatial (Nx and Ny)
+    nPix = stim_dims[1] * stim_dims[2]
     allowed_reg_types = ['d2xt', 'd2x', 'd2t']
 
-    #assert (ischar(reg_type) && ismember(reg_type, allowed_reg_types), 'not an allowed regularization type');
+    #assert (ischar(reg_type) && ismember(reg_type, allowed_reg_types),
+    # 'not an allowed regularization type');
 
     #has_split = ~isempty(stim_params.split_pts);
-    et = np.ones( [1,nLags], dtype=np.float32 )
-    ex = np.ones( [1,stim_dims[1]], dtype=np.float32 )
-    ey = np.ones( [1,stim_dims[2]], dtype=np.float32 )
+    et = np.ones([1, nLags], dtype=np.float32)
+    ex = np.ones([1, stim_dims[1]], dtype=np.float32)
+    ey = np.ones([1, stim_dims[2]], dtype=np.float32)
 
     # Boundary conditions (currently not implemented)
     #if isinf(stim_params.boundary_conds(1)) # if temporal dim has free boundary
@@ -169,37 +175,36 @@ def create_Tikhonov_matrix( stim_dims, reg_type, boundary_conditions=None ):
     return Tmat
 
 
-def create_maxpenalty_matrix( input_dims, reg_type ):
+def create_maxpenalty_matrix(input_dims, reg_type):
     """
-    Tmat = create_Tikhonov_matrix(stim_params, direction, order)
+    Usage: Tmat = create_maxpenalty_matrix(input_dims, reg_type)
 
     Creates a matrix specifying a an L2-regularization operator of the form
-    ||T*k||^2. Currently only supports second derivative/Laplacian operations
+    ||T*k||^2, where T is a matrix and k is a vector of parameters. Currently 
+    only supports second derivative/Laplacian operations
 
-    INPUTS:
-        stim_params: parameter struct associated with the target stimulus.
-            must contain .dims field specifying the number of stimulus elements along each dimension
-            <.boundary_conds> specifies boundary conditions: Inf is free boundary, 0 is tied to 0, and -1 is periodic
-            <.split_pts> specifies an 'internal boundary' over which we dont want to smooth. [direction split_ind split_bnd]
-        direction: direction of the derivative relative to the stimulus dimensions. e.g. 1 is along the first dim, 2 is along the second, [1 2] is a laplacian
+    Args:
+        input_dims (list of ints): dimensions associated with the target input, 
+            in the form [num_lags, num_x_pix, num_y_pix]
+        reg_type (str): specify form of the regularization matrix
+            'max' | 'max_filt' | 'max_space'
 
-    OUTPUTS:
-        Tmat: sparse matrix specifying the desired Tikhonov operation
+    Returns:
+        numpy array: matrix specifying the desired Tikhonov operator
 
-    # Boundary conditions would be ideally a dictionary with each reg type listed. Assumed infinity without
-    #   Currently not implemented
-
-    The method of computing sparse differencing matrices used here is adapted from
-    Bryan C. Smith's and Andrew V. Knyazev's function "laplacian", available
-    here: http://www.mathworks.com/matlabcentral/fileexchange/27279-laplacian-in-1d-2d-or-3d
-    Written in Matlab by James McFarland, adapted into python by Dan Butts
+    Notes:
+        Adapted from create_Tikhonov_matrix function above.
+        
     """
 
     allowed_reg_types = ['max', 'max_filt', 'max_space']
     #assert (ischar(reg_type) && ismember(reg_type, allowed_reg_types), 'not an allowed regularization type');
 
-    num_filt = input_dims[0] # first dimension is assumed to represent filters
-    num_pix = input_dims[1]*input_dims[2] # additional dimensions are spatial (Nx and Ny)
+    # first dimension is assumed to represent filters
+    num_filt = input_dims[0]
+
+    # additional dimensions are spatial (Nx and Ny)
+    num_pix = input_dims[1] * input_dims[2]
     NK = num_filt * num_pix
 
     rmat = np.zeros([NK,NK], dtype=np.float32)

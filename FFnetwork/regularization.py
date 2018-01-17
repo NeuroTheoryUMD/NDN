@@ -200,17 +200,20 @@ class Regularization(object):
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max'],
-                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max'], w2), transpose_a=True)))
+                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max'], w2),
+                                   transpose_a=True)))
         elif reg_type == 'max_space':
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max_space'],
-                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max_space'], w2), transpose_a=True)))
+                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max_space'], w2),
+                                   transpose_a=True)))
         elif reg_type == 'max_filt':
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max_filt'],
-                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max_filt'], w2), transpose_a=True)))
+                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max_filt'], w2),
+                                   transpose_a=True)))
         elif reg_type == 'd2t':
             reg_pen = tf.multiply(
                 self.vals_var['d2t'],
@@ -230,8 +233,12 @@ class Regularization(object):
             # currently works only for 1 spatial dimension
             temp = 0
             for ii in range(weights.shape[0]):
-                # different centralizers correspond to different envelope shapes
-                envelope_val = np.power(ii//self.input_dims[0] - self.input_dims[1]/2 - (self.input_dims[1]%2 - 1)/2, 2, dtype=float)
+                # different centralizers correspond to different envelope
+                # shapes
+                envelope_val = np.power(
+                    ii//self.input_dims[0] -
+                    self.input_dims[1]/2 -
+                    (self.input_dims[1] % 2 - 1) / 2, 2, dtype=float)
                 for mu in range(weights.shape[1]):
                     temp += envelope_val * np.power(weights[ii, mu], 2)
             reg_pen = tf.multiply(self.vals_var['center'], temp)
@@ -253,7 +260,6 @@ class Regularization(object):
             reg_dict[reg_type] = reg_pen
 
         return reg_dict
-
     # END _calc_reg_penalty
 
     def reg_copy(self):
@@ -267,24 +273,36 @@ class Regularization(object):
 
         return reg_target
     # END Regularization.reg_copy
+    # END reg_copy
 
 
 class Sep_Regularization(Regularization):
     """Child class that adjusts regularization for separable layers"""
 
-
     def __init__(self, input_dims=None, num_outputs=None, vals=None):
+        """Constructor for Sep_Regularization object
+        
+        Args:
+            input_dims (int): dimension of input size (for building reg mats)
+            num_outputs (int): number of outputs (for normalization in norm2)
+            vals (dict, optional): key-value pairs specifying value for each
+                type of regularization 
+                
+        """
 
         super(Sep_Regularization, self).__init__(
             input_dims=input_dims,
             num_outputs = num_outputs,
-            vals = vals )
+            vals=vals)
+
+    # END Sep_Regularization.__init__
 
     def _build_reg_mats(self, reg_type):
         """Build regularization matrices in default tf Graph
 
         Args:
             reg_type (str): see `_allowed_reg_types` for options
+            
         """
 
         if reg_type is 'd2t':
@@ -299,7 +317,8 @@ class Sep_Regularization(Regularization):
             raise TypeError('d2xt does not work with a separable layer.')
         elif reg_type is 'max':
             reg_mat = makeRmats.create_maxpenalty_matrix(
-                [self.input_dims[0]+self.input_dims[1]*self.input_dims[2],1,1], reg_type)
+                [self.input_dims[0] + self.input_dims[1] * self.input_dims[2],
+                 1, 1], reg_type)
             name = reg_type + '_reg'
         elif reg_type is 'max_filter':
             reg_mat = makeRmats.create_maxpenalty_matrix(
@@ -335,29 +354,37 @@ class Sep_Regularization(Regularization):
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max'],
-                tf.trace(tf.matmul( w2, tf.matmul(self.mats['max'], w2), transpose_a=True)))
+                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max'], w2),
+                                   transpose_a=True)))
 
         elif reg_type == 'max_space':
-            wspace2 = tf.square( tf.slice( weights, [self.input_dims[0], 0],
-                          [self.input_dims[1]*self.input_dims[2], self.num_outputs] ) )
-            reg_pen = tf.multiply( self.vals_var['max_space'],
-                tf.trace(tf.matmul( wspace2, tf.matmul(self.mats['max_space'], wspace2), transpose_a=True)))
+            wspace2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
+                          [self.input_dims[1]*self.input_dims[2],
+                           self.num_outputs]))
+            reg_pen = tf.multiply(
+                self.vals_var['max_space'], tf.trace(tf.matmul(
+                    wspace2, tf.matmul(self.mats['max_space'], wspace2),
+                    transpose_a=True)))
 
         elif reg_type == 'max_filt':
-            wfilt2 = tf.square( tf.slice( weights, [0, 0], [self.input_dims[0], self.num_outputs] ) )
+            wfilt2 = tf.square(tf.slice(
+                weights, [0, 0], [self.input_dims[0], self.num_outputs]))
             reg_pen = tf.multiply(
                 self.vals_var['max_filt'],
-                tf.trace(tf.matmul(wfilt2, tf.matmul(self.mats['max_filt'], wfilt2), transpose_a=True)))
+                tf.trace(tf.matmul(wfilt2, tf.matmul(self.mats['max_filt'],
+                                                     wfilt2), transpose_a=True)))
 
         elif reg_type == 'd2t':
-            wt = tf.slice(weights, [0, 0], [self.input_dims[0], self.num_outputs])
-            reg_pen = tf.multiply( self.vals_var['d2t'],
-                tf.reduce_sum(tf.square( tf.matmul(self.mats['d2t'], wt))))
+            wt = tf.slice(weights, [0, 0], [self.input_dims[0],
+                                            self.num_outputs])
+            reg_pen = tf.multiply(self.vals_var['d2t'],
+                tf.reduce_sum(tf.square(tf.matmul(self.mats['d2t'], wt))))
 
         elif reg_type == 'd2x':
-            wspace = tf.slice( weights, [self.input_dims[0], 0],
-                               [self.input_dims[1]*self.input_dims[2], self.num_outputs] )
-            reg_pen = tf.multiply( self.vals_var['d2x'],
+            wspace = tf.slice(weights, [self.input_dims[0], 0],
+                               [self.input_dims[1]*self.input_dims[2],
+                                self.num_outputs])
+            reg_pen = tf.multiply(self.vals_var['d2x'],
                 tf.reduce_sum(tf.square(
                     tf.matmul(self.mats['d2x'], wspace))))
 
@@ -367,6 +394,3 @@ class Sep_Regularization(Regularization):
             reg_pen = tf.constant(0.0)
         return reg_pen
     # END Sep_Regularization._calc_reg_penalty
-
-
-

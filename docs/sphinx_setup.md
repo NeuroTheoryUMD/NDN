@@ -155,22 +155,6 @@ this:
    another-tutorial-example
 ```
 
-Note: I tried to clean up the `./docs` directory by adding the sub-directory
-`./docs/tutorials/`. You can do this if you tell sphinx how to find these files; 
-the `index.rst` file would then look something like:
-
-```
-.. toctree::
-   :maxdepth: 2
-
-   tutorials/tutorial-example
-   tutorials/another-tutorial-example
-```
- 
-However, sphinx adds some nice navigation buttons (previous/next) at the bottom
-of the tutorial pages, but *only if they are in the same directory as* 
-`index.rst`. Small price to pay.
-
 ## 4. PUBLISH THE DOCUMENTATION (general instructions [here](http://dont-be-afraid-to-commit.readthedocs.io/en/latest/documentation.html))
 Now that we've built our documentation, we want to publish it on the web. 
 Fortunately, Read the Docs and GitHub make this super simple. The following steps

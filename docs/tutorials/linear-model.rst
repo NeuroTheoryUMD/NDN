@@ -1,6 +1,6 @@
-#####################
-Linear Model Tutorial
-#####################
+############
+Linear Model
+############
 
 Let's start with the basics. First we're going to import all of the necessary
 modules. We'll do this once now, and ignore for future tutorials.

@@ -1,5 +1,6 @@
-NDN
-===
+============
+NDN Packages
+============
 
 .. toctree::
    :maxdepth: 4
