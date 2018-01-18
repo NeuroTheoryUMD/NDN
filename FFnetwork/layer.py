@@ -366,7 +366,7 @@ class convLayer(Layer):
         """
 
         # Error checking
-        if pos_constraint is False:
+        if pos_constraint is True:
             raise ValueError(
                 'No positive constraint should be applied to this layer')
 
