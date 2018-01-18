@@ -14,18 +14,43 @@ from NDNutils import concatenate_input_dims
 
 
 class NDN(Network):
-    """Tensorflow (tf) implementation of network-NIM class
+    """Tensorflow (tf) implementation of Neural Deep Network class
 
     Attributes:
-        network (FFNetwork object): feedforward network
-
-
+        num_networks (int): number of FFNetworks in model
+        network_list (list of `FFNetwork` objects): list containing all 
+            FFNetworks in model
+        num_input_streams (int): number of distinct input matrices processed by 
+            the various FFNetworks in model
+        ffnet_out (list of ints): indices into network_list of all FFNetworks 
+            whose outputs are used in calculating the cost function
+        input_sizes (list of lists): list of the form 
+            [num_lags, num_x_pix, num_y_pix] that describes the input size for 
+            each input stream
+        output_size (list of ints): number of output units for each output 
+            stream
+        noise_dist (str): specifies the probability distribution used to define
+            the cost function
+            ['poisson'] | 'gaussian' | 'bernoulli'
+        tf_seed (int): rng seed for both tensorflow and numpy, which allows 
+            for reproducibly random initializations of parameters
+        cost
+        unit_cost
+        cost_reg
+        cost_penalized
+        graph (tf.Graph object): tensorflow graph of the model
+        saver (tf.train.Saver object): for saving and restoring models
+        merge_summaries (tf.summary.merge_all op): for collecting all summaries
+        init (tf.global_variables_initializer op): for initializing variables
+        sess_config (tf.ConfigProto object): specifies configurations for 
+            tensorflow session, such as GPU utilization
 
     Notes:
         One assumption is that the output of all FFnetworks -- whether or not
-        they are multi-dimensional -- project down into one dimension when input
-        into a second network. As a result, concatination of multiple streams will
-        always be in one dimension. If there is a single input into an FFnetwork,
+        they are multi-dimensional -- project down into one dimension when 
+        input into a second network. As a result, concatenation of multiple 
+        streams will always be in one dimension.
+        
     """
 
     _allowed_noise_dists = ['gaussian', 'poisson', 'bernoulli']
@@ -33,15 +58,34 @@ class NDN(Network):
 
     def __init__(
             self,
-            network_list = None,
+            network_list=None,
             noise_dist='poisson',
             ffnet_out=-1,
-            input_dim_list = None,
-            tf_seed=0 ):
+            input_dim_list=None,
+            tf_seed=0):
         """Constructor for network-NIM class
 
         Args:
-            network_list (list): created using 'FFNetwork_params'
+            network_list (list of `FFNetwork` objects): created using 
+                `NDNutils.FFNetwork_params`
+            noise_dist (str, optional): specifies the probability distribution  
+                used to define the cost function
+                ['poisson'] | 'gaussian' | 'bernoulli'
+            ffnet_out (int or list of ints, optional): indices into 
+                network_list that specifes which network outputs are used for 
+                the cost function; defaults to last network in `network_list`
+            input_dim_list (list of lists): list of the form 
+                [num_lags, num_x_pix, num_y_pix] that describes the input size 
+                for each input stream
+            tf_seed (int)
+            
+        Raises:
+            TypeError: If `network_list` is not specified
+            ValueError: If `input_dim_list` does not match inputs specified for
+                each FFNetwork in `network_list`
+            ValueError: If any element of `ffnet_out` is larger than the length
+                of `network_list`
+            
         """
 
         if network_list is None:
@@ -51,7 +95,7 @@ class NDN(Network):
         super(NDN, self).__init__()
 
         # Set network_list
-        if not isinstance( network_list, list ):
+        if not isinstance(network_list, list):
             network_list = [network_list]
         self.num_networks = len(network_list)
         self.network_list = network_list
@@ -63,18 +107,21 @@ class NDN(Network):
                 measured_input_list += network_list[nn]['xstim_n']
             measured_input_list = np.unique(measured_input_list)
         if input_dim_list is None:
-            input_dim_list = [None]*len(measured_input_list)
-        else:
-            assert len(input_dim_list) >= len(measured_input_list), 'Something_wrong with inputs'
+            input_dim_list = [None] * len(measured_input_list)
+        elif len(input_dim_list) < len(measured_input_list):
+                ValueError('Something_wrong with inputs')
         self.num_input_streams = len(input_dim_list)
 
         if not isinstance(ffnet_out, list):
             ffnet_out = [ffnet_out]
         for nn in range(len(ffnet_out)):
-            assert ffnet_out[nn] <= self.num_networks, 'ffnet_out has values that are too big'
+            if ffnet_out[nn] > self.num_networks:
+                ValueError('ffnet_out has values that are too big')
+
         self.ffnet_out = ffnet_out
         self.input_sizes = input_dim_list
-        self.output_size = [0]*len(ffnet_out)  # list of output sizes (for Robs placeholders)
+        # list of output sizes (for Robs placeholders)
+        self.output_size = [0] * len(ffnet_out)
         self.noise_dist = noise_dist
         self.tf_seed = tf_seed
 
@@ -85,27 +132,30 @@ class NDN(Network):
         self.saver = None
         self.merge_summaries = None
         self.init = None
+    # END NDN.__init__
 
-    # END networkNIM.__init__
-
-    def _define_network(self, network_list ):
+    def _define_network(self, network_list):
         # Create the FFnetworks
 
         self.networks = []
 
         for nn in range(self.num_networks):
 
-            # Tabulate network inputs. Note that multiple inputs assumed to be combined along 2nd dim,
-            # and likewise 1-D outputs assumed to be over 'space'
+            # Tabulate network inputs. Note that multiple inputs assumed to be
+            # combined along 2nd dim, and likewise 1-D outputs assumed to be
+            # over 'space'
             input_dims_measured = None
 
             if network_list[nn]['ffnet_n'] is not None:
                 ffnet_n = network_list[nn]['ffnet_n']
                 for mm in ffnet_n:
-                    assert mm <= self.num_networks, 'Too many ffnetworks referenced.'
-                    #print('network %i:' % nn, mm, input_dims_measured, self.networks[mm].layers[-1].output_dims )
+                    assert mm <= self.num_networks, \
+                        'Too many ffnetworks referenced.'
+                    # print('network %i:' % nn, mm, input_dims_measured,
+                    # self.networks[mm].layers[-1].output_dims )
                     input_dims_measured = concatenate_input_dims(
-                        input_dims_measured, self.networks[mm].layers[-1].output_dims)
+                        input_dims_measured,
+                        self.networks[mm].layers[-1].output_dims)
 
             # Determine external inputs
             if network_list[nn]['xstim_n'] is not None:
@@ -114,7 +164,8 @@ class NDN(Network):
                     # First see if input is not specified at NDN level
                     if self.input_sizes[mm] is None:
                         # then try to scrape from network_params
-                        assert network_list[nn]['input_dims'] is not None, 'External input size not defined.'
+                        assert network_list[nn]['input_dims'] is not None, \
+                            'External input size not defined.'
                         self.input_sizes[mm] = network_list[nn]['input_dims']
                     input_dims_measured = concatenate_input_dims(
                         input_dims_measured, self.input_sizes[mm])
@@ -122,35 +173,46 @@ class NDN(Network):
             # Now specific/check input to this network
             if network_list[nn]['input_dims'] is None:
                 network_list[nn]['input_dims'] = input_dims_measured
-                #print('network %i:' % nn, input_dims_measured)
+                # print('network %i:' % nn, input_dims_measured)
             else:
-                #print('network %i:' % nn, network_list[nn]['input_dims'], input_dims_measured )
-                assert network_list[nn]['input_dims'] == list(input_dims_measured), 'Input_dims dont match.'
+                # print('network %i:' % nn, network_list[nn]['input_dims'],
+                # input_dims_measured )
+                assert network_list[nn]['input_dims'] == \
+                       list(input_dims_measured), 'Input_dims dont match.'
 
             # Build networks
             if network_list[nn]['network_type'] is 'side':
-                assert len(network_list[nn]['ffnet_n']) == 1, 'only one input to a side network'
-                network_input_params = network_list[network_list[nn]['ffnet_n'][0]]
+                assert len(network_list[nn]['ffnet_n']) == 1, \
+                    'only one input to a side network'
+                network_input_params = \
+                    network_list[network_list[nn]['ffnet_n'][0]]
                 self.networks.append(
-                    side_network(scope='side_network_%i' % nn, input_network_params=network_input_params,
-                                 params_dict=network_list[nn]))
+                    side_network(
+                        scope='side_network_%i' % nn,
+                        input_network_params=network_input_params,
+                        params_dict=network_list[nn]))
             else:
                 self.networks.append(
-                    FFNetwork(scope='network_%i' % nn, params_dict=network_list[nn]))
+                    FFNetwork(
+                        scope='network_%i' % nn,
+                        params_dict=network_list[nn]))
 
         # Assemble outputs
         for nn in range(len(self.ffnet_out)):
             ffnet_n = self.ffnet_out[nn]
-            self.output_size[nn] = self.networks[ffnet_n].layers[-1].weights.shape[1]
-
+            self.output_size[nn] = \
+                self.networks[ffnet_n].layers[-1].weights.shape[1]
     # END NDN._define_network
 
-    def _build_graph(self, learning_alg='lbfgs', opt_params=None, params_to_fit=None ):
+    def _build_graph(self,
+                     learning_alg='lbfgs',
+                     opt_params=None,
+                     params_to_fit=None):
         """NDN._build_graph"""
 
         # Take care of optimize parameters if necessary
         if opt_params is None:
-            opt_params = self.optimizer_defaults( {}, learning_alg )
+            opt_params = self.optimizer_defaults({}, learning_alg)
 
         self.graph = tf.Graph()  # must be initialized before graph creation
 
@@ -182,24 +244,33 @@ class NDN(Network):
                         'Can only have one network input into a side network.'
                     # Pass the entire network into the input of side network
                     input_network_n = self.network_list[nn]['ffnet_n'][0]
-                    assert input_network_n < nn, 'Must create network for side network first.'
+                    assert input_network_n < nn, \
+                        'Must create network for side network first.'
                     input_cat = self.networks[input_network_n]
 
                 else: # assume normal network
-                    # Assemble input streams -- implicitly along input axis 1 (0 is T)
+                    # Assemble input streams -- implicitly along input axis 1
+                    # (0 is T)
                     input_cat = None
                     if self.network_list[nn]['xstim_n'] is not None:
                         for ii in self.network_list[nn]['xstim_n']:
                             if input_cat is None:
                                 input_cat = self.data_in_batch[ii]
                             else:
-                                input_cat = tf.concat( (input_cat, self.data_in_batch[ii]), axis=1 )
+                                input_cat = tf.concat(
+                                    (input_cat, self.data_in_batch[ii]),
+                                    axis=1)
                     if self.network_list[nn]['ffnet_n'] is not None:
                         for ii in self.network_list[nn]['ffnet_n']:
                             if input_cat is None:
-                                input_cat = self.networks[ii].layers[-1].outputs
+                                input_cat = \
+                                    self.networks[ii].layers[-1].outputs
                             else:
-                                input_cat = tf.concat( (input_cat, self.networks[ii].layers[-1].outputs), axis=1 )
+                                input_cat = \
+                                    tf.concat(
+                                        (input_cat,
+                                         self.networks[ii].layers[-1].outputs),
+                                        axis=1)
 
                 self.networks[nn].build_graph(input_cat, self.network_list[nn])
 
@@ -211,8 +282,10 @@ class NDN(Network):
             var_list = self._build_fit_variable_list(params_to_fit)
 
             with tf.variable_scope('optimizer'):
-                self._define_optimizer( learning_alg=learning_alg, opt_params = opt_params,
-                                        var_list = var_list )
+                self._define_optimizer(
+                    learning_alg=learning_alg,
+                    opt_params=opt_params,
+                    var_list=var_list)
 
             # add additional ops
             # for saving and restoring models (initialized after var creation)
@@ -221,6 +294,7 @@ class NDN(Network):
             self.merge_summaries = tf.summary.merge_all()
             # add variable initialization op to graph
             self.init = tf.global_variables_initializer()
+    # END NDN._build_graph
 
     def _define_loss(self):
         """Loss function that will be used to optimize model parameters"""
@@ -230,8 +304,11 @@ class NDN(Network):
         for nn in range(len(self.ffnet_out)):
             data_out = self.data_out_batch[nn]
             if self.filter_data:
-                # this will zero out predictions where there is no data, matching Robs here
-                pred = tf.multiply( self.networks[self.ffnet_out[nn]].layers[-1].outputs, self.data_filter_batch[nn] )
+                # this will zero out predictions where there is no data,
+                # matching Robs here
+                pred = tf.multiply(
+                    self.networks[self.ffnet_out[nn]].layers[-1].outputs,
+                    self.data_filter_batch[nn])
             else:
                 pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
 
@@ -239,30 +316,41 @@ class NDN(Network):
             if self.noise_dist == 'gaussian':
                 with tf.name_scope('gaussian_loss'):
                     # should variable 'cost' be defined here too?
-                    cost.append( tf.nn.l2_loss(data_out - pred) / self.num_examples )
+                    cost.append(
+                        tf.nn.l2_loss(data_out - pred) / self.num_examples)
                     self.unit_cost = tf.concat(
-                        [self.unit_cost, tf.reduce_mean(tf.square(data_out-pred), axis=0)], 0 )
+                        [self.unit_cost,
+                         tf.reduce_mean(tf.square(data_out-pred), axis=0)], 0)
 
             elif self.noise_dist == 'poisson':
                 with tf.name_scope('poisson_loss'):
-                    cost_norm = tf.maximum( tf.reduce_sum(data_out, axis=0), 1)
-                    cost.append( -tf.reduce_sum( tf.divide(
-                        tf.multiply(data_out,tf.log(self._log_min + pred)) - pred,
-                        cost_norm ) ) )
-                    self.unit_cost = tf.concat( [self.unit_cost, tf.divide( -tf.reduce_sum(
-                        tf.multiply(data_out,tf.log(self._log_min + pred)) - pred, axis=0), cost_norm )], 0 )
+                    cost_norm = tf.maximum(tf.reduce_sum(data_out, axis=0), 1)
+                    cost.append(-tf.reduce_sum(tf.divide(
+                        tf.multiply(data_out,
+                                    tf.log(self._log_min + pred)) - pred,
+                        cost_norm)))
+                    self.unit_cost = tf.concat(
+                        [self.unit_cost,
+                         tf.divide(-tf.reduce_sum(
+                             tf.multiply(data_out,
+                                         tf.log(self._log_min + pred)) - pred,
+                             axis=0), cost_norm)], 0)
 
             elif self.noise_dist == 'bernoulli':
                 with tf.name_scope('bernoulli_loss'):
                     # Check per-cell normalization with cross-entropy
-                    #cost_norm = tf.maximum( tf.reduce_sum(data_out, axis=0), 1)
-                    cost.append( tf.reduce_mean(
-                        tf.nn.sigmoid_cross_entropy_with_logits(labels=data_out,logits=pred) ) )
-                    self.unit_cost = tf.concat( [self.unit_cost, tf.reduce_mean(
-                        tf.nn.sigmoid_cross_entropy_with_logits(labels=data_out,logits=pred), axis=0 )], 0 )
-                    #cost = tf.reduce_sum(self.unit_cost)
+                    # cost_norm = tf.maximum(
+                    #   tf.reduce_sum(data_out, axis=0), 1)
+                    cost.append(tf.reduce_mean(
+                        tf.nn.sigmoid_cross_entropy_with_logits(
+                            labels=data_out, logits=pred)))
+                    self.unit_cost = tf.concat(
+                        [self.unit_cost, tf.reduce_mean(
+                            tf.nn.sigmoid_cross_entropy_with_logits(
+                                labels=data_out, logits=pred), axis=0)], 0)
+                    # cost = tf.reduce_sum(self.unit_cost)
             else:
-                print('Cost function not supported.')
+                TypeError('Cost function not supported.')
 
         self.cost = tf.add_n(cost)
 
@@ -297,43 +385,48 @@ class NDN(Network):
             for nn in range(self.num_networks):
                 self.networks[nn].assign_reg_vals(sess)
 
-    def _build_fit_variable_list( self, fit_parameter_list ):
-        """Generates variable list to fit if argument is not none. 'fit_parameter_list'
-        is generated by a """
+    def _build_fit_variable_list(self, fit_parameter_list):
+        """Generates variable list to fit if argument is not none. 
+        'fit_parameter_list' is generated by a """
         var_list = None
         if fit_parameter_list is not None:
             var_list = []
             for nn in range(self.num_networks):
-                var_list += self.networks[nn]._build_fit_variable_list( fit_parameter_list[nn] )
+                var_list += self.networks[nn].build_fit_variable_list(
+                    fit_parameter_list[nn])
         return var_list
-    # END NDN._generate_variable_list
+    # END _generate_variable_list
 
     def variables_to_fit(self, layers_to_skip=None, fit_biases=False):
-        """Generates a list-of-lists-of-lists of correct format to specify all the
-        variables to fit, as an argument for network.train
+        """Generates a list-of-lists-of-lists of correct format to specify all 
+        the variables to fit, as an argument for network.train
 
-        Inputs:
-            layers_to_skip: [default=None] this should be a list-of-lists, specifying
-                a list of layers to skip for each network. If just single list, will assume
-                this is skipping layers in the first network
-            fit_biases: [default=False] this can be a single boolean value or list of values
-                if want networks to have different default-bias-fitting states
-            """
+        Args:
+            layers_to_skip (list of lists, optional): list of layers to skip 
+                for each network. If just single list, defaults to skipping 
+                those layers in the first network
+            fit_biases (bool or list of bools): specify whether or not to fit
+                biases for each network
+                DEFAULT: False
+                
+        """
 
         if layers_to_skip is None:
-            layers_to_skip = [[]]*self.num_networks
+            layers_to_skip = [[]] * self.num_networks
         else:
             # Assume a single list is referring to the first network by default
             if not isinstance(layers_to_skip, list):
                 layers_to_skip = [[layers_to_skip]]
             else:
-                if not isinstance( layers_to_skip[0], list): # then assume just meant for first network
+                if not isinstance( layers_to_skip[0], list):
+                    # then assume just meant for first network
                     layers_to_skip = [layers_to_skip]
 
         if not isinstance(fit_biases, list):
             fit_biases = [fit_biases]*self.num_networks
         # here assume a single list is referring to each network
-        assert len(fit_biases) == self.num_networks, 'fit_biases must be a list over networks'
+        assert len(fit_biases) == self.num_networks, \
+            'fit_biases must be a list over networks'
         for nn in range(self.num_networks):
             if not isinstance(fit_biases[nn], list):
                 fit_biases[nn] = [fit_biases[nn]]*len(self.networks[nn].layers)
@@ -350,15 +443,18 @@ class NDN(Network):
         return fit_list
         # END NDN.set_fit_variables
 
-    def set_regularization(self, reg_type, reg_val, ffnet_n=0, layer_target=None):
+    def set_regularization(self, reg_type, reg_val, ffnet_n=0,
+                           layer_target=None):
         """Add or reassign regularization values
 
         Args:
             reg_type (str): see allowed_reg_types in regularization.py
             reg_val (int): corresponding regularization value
-            ffnet_n(int): which network to assign regularization to (default = 0)
+            ffnet_n (int): which network to assign regularization to 
+                DEFAULT: 0
             layer_target (int or list of ints): specifies which layers the
-                current reg_type/reg_val pair is applied to (default all in ffnet_n)
+                current reg_type/reg_val pair is applied to 
+                DEFAULT: all layers in ffnet_n
 
         """
 
@@ -371,11 +467,12 @@ class NDN(Network):
 
         # set regularization at the layer level
         for layer in layer_target:
-            new_reg_type = self.networks[ffnet_n].layers[layer].set_regularization(
+            self.networks[ffnet_n].layers[layer].set_regularization(
                 reg_type, reg_val)
     # END set_regularization
 
-    def get_LL(self, input_data, output_data, data_indxs=None, data_filters=None):
+    def get_LL(self, input_data, output_data, data_indxs=None,
+               data_filters=None):
         """Get cost from loss function and regularization terms
 
         Args:
@@ -384,14 +481,11 @@ class NDN(Network):
                 model
             data_indxs (numpy array, optional): indexes of data to use in
                 calculating forward pass; if not supplied, all data is used
-            data_filters:
+            data_filters (numpy array, optional):
+            
         Returns:
-            cost (float): value of model's cost function evaluated on previous
-                model data or that used as input
-            reg_pen (float): value of model's regularization penalty
-
-        Raises:
-            ValueError: If data_in/out time dims don't match
+            float: value of model's cost function evaluated on previous model 
+                data or that used as input
 
         """
 
@@ -412,14 +506,15 @@ class NDN(Network):
         self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
-            self._restore_params(sess, input_data, output_data, data_filters=data_filters)
+            self._restore_params(
+                sess, input_data, output_data, data_filters=data_filters)
             cost = sess.run(self.cost, feed_dict={self.indices: data_indxs})
 
         return cost
-
     # END get_LL
 
-    def eval_models(self, input_data, output_data, data_indxs=None, data_filters=None, nulladjusted=False):
+    def eval_models(self, input_data, output_data, data_indxs=None,
+                    data_filters=None, nulladjusted=False):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -428,15 +523,12 @@ class NDN(Network):
                 model
             data_indxs (numpy array, optional): indexes of data to use in
                 calculating forward pass; if not supplied, all data is used
-            nulladjusted: to explain
+            data_filters (numpy array, optional):
+            nulladjusted (bool): to explain
 
         Returns:
-            cost (float): value of model's cost function evaluated on previous
-                model data or that used as input
-            reg_pen (float): value of model's regularization penalty
-
-        Raises:
-            ValueError: If data_in/out time dims don't match
+            numpy array: value of log-likelihood for each unit in 
+                model
 
         """
 
@@ -459,18 +551,41 @@ class NDN(Network):
         self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
-            self._restore_params(sess, input_data, output_data, data_filters=data_filters )
-            LL_neuron = sess.run(self.unit_cost, feed_dict={self.indices: data_indxs})
+            self._restore_params(
+                sess, input_data, output_data, data_filters=data_filters)
+            LL_neuron = sess.run(
+                self.unit_cost, feed_dict={self.indices: data_indxs})
 
             if nulladjusted:
-                # note that LL_neuron is negative of the true LL, but nullLL is not (so + is actually subtraction)
+                # note that LL_neuron is negative of the true LL, but nullLL is
+                # not (so + is actually subtraction)
                 LL_neuron += self.nullLL(output_data[data_indxs, :])
 
         return LL_neuron
-
     # END get_LL_neuron
 
-    def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1, layer=-1):
+    def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1,
+                            layer=-1):
+        """Get cost for each output neuron without regularization terms
+
+        Args:
+            input_data (time x input_dim numpy array): input to model
+            data_indxs (numpy array, optional): indexes of data to use in
+                calculating forward pass; if not supplied, all data is used
+            ffnet_n (int, optional): index into `network_list` that specifies 
+                which FFNetwork to generate the prediction from
+            layer (int, optional): index into layers of network_list[ffnet_n]
+                that specifies which layer to generate prediction from
+
+        Returns:
+            numpy array: predicted values from 
+                network_list[ffnet_n].layers[layer]
+                
+        Raises:
+            ValueError: If `layer` index is larger than number of layers in
+                network_list[ffnet_n]                
+
+        """
 
         # check input
         if type(input_data) is not list:
@@ -478,16 +593,19 @@ class NDN(Network):
         self.num_examples = input_data[0].shape[0]
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
-        if layer >= 0:
-            assert layer < len(self.networks[ffnet_n].layers), 'This layer does not exist.'
+        if layer >= len(self.networks[ffnet_n].layers):
+                ValueError('This layer does not exist.')
 
-        # Generate fake_output data and take care of data-filtering, in case necessary
+        # Generate fake_output data and take care of data-filtering, in case
+        # necessary
         self.filter_data = False
         num_outputs = len(self.ffnet_out)
         output_data = [None]*num_outputs
         for nn in range(num_outputs):
-            output_data[nn] = np.zeros([self.num_examples, self.networks[ffnet_n].layers[-1].weights.shape[1]],
-                                       dtype='float32')
+            output_data[nn] = np.zeros(
+                [self.num_examples,
+                 self.networks[ffnet_n].layers[-1].weights.shape[1]],
+                dtype='float32')
 
         self._build_graph()
 
@@ -497,11 +615,12 @@ class NDN(Network):
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
             self._restore_params(sess, input_data, output_data)
 
-            pred = sess.run(self.networks[ffnet_n].layers[layer].outputs, feed_dict={self.indices: data_indxs})
+            pred = sess.run(
+                self.networks[ffnet_n].layers[layer].outputs,
+                feed_dict={self.indices: data_indxs})
 
-            return pred
-
-    # END NetworkNIM.generate_prediction
+        return pred
+    # END generate_prediction
 
     def get_reg_pen(self):
         """Return reg penalties in a dictionary"""
@@ -525,21 +644,18 @@ class NDN(Network):
 
         return reg_dict
 
-    # END get_reg_pen
-
     def copy_model(self, tf_seed=0):
-        """For the moment, this just makes exact-copy without further elaboration."""
+        """For the moment, this just makes exact-copy without further 
+        elaboration."""
 
         # Assemble network_list
-        target = NDN( self.network_list, ffnet_out=self.ffnet_out,
-                      noise_dist=self.noise_dist, tf_seed=tf_seed )
+        target = NDN(self.network_list, ffnet_out=self.ffnet_out,
+                     noise_dist=self.noise_dist, tf_seed=tf_seed)
         return target
 
-    # END NDN.copy_model
-
-    def nullLL(self, Robs ):
-        """Calculates null-model (constant firing rate) likelihood, given Robs (which determines
-        what firing rate for each cell)"""
+    def nullLL(self, Robs):
+        """Calculates null-model (constant firing rate) likelihood, given Robs 
+        (which determines what firing rate for each cell)"""
 
         if self.noise_dist == 'gaussian':
             # In this case, LLnull is just var of data
@@ -547,10 +663,10 @@ class NDN(Network):
 
         elif self.noise_dist == 'poisson':
             rbars = np.mean(Robs, axis=0)
-            LLnulls = np.log(rbars)-1
+            LLnulls = np.log(rbars) - 1.0
             # elif self.noise_dist == 'bernoulli':
         else:
-            LLnulls = [0]*Robs.shape[1]
+            LLnulls = [0] * Robs.shape[1]
             print('Not worked out yet')
 
         return LLnulls

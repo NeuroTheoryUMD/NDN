@@ -1,40 +1,72 @@
+"""Utility functions to assist with creating, training and analyzing NDN 
+models.
+"""
+
 from __future__ import division
 import numpy as np
 from scipy.linalg import toeplitz
 
 
-def FFnetwork_params( input_dims = None,
-                      layer_sizes = None,
-                      ei_layers = None,
-                      act_funcs = 'relu',
-                      reg_list = None,
-                      layers_to_normalize = None,
-                      xstim_n = 0,
-                      ffnet_n = None,
-                      verbose = True,
-                      network_type = 'normal',
-                      num_conv_layers = 0, # the below are for convolutional network (SIN-NIM)
-                      sep_layers = None,
-                      conv_filter_widths = None,
-                      shift_spacing = 1 ):
-    """This generates the information for the network_params dictionary that is passed into
-    the constructor for the NetworkNIM. It has the following input arguments:
-      -> stim_dims
-      -> layer_sizes: list of number of subunits in each layer of network. Last layer should match number of
-            neurons (Robs). Each entry can be a 3-d list, if there is a spatio-filter/temporal arrangement.
-      -> ei_layers: if this is not none, it should be a list of # of inhibitory units for each layer other than
-            the output_layer: so list should be of length one-less than layer_sizes. All the non-inhibitory units
-            are of course excitatory, and having 'None' for a layer means it will be unrestricted.
-      -> act_funcs: (str or list of strs, optional): activation function for network layers; replicated if a
-            single element.
-            ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 'elu' | 'quad' | 'lin'
-      -> xstim_n: data-structure to process (in the case that there are more than one in the model). It should
-            be 'None' if the network will be directed internally (see ffnet_n)
-      -> ffnet_n: internal network that received input from (has to be None if xstim_n is used)
-      This function can also add parameters specific to the SinNIM if num_conv_layers > 0
-      -> conv_layers: number of convolutional layers
-      -> filter_widths: spatial dimension of filter (if different than stim_dims)
-      -> shift_spacing: how much shift in between each convolutional operation
+def FFnetwork_params(
+        input_dims=None,
+        layer_sizes=None,
+        ei_layers=None,
+        act_funcs='relu',
+        reg_list=None,
+        layers_to_normalize= None,
+        xstim_n=0,
+        ffnet_n=None,
+        verbose=True,
+        network_type='normal',
+        num_conv_layers=0,  # the below are for convolutional network
+        sep_layers=None,
+        conv_filter_widths=None,
+        shift_spacing=1):
+    """This generates the information for the network_params dictionary that is 
+    passed into the constructor for the NDN.
+    
+    Args:
+        input_dims (list of ints): list of the form 
+            [num_lags, num_x_pix, num_y_pix] that describes the input size for 
+            the network
+        layer_sizes (list of ints): number of subunits in each layer of 
+            the network. Last layer should match number of neurons (Robs). Each 
+            entry can be a 3-d list, if there is a spatio-filter/temporal 
+            arrangement.
+        ei_layers (`None` or list of ints): if not `None`, it should be a list 
+            of the number of inhibitory units for each layer other than the
+            output layer, so list should be of length one less than 
+            layer_sizes. All the non-inhibitory units are of course excitatory, 
+            and having 'None' for a layer means it will be unrestricted.
+        act_funcs: (str or list of strs, optional): activation function for 
+            network layers; replicated if a single element.
+            ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 'elu' | 
+            'quad' | 'lin'
+        reg_list ():
+        layers_to_normalize ():
+        xstim_n (int or `None`): index into external list of input matrices 
+            that specifies which input to process. It should be `None` if the 
+            network will be directed internally (see ffnet_n)
+        ffnet_n (int or `None`): internal network that this network receives 
+            input from (has to be `None` if xstim_n is not `None`)
+        verbose (bool): True to print network specifications
+        network_type (str): specify type of network
+            ['normal'] | 'sep'
+        num_conv_layers (int, optional): number of convolutional layers
+        sep_layers (int, optional):
+        conv_filter_widths (list of ints): spatial dimension of filter 
+            (if different than stim_dims)
+        shift_spacing (int): stride used by convolution operation
+        
+    Returns:
+        dict: params to initialize an `FFNetwork` object
+        
+    Raises:
+        TypeError: If `layer_sizes` is not specified
+        TypeError: If both `xstim_n` and `ffnet_n` are `None`
+        ValueError: If `reg_list` is a list and its length does not equal 
+            the number of layers
+        
     """
 
     if layer_sizes is None:
@@ -43,8 +75,9 @@ def FFnetwork_params( input_dims = None,
     if xstim_n is not None:
         if not isinstance(xstim_n, list):
             xstim_n = [xstim_n]
-    else:
-        assert ffnet_n is not None, 'Must assign some input source.'
+    elif ffnet_n is None:
+        TypeError('Must assign some input source.')
+
     if network_type is 'side':
         xstim_n = None
 
@@ -54,7 +87,7 @@ def FFnetwork_params( input_dims = None,
 
     # Process input_dims, if applicable
     if input_dims is not None:
-        input_dims = expand_input_dims_to_3d( input_dims )
+        input_dims = expand_input_dims_to_3d(input_dims)
 
     # Build layer_sizes, layer_types, and ei_layers
     num_layers = len(layer_sizes)
@@ -96,7 +129,9 @@ def FFnetwork_params( input_dims = None,
                     if reg_val_list is not None:
                         reg_initializers[nn][reg_type] = reg_val_list
                 else:
-                    assert len(reg_val_list) == num_layers, 'reg_list length must match number of layers.'
+                    if len(reg_val_list) != num_layers:
+                        ValueError(
+                            'reg_list length must match number of layers.')
                     if reg_val_list[nn] is not None:
                         reg_initializers[nn][reg_type] = reg_val_list[nn]
 
@@ -127,21 +162,23 @@ def FFnetwork_params( input_dims = None,
         if input_dims is not None:
             print( 'Input dimensions: ' + str(input_dims) )
         for nn in range(num_conv_layers):
-            s = 'Conv Layer ' + str(nn) + ' (' + act_funcs[nn] + '): [E' + str(layer_sizes[nn]-num_inh_layers[nn])
+            s = 'Conv Layer ' + str(nn) + ' (' + act_funcs[nn] + '): [E' + \
+                str(layer_sizes[nn]-num_inh_layers[nn])
             s += '/I' + str(num_inh_layers[nn]) + ']'
             if pos_constraints[nn]:
                 s += ' +'
             if conv_filter_widths[nn] is not None:
                 s += '  \tfilter width = ' + str(conv_filter_widths[nn])
             print(s)
-        for nn in range(num_conv_layers,num_layers):
-            s = 'Layer ' + str(nn) + ' (' + act_funcs[nn] + '): [E' + str(layer_sizes[nn]-num_inh_layers[nn])
+        for nn in range(num_conv_layers, num_layers):
+            s = 'Layer ' + str(nn) + ' (' + act_funcs[nn] + '): [E' + \
+                str(layer_sizes[nn]-num_inh_layers[nn])
             s += '/I' + str(num_inh_layers[nn]) + ']'
             if pos_constraints[nn]:
                 s += ' +'
             print(s)
     return network_params
-# END createNIMparams
+# END FFNetwork_params
 
 
 def expand_input_dims_to_3d(input_size):
@@ -161,22 +198,47 @@ def concatenate_input_dims(parent_input_size, added_input_size):
     """Utility function to concatenate two sets of input_dims vectors
     -- parent_input_size can be none, if added_input_size is first
     -- otherwise its assumed parent_input_size is already 3-d, but
-        added input size might have to be formatted."""
+    added input size might have to be formatted.
+    
+    Args:
+        parent_input_size (type): description
+        added_input_size (type): description
+        
+    Returns:
+        type: description
+        
+    Raises:
+    
+    """
 
-    cat_dims = expand_input_dims_to_3d( added_input_size )
+    cat_dims = expand_input_dims_to_3d(added_input_size)
 
     if parent_input_size is not None:
         # Sum full vector along the second dimension (first spatial)
-        assert parent_input_size[0] == cat_dims[0], 'First dimension of inputs do not agree.'
-        assert parent_input_size[2] == cat_dims[2], 'Last dimension of inputs do not agree.'
+        assert parent_input_size[0] == cat_dims[0], \
+            'First dimension of inputs do not agree.'
+        assert parent_input_size[2] == cat_dims[2], \
+            'Last dimension of inputs do not agree.'
         cat_dims[1] += parent_input_size[1]
 
     return cat_dims
 
 
-def shift_mat_zpad( x, shift, dim=0 ):
-    # Takes a vector or matrix and shifts it along dimension dim by amount shift using zero-padding.
-    # Positive shifts move the matrix right or down
+def shift_mat_zpad(x, shift, dim=0):
+    """Takes a vector or matrix and shifts it along dimension dim by amount 
+    shift using zero-padding. Positive shifts move the matrix right or down.
+    
+    Args:
+        x (type): description
+        shfit (type): description
+        dim (type): description
+        
+    Returns:
+        type: description
+            
+    Raises:
+            
+    """
 
     assert x.ndim < 3, 'only works in 2 dims or less at the moment.'
     if x.ndim == 1:
@@ -210,7 +272,8 @@ def shift_mat_zpad( x, shift, dim=0 ):
             b = xcopy[:, -shift:]
             xshifted = np.concatenate((b, a), axis=dim)
 
-    # If the shift in one direction is bigger than the size of the stimulus in that direction return a zero matrix
+    # If the shift in one direction is bigger than the size of the stimulus in
+    # that direction return a zero matrix
     if (dim == 0 and abs(shift) > sz[0]) or (dim == 1 and abs(shift) > sz[1]):
         xshifted = np.zeros(sz)
 
@@ -219,25 +282,35 @@ def shift_mat_zpad( x, shift, dim=0 ):
         xshifted = xshifted[:,0]
 
     return xshifted
-# END shit_mat_zpad
+# END shift_mat_zpad
 
 
 def create_time_embedding(stim, pdims, up_fac=1, tent_spacing=1):
-    """
-    # All the arguments starting with a p are part of params structure which I will fix later
-    # Takes a Txd stimulus matrix and creates a time-embedded matrix of size Tx(d*L), where L is the desired
-    # number of time lags.
-    # If stim is a 3d array, the spatial dimensions are folded into the 2nd dimension.
-    # Assumes zero-padding.
-    # Optional up-sampling of stimulus and tent-basis representation for filter estimation.
-    # Note that xmatrix is formatted so that adjacent time lags are adjacent within a time-slice of the xmatrix, thus
-    # x(t, 1:nLags) gives all time lags of the first spatial pixel at time t.
-    #
-    # INPUTS:
-    #           stim: simulus matrix (time must be in the first dim).
-    #           params: struct of simulus params (see NIM.create_stim_params)
-    # OUTPUTS:
-    #           xmat: time-embedded stim matrix
+    """All the arguments starting with a p are part of params structure which I 
+    will fix later.
+    
+    Takes a Txd stimulus matrix and creates a time-embedded matrix of size 
+    Tx(d*L), where L is the desired number of time lags. If stim is a 3d array, 
+    the spatial dimensions are folded into the 2nd dimension. 
+    
+    Assumes zero-padding.
+     
+    Optional up-sampling of stimulus and tent-basis representation for filter 
+    estimation.
+    
+    Note that xmatrix is formatted so that adjacent time lags are adjacent 
+    within a time-slice of the xmatrix, thus x(t, 1:nLags) gives all time lags 
+    of the first spatial pixel at time t.
+    
+    Args:
+        stim (type): simulus matrix (time must be in the first dim).
+        pdims (type): struct of simulus params (see NIM.create_stim_params)
+        up_fac (type): description
+        tent_spacing (type): description
+        
+    Returns:
+        numpy array: time-embedded stim matrix
+        
     """
 
     # Note for myself: pdims[0] is nLags and the rest is spatial dimension
@@ -250,50 +323,78 @@ def create_time_embedding(stim, pdims, up_fac=1, tent_spacing=1):
 
     # No support for more than two spatial dimensions
     if len(sz) > 3:
-        print 'More than two spatial dimensions not supported, but creating xmatrix anyways...'
+        print('More than two spatial dimensions not supported, but creating' +
+              'xmatrix anyways...')
 
-    # Check that the size of stim matches with the specified stim_params structure
+    # Check that the size of stim matches with the specified stim_params
+    # structure
     if np.prod(pdims[1:]) != sz[1]:
-        print 'Stimulus dimension mismatch'
+        print('Stimulus dimension mismatch')
         raise ValueError
 
     modstim = stim.copy()
     # Up-sample stimulus if required
     if up_fac > 1:
-        modstim = np.repeat(modstim, up_fac, 0)  # Repeats the stimulus along the time dimension
-        sz = list(np.shape(modstim))  # Since we have a new value for time dimension
+        # Repeats the stimulus along the time dimension
+        modstim = np.repeat(modstim, up_fac, 0)
+        # Since we have a new value for time dimension
+        sz = list(np.shape(modstim))
 
     # If using tent-basis representation
     if tent_spacing > 1:
         # Create a tent-basis (triangle) filter
-        tent_filter = np.append( np.arange(1,tent_spacing)/tent_spacing, 1-np.arange(tent_spacing)/tent_spacing) / tent_spacing
+        tent_filter = np.append(
+            np.arange(1, tent_spacing) / tent_spacing,
+            1-np.arange(tent_spacing)/tent_spacing) / tent_spacing
         # Apply to the stimulus
         filtered_stim = np.zeros(sz)
         for ii in range(len(tent_filter)):
-            filtered_stim = filtered_stim + shift_mat_zpad(modstim, ii-tent_spacing+1, 0) * tent_filter[ii]
+            filtered_stim = filtered_stim + \
+                            shift_mat_zpad(modstim,
+                                           ii-tent_spacing+1,
+                                           0) * tent_filter[ii]
         modstim = filtered_stim
 
     sz = list(np.shape(modstim))
-    lag_spacing = tent_spacing  # If ptent_spacing is not given in input then manually put lag_spacing = 1
-    # For temporal-only stimuli (this method can be faster if you're not using tent-basis rep)
-    # For myself, add: & tent_spacing is empty (= & isempty...).  Since isempty(tent_spa...) is equivalent to
-    # its value being 1 I added this condition to the if below temporarily:
+    lag_spacing = tent_spacing
+
+    # If tent_spacing is not given in input then manually put lag_spacing = 1
+    # For temporal-only stimuli (this method can be faster if you're not using
+    # tent-basis rep)
+    # For myself, add: & tent_spacing is empty (= & isempty...).
+    # Since isempty(tent_spa...) is equivalent to its value being 1 I added
+    # this condition to the if below temporarily:
     if sz[1] == 1 and tent_spacing == 1:
-        xmat = toeplitz(np.reshape(modstim, (1, sz[0])), np.concatenate((modstim[0], np.zeros(pdims[0] - 1)), axis=0))
+        xmat = toeplitz(np.reshape(modstim, (1, sz[0])),
+                        np.concatenate((modstim[0], np.zeros(pdims[0] - 1)),
+                                       axis=0))
     else:  # Otherwise loop over lags and manually shift the stim matrix
         xmat = np.zeros((sz[0], np.prod(pdims)))
         for lag in range(pdims[0]):
             for xx in range(0, sz[1]):
-                xmat[:, xx*pdims[0]+lag] = shift_mat_zpad(modstim[:, xx], lag_spacing*lag, 0)
+                xmat[:, xx*pdims[0]+lag] = shift_mat_zpad(
+                    modstim[:, xx], lag_spacing * lag, 0)
 
     return xmat
 # END create_time_embedding
 
 
-def spikes_to_Robs( spks, NT, dt ):
+def spikes_to_Robs(spks, NT, dt):
+    """
+    Description
+    
+    Args:
+        spks (type): description
+        NT (type): description
+        dt (type): description
+        
+    Returns:
+        type: description
+
+    """
 
     bins_to_use = range(NT+1)*dt
-    Robs, bin_edges = np.histogram( spks.flatten(), bins=bins_to_use.flatten() )
-    Robs = np.expand_dims( Robs, axis=1 )
+    Robs, bin_edges = np.histogram(spks.flatten(), bins=bins_to_use.flatten())
+    Robs = np.expand_dims(Robs, axis=1)
 
     return Robs

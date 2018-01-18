@@ -252,7 +252,7 @@ class FFNetwork(object):
 
     # END FFNetwork._define_network
 
-    def _build_fit_variable_list(self, fit_parameter_list):
+    def build_fit_variable_list(self, fit_parameter_list):
         """Makes a list of variables from this network that will be fit given 
         the fit_parameter_list"""
 
@@ -263,7 +263,7 @@ class FFNetwork(object):
             if fit_parameter_list[layer]['biases']:
                 var_list.append(self.layers[layer].biases_var)
         return var_list
-    # END FFNetwork._build_fit_variable_list
+    # END FFNetwork.build_fit_variable_list
 
     def build_graph(self, inputs, params_dict=None):
         """Build tensorflow graph for this network"""
