@@ -379,6 +379,28 @@ def create_time_embedding(stim, pdims, up_fac=1, tent_spacing=1):
 # END create_time_embedding
 
 
+def generate_xv_folds( nt, fold=5, num_blocks=3 ):
+    """Will generate unique and cross-validation indices, but subsample in each block
+        NT = number of time steps
+        fold = fraction of data (1/fold) to set aside for cross-validation
+        num_blocks = how many blocks to sample fold validation from"""
+
+    test_inds = []
+    start_ind = 0
+    NTblock = np.floor(nt/num_blocks)
+    # Pick middle of block for XV
+    tstart = np.floor(NTblock * (np.floor(fold / 2) / fold))
+    XVlength = np.round(NTblock / fold)
+    for bl in range(num_blocks):
+        test_inds = test_inds + range(int(start_ind+tstart), int(start_ind+tstart+XVlength))
+        start_ind = start_ind + NTblock
+
+    test_inds = np.array(test_inds)
+    train_inds = np.array(list(set(range(0, nt)) - set(test_inds)))  # Better way to setdiff?
+
+    return train_inds, test_inds
+
+
 def spikes_to_Robs(spks, NT, dt):
     """
     Description
