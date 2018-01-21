@@ -7,6 +7,7 @@ import tensorflow as tf
 from .layer import Layer
 from .layer import convLayer
 from .layer import sepLayer
+from .layer import add_layer
 
 
 class FFNetwork(object):
@@ -204,13 +205,26 @@ class FFNetwork(object):
             elif self.layer_types[nn] is 'sep':
 
                 self.layers.append(sepLayer(
-                    scope='layer_%i' % nn,
+                    scope='sep_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
                     activation_func=network_params['activation_funcs'][nn],
                     normalize_weights=network_params['normalize_weights'][nn],
                     weights_initializer=network_params['weights_initializers'][nn],
                     biases_initializer=network_params['biases_initializers'][nn],
+                    reg_initializer=network_params['reg_initializers'][nn],
+                    num_inh=network_params['num_inh'][nn],
+                    pos_constraint=network_params['pos_constraints'][nn],
+                    log_activations=network_params['log_activations']))
+
+            elif self.layer_types[nn] is 'add':
+
+                self.layers.append(add_layer(
+                    scope='add_layer_%i' % nn,
+                    input_dims=layer_sizes[nn],
+                    output_dims=layer_sizes[nn+1],
+                    activation_func=network_params['activation_funcs'][nn],
+                    normalize_weights=network_params['normalize_weights'][nn],
                     reg_initializer=network_params['reg_initializers'][nn],
                     num_inh=network_params['num_inh'][nn],
                     pos_constraint=network_params['pos_constraints'][nn],

@@ -101,15 +101,17 @@ class NDN(Network):
         self.network_list = network_list
 
         # Determine number of inputs
-        measured_input_list = []
+        measured_input_list = set()
         for nn in range(self.num_networks):
             if network_list[nn]['xstim_n'] is not None:
-                measured_input_list += network_list[nn]['xstim_n']
-            measured_input_list = np.unique(measured_input_list)
+                measured_input_list = measured_input_list | set(network_list[nn]['xstim_n'])
+        measured_input_list = list(measured_input_list)
+
         if input_dim_list is None:
             input_dim_list = [None] * len(measured_input_list)
         elif len(input_dim_list) < len(measured_input_list):
                 ValueError('Something_wrong with inputs')
+
         self.num_input_streams = len(input_dim_list)
 
         if not isinstance(ffnet_out, list):
