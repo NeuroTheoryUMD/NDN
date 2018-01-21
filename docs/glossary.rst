@@ -21,7 +21,10 @@ Layer Types
 Regularization Types
 ####################
 
-**l2**
+**l2** - standard l2 regularization on model parameters. The corresponding
+penalty in the loss function is
+.. math::
+   L = \sum{i=1}^N \| w_i \|_2^2 
 
 **l1**
 
