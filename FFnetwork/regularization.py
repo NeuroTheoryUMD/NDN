@@ -173,6 +173,8 @@ class Regularization(object):
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
         elif reg_type is 'center':
+            reg_mat = makeRmats.create_maxpenalty_matrix(
+                self.input_dims, reg_type)
             name = reg_type + '_reg'
         else:
             reg_mat = 0.0
@@ -229,19 +231,13 @@ class Regularization(object):
                 self.vals_var['d2xt'],
                 tf.reduce_sum(tf.square(
                     tf.matmul(self.mats['d2xt'], weights))))
+
         elif reg_type == 'center':
-            # currently works only for 1 spatial dimension
-            temp = 0
-            for ii in range(weights.shape[0]):
-                # different centralizers correspond to different envelope
-                # shapes
-                envelope_val = np.power(
-                    ii//self.input_dims[0] -
-                    self.input_dims[1]/2 -
-                    (self.input_dims[1] % 2 - 1) / 2, 2, dtype=float)
-                for mu in range(weights.shape[1]):
-                    temp += envelope_val * np.power(weights[ii, mu], 2)
-            reg_pen = tf.multiply(self.vals_var['center'], temp)
+            reg_pen = tf.multiply(
+                self.vals_var['center'],
+                tf.trace(tf.matmul(weights, tf.matmul(self.mats['center'], weights),
+                                   transpose_a=True)))
+
         else:
             reg_pen = tf.constant(0.0)
         return reg_pen
