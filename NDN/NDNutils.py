@@ -112,10 +112,13 @@ def FFnetwork_params(
 
     if ei_layers is not None:
         for nn in range(len(ei_layers)):
-            if ei_layers[nn] >= 0:
-                num_inh_layers[nn] = ei_layers[nn]
-                if nn < (num_layers-1):
-                    pos_constraints[nn+1] = True
+            if ei_layers[nn] is not None:
+                if ei_layers[nn] >= 0:
+                    num_inh_layers[nn] = ei_layers[nn]
+                    if nn < (num_layers-1):
+                        pos_constraints[nn+1] = True
+            else:
+                num_inh_layers = 0
     if not isinstance(act_funcs, list):
         act_funcs = [act_funcs] * num_layers
 
