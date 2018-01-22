@@ -118,7 +118,7 @@ def FFnetwork_params(
                     if nn < (num_layers-1):
                         pos_constraints[nn+1] = True
             else:
-                num_inh_layers = 0
+                num_inh_layers[nn] = 0
     if not isinstance(act_funcs, list):
         act_funcs = [act_funcs] * num_layers
 
