@@ -4,7 +4,7 @@ with open('README.md') as f:
     readme = f.read()
 
 requirements = [
-    'numpy',
+    'numpy>=1.12.1',
     'scipy',
     'tensorflow',
 ]
