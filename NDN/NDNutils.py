@@ -149,9 +149,9 @@ def FFnetwork_params(
         'pos_constraints': pos_constraints,
         'normalize_weights': norm_weights,
         'num_inh': num_inh_layers,
-        'reg_initializers': reg_initializers }
+        'reg_initializers': reg_initializers}
 
-    # if convolutional, add the following SinNIM-specific fields
+    # if convolutional, add the following convolution-specific fields
     if num_conv_layers > 0:
         if not isinstance(conv_filter_widths, list):
             conv_filter_widths = [conv_filter_widths]
@@ -163,7 +163,7 @@ def FFnetwork_params(
 
     if verbose:
         if input_dims is not None:
-            print( 'Input dimensions: ' + str(input_dims) )
+            print('Input dimensions: ' + str(input_dims))
         for nn in range(num_conv_layers):
             s = 'Conv Layer ' + str(nn) + ' (' + act_funcs[nn] + '): [E' + \
                 str(layer_sizes[nn]-num_inh_layers[nn])
