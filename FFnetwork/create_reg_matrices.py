@@ -4,7 +4,7 @@ import numpy as np
 import scipy.sparse as sp
 
 
-def create_Tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
+def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
     """
     Usage: Tmat = create_Tikhonov_matrix(stim_dims, reg_type, boundary_cond)
 

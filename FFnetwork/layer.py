@@ -6,7 +6,7 @@ from __future__ import division
 import numpy as np
 import tensorflow as tf
 from .regularization import Regularization
-from .regularization import Sep_Regularization
+from .regularization import SepRegularization
 
 
 class Layer(object):
@@ -310,7 +310,7 @@ class Layer(object):
         return self.reg.get_reg_penalty(sess)
 
 
-class convLayer(Layer):
+class ConvLayer(Layer):
     """Implementation of convolutional layer
 
     Attributes:
@@ -399,7 +399,7 @@ class convLayer(Layer):
         if input_dims[2] > 1:
             num_shifts[1] = int(np.floor(input_dims[2]/shift_spacing))
 
-        super(convLayer, self).__init__(
+        super(ConvLayer, self).__init__(
                 scope=scope,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
@@ -473,7 +473,7 @@ class convLayer(Layer):
     # END convLayer.build_graph
 
 
-class sepLayer(Layer):
+class SepLayer(Layer):
     """Implementation of separable neural network layer; see 
     http://papers.nips.cc/paper/6942-neural-system-identification-for-large-populations-separating-what-and-where
     for more info
@@ -532,7 +532,7 @@ class sepLayer(Layer):
         num_space = input_dims[1]*input_dims[2]
         filter_dims = [input_dims[0]+num_space, 1, 1]
 
-        super(sepLayer, self).__init__(
+        super(SepLayer, self).__init__(
                 scope=scope,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
@@ -547,7 +547,7 @@ class sepLayer(Layer):
                 log_activations=log_activations)
 
         # Redefine specialized Regularization object to overwrite default
-        self.reg = Sep_Regularization(
+        self.reg = SepRegularization(
             input_dims=input_dims,
             num_outputs=self.reg.num_outputs,
             vals=reg_initializer)
@@ -587,6 +587,133 @@ class sepLayer(Layer):
             else:
                 pre = tf.add(
                     tf.matmul(inputs, weights_full), self.biases_var)
+
+            if self.ei_mask_var is not None:
+                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+            else:
+                post = self.activation_func(pre)
+
+            self.outputs = post
+
+        if self.log:
+            tf.summary.histogram('act_pre', pre)
+            tf.summary.histogram('act_post', post)
+    # END sepLayer._build_layer
+
+
+class AddLayer(Layer):
+    """Implementation of a simple additive layer that combines several input streams additively.
+    This has a number of [output] units, and number of input streams, each which the exact same
+    size as the number of output units. Each output unit then does a weighted sum over its matching
+    inputs (with a weight for each input stream)
+
+    """
+
+    def __init__(
+            self,
+            scope=None,
+            input_dims=None,  # this can be a list up to 3-dimensions
+            output_dims=None,
+            activation_func='relu',
+            normalize_weights=0,
+            reg_initializer=None,
+            num_inh=0,
+            pos_constraint=False,
+            log_activations=False):
+        """Constructor for sepLayer class
+
+        Args:
+            scope (str): name scope for variables and operations in layer
+            input_dims (int): dimensions of input data
+            output_dims (int): dimensions of output data
+            activation_func (str, optional): pointwise function applied to
+                output of affine transformation
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+                'elu' | 'quad'
+            normalize_weights (int): type of normalization to apply to the
+                weights. Default [0] is to normalize across the first dimension
+                (time/filters), but '1' will normalize across spatial
+                dimensions instead, and '2' will normalize both
+            reg_initializer (dict, optional): see Regularizer docs for info
+            num_inh (int, optional): number of inhibitory units in layer
+            pos_constraint (bool, optional): True to constrain layer weights to
+                be positive
+            log_activations (bool, optional): True to use tf.summary on layer
+                activations
+        """
+
+        # check for required inputs
+        if input_dims is None or output_dims is None:
+            raise TypeError('Must specify input and output dimensions')
+
+        num_outputs = np.prod( output_dims )
+        num_input_streams = int(np.prod(input_dims) / num_outputs)
+
+        # Input dims is just number of input streams
+        input_dims = [num_input_streams, 1, 1]
+
+        super(AddLayer, self).__init__(
+                scope=scope,
+                input_dims=input_dims,
+                filter_dims=input_dims,
+                output_dims=num_outputs,
+                activation_func=activation_func,
+                normalize_weights=normalize_weights,
+                weights_initializer='zeros',
+                biases_initializer='zeros',
+                reg_initializer=reg_initializer,
+                num_inh=num_inh,
+                pos_constraint=pos_constraint,
+                log_activations=log_activations)
+
+        # Initialize all weights to 1: which is the default combination
+        self.weights[:, :] = 1.0
+
+    # END add_layer.__init__
+
+    def build_graph(self, inputs, params_dict=None):
+        """By definition, the inputs will be composed of a number of input streams, given by
+        the first dimension of input_dims, and each stream will have the same number of inputs
+        as the number of output units."""
+
+        num_input_streams = self.input_dims[0]
+        num_outputs = self.output_dims[1]
+        # inputs will be NTx(num_input_streamsxnum_outputs)
+
+        with tf.name_scope(self.scope):
+            self._define_layer_variables()
+
+            if self.pos_constraint:
+                self.weights_var = tf.maximum(0.0, self.weights_var)
+
+            if num_input_streams == 1:
+                pre = tf.multiply( inputs, self.weights_var )
+            else:
+
+                if self.normalize_weights > 0:
+                    wnorms = tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0))
+                    self.weights_var = tf.divide(self.weights_var, tf.maximum(wnorms, 1e-6))
+
+                # this was a tensor-multiplcation solution that I couldnt get working
+                #shaped_input = tf.transpose(
+                #    tf.reshape( inputs, [-1,num_input_streams, num_outputs, 1]), [0,2,3,1] )
+                #print(shaped_input)
+                #shaped_weights = tf.expand_dims( tf.expand_dims(tf.transpose(self.weights_var),0), -1)
+                #print(shaped_weights)
+                #pre = tf.matmul( shaped_input,
+                #    tf.expand_dims( tf.expand_dims(tf.transpose(self.weights_var),0), -1) )
+                #print(pre)
+
+                flattened_weights = tf.reshape(self.weights_var, [1, num_input_streams*num_outputs])
+                #print(self.scope, num_input_streams, num_outputs)
+                #print(inputs, flattened_weights)
+                # Define computation -- different from layer in that this is a broadcast-multiply
+                # rather than  matmul
+                pre = tf.multiply(inputs, flattened_weights)
+                # Sum over input streams for given output
+                pre = tf.reduce_sum( tf.reshape( pre, [-1,num_input_streams,num_outputs] ), axis=1 )
+
+            pre = tf.add( pre, self.biases_var)
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)

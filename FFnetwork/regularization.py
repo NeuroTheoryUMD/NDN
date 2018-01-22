@@ -165,7 +165,7 @@ class Regularization(object):
         """
 
         if reg_type in ['d2t', 'd2x', 'd2xt']:
-            reg_mat = makeRmats.create_Tikhonov_matrix(
+            reg_mat = makeRmats.create_tikhonov_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_laplacian'
         elif reg_type in ['max', 'max_filt', 'max_space']:
@@ -272,7 +272,7 @@ class Regularization(object):
     # END reg_copy
 
 
-class Sep_Regularization(Regularization):
+class SepRegularization(Regularization):
     """Child class that adjusts regularization for separable layers"""
 
     def __init__(self, input_dims=None, num_outputs=None, vals=None):
@@ -286,7 +286,7 @@ class Sep_Regularization(Regularization):
                 
         """
 
-        super(Sep_Regularization, self).__init__(
+        super(SepRegularization, self).__init__(
             input_dims=input_dims,
             num_outputs = num_outputs,
             vals=vals)
@@ -302,11 +302,11 @@ class Sep_Regularization(Regularization):
         """
 
         if reg_type is 'd2t':
-            reg_mat = makeRmats.create_Tikhonov_matrix(
+            reg_mat = makeRmats.create_tikhonov_matrix(
                 [self.input_dims[0], 1, 1], reg_type)
             name = reg_type + '_laplacian'
         elif reg_type is 'd2x':
-            reg_mat = makeRmats.create_Tikhonov_matrix(
+            reg_mat = makeRmats.create_tikhonov_matrix(
                 [1, self.input_dims[1], self.input_dims[2]], reg_type)
             name = reg_type + '_laplacian'
         elif reg_type is 'd2xt':

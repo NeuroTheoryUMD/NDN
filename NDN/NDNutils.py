@@ -93,12 +93,12 @@ def FFnetwork_params(
     num_layers = len(layer_sizes)
     layer_types = ['normal']*num_layers
     for nn in range(num_conv_layers):
-        layer_types[nn]='conv'
+        layer_types[nn] = 'conv'
     if sep_layers is not None:
         if not isinstance(sep_layers, list):
             sep_layers = [sep_layers]
         for nn in sep_layers:
-            layer_types[nn]='sep'
+            layer_types[nn] = 'sep'
 
     # Establish positivity constraints
     pos_constraints = [False] * num_layers
@@ -112,10 +112,13 @@ def FFnetwork_params(
 
     if ei_layers is not None:
         for nn in range(len(ei_layers)):
-            if ei_layers[nn] >= 0:
-                num_inh_layers[nn] = ei_layers[nn]
-                if nn < (num_layers-1):
-                    pos_constraints[nn+1] = True
+            if ei_layers[nn] is not None:
+                if ei_layers[nn] >= 0:
+                    num_inh_layers[nn] = ei_layers[nn]
+                    if nn < (num_layers-1):
+                        pos_constraints[nn+1] = True
+            else:
+                num_inh_layers[nn] = 0
     if not isinstance(act_funcs, list):
         act_funcs = [act_funcs] * num_layers
 
@@ -146,9 +149,9 @@ def FFnetwork_params(
         'pos_constraints': pos_constraints,
         'normalize_weights': norm_weights,
         'num_inh': num_inh_layers,
-        'reg_initializers': reg_initializers }
+        'reg_initializers': reg_initializers}
 
-    # if convolutional, add the following SinNIM-specific fields
+    # if convolutional, add the following convolution-specific fields
     if num_conv_layers > 0:
         if not isinstance(conv_filter_widths, list):
             conv_filter_widths = [conv_filter_widths]
@@ -160,7 +163,7 @@ def FFnetwork_params(
 
     if verbose:
         if input_dims is not None:
-            print( 'Input dimensions: ' + str(input_dims) )
+            print('Input dimensions: ' + str(input_dims))
         for nn in range(num_conv_layers):
             s = 'Conv Layer ' + str(nn) + ' (' + act_funcs[nn] + '): [E' + \
                 str(layer_sizes[nn]-num_inh_layers[nn])
