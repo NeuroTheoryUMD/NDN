@@ -93,12 +93,12 @@ def FFnetwork_params(
     num_layers = len(layer_sizes)
     layer_types = ['normal']*num_layers
     for nn in range(num_conv_layers):
-        layer_types[nn]='conv'
+        layer_types[nn] = 'conv'
     if sep_layers is not None:
         if not isinstance(sep_layers, list):
             sep_layers = [sep_layers]
         for nn in sep_layers:
-            layer_types[nn]='sep'
+            layer_types[nn] = 'sep'
 
     # Establish positivity constraints
     pos_constraints = [False] * num_layers

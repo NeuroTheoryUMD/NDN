@@ -6,7 +6,7 @@ from __future__ import division
 import numpy as np
 import tensorflow as tf
 from .regularization import Regularization
-from .regularization import Sep_Regularization
+from .regularization import SepRegularization
 
 
 class Layer(object):
@@ -310,7 +310,7 @@ class Layer(object):
         return self.reg.get_reg_penalty(sess)
 
 
-class convLayer(Layer):
+class ConvLayer(Layer):
     """Implementation of convolutional layer
 
     Attributes:
@@ -399,7 +399,7 @@ class convLayer(Layer):
         if input_dims[2] > 1:
             num_shifts[1] = int(np.floor(input_dims[2]/shift_spacing))
 
-        super(convLayer, self).__init__(
+        super(ConvLayer, self).__init__(
                 scope=scope,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
@@ -473,7 +473,7 @@ class convLayer(Layer):
     # END convLayer.build_graph
 
 
-class sepLayer(Layer):
+class SepLayer(Layer):
     """Implementation of separable neural network layer; see 
     http://papers.nips.cc/paper/6942-neural-system-identification-for-large-populations-separating-what-and-where
     for more info
@@ -532,7 +532,7 @@ class sepLayer(Layer):
         num_space = input_dims[1]*input_dims[2]
         filter_dims = [input_dims[0]+num_space, 1, 1]
 
-        super(sepLayer, self).__init__(
+        super(SepLayer, self).__init__(
                 scope=scope,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
@@ -547,7 +547,7 @@ class sepLayer(Layer):
                 log_activations=log_activations)
 
         # Redefine specialized Regularization object to overwrite default
-        self.reg = Sep_Regularization(
+        self.reg = SepRegularization(
             input_dims=input_dims,
             num_outputs=self.reg.num_outputs,
             vals=reg_initializer)
@@ -601,7 +601,7 @@ class sepLayer(Layer):
     # END sepLayer._build_layer
 
 
-class add_layer(Layer):
+class AddLayer(Layer):
     """Implementation of a simple additive layer that combines several input streams additively.
     This has a number of [output] units, and number of input streams, each which the exact same
     size as the number of output units. Each output unit then does a weighted sum over its matching
@@ -647,12 +647,12 @@ class add_layer(Layer):
             raise TypeError('Must specify input and output dimensions')
 
         num_outputs = np.prod( output_dims )
-        num_input_streams = int( np.prod( input_dims ) / num_outputs )
+        num_input_streams = int(np.prod(input_dims) / num_outputs)
 
         # Input dims is just number of input streams
         input_dims = [num_input_streams, 1, 1]
 
-        super(add_layer, self).__init__(
+        super(AddLayer, self).__init__(
                 scope=scope,
                 input_dims=input_dims,
                 filter_dims=input_dims,

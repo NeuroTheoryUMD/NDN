@@ -5,9 +5,9 @@ from __future__ import division
 
 import tensorflow as tf
 from .layer import Layer
-from .layer import convLayer
-from .layer import sepLayer
-from .layer import add_layer
+from .layer import ConvLayer
+from .layer import SepLayer
+from .layer import AddLayer
 
 
 class FFNetwork(object):
@@ -204,7 +204,7 @@ class FFNetwork(object):
 
             elif self.layer_types[nn] is 'sep':
 
-                self.layers.append(sepLayer(
+                self.layers.append(SepLayer(
                     scope='sep_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
@@ -219,7 +219,7 @@ class FFNetwork(object):
 
             elif self.layer_types[nn] is 'add':
 
-                self.layers.append(add_layer(
+                self.layers.append(AddLayer(
                     scope='add_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
@@ -242,7 +242,7 @@ class FFNetwork(object):
                         conv_filter_size[2] = \
                             network_params['conv_filter_widths'][nn]
 
-                self.layers.append(convLayer(
+                self.layers.append(ConvLayer(
                     scope='conv_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn+1],

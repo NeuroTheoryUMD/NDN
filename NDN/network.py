@@ -303,8 +303,8 @@ class Network(object):
                     test_writer=test_writer,
                     train_indxs=train_indxs,
                     test_indxs=test_indxs,
-                    opt_params = opt_params,
-                    output_dir=output_dir )
+                    opt_params=opt_params,
+                    output_dir=output_dir)
             elif learning_alg == 'lbfgs':
                 self.train_step.minimize(
                     sess, feed_dict={self.indices: train_indxs})
