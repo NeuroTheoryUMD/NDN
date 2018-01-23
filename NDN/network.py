@@ -162,37 +162,14 @@ class Network(object):
             learning_alg (str, optional): algorithm used for learning
                 parameters.
                 ['lbfgs'] | 'adam'
-            opt_params: dictionary with optimizer-specific parameters
-                both:
-                    display (int, optional): For Adam, this would be the number 
-                        of epochs between updates to the console. Becomes 
-                        boolean for lbfgs
-                    use_gpu (bool, optional): 
-                        DEFAULT: False
-                lbfgs:
-                    max_iter (int):  
-                        DEFAULT: 500
-                adam:
-                    learning_rate (float, optional): learning rate used by the
-                        gradient descent-based optimizers ('adam'). 
-                        DEFAULT: 1e-3.
-                    batch_size (int, optional): number of data points to use 
-                        for each iteration of training
-                    epochs_training (int, optional): max number of epochs
-                    epochs_ckpt (int, optional): number of epochs between 
-                        saving checkpoint files
-                    epochs_early_stop (int, optional): number of epochs between 
-                        checks for early stopping
-                    early_stop (bool, optional): if True, training exits when 
-                        the cost function evaluated on test_indxs begins to 
-                        increase (needs updating)
-                    epochs_summary (int, optional): number of epochs between 
-                        saving network summary information
+            opt_params: dictionary with optimizer-specific parameters; see
+                network.optimizer_defaults method for valid key-value pairs and
+                corresponding default values.
             output_dir (str, optional): absolute path for saving checkpoint
-                    files and summary files; must be present if either 
-                    epochs_ckpt or epochs_summary is not `None`. If 
-                    `output_dir` is not `None`, the graph will automatically 
-                    be saved.
+                files and summary files; must be present if either  
+                `epochs_ckpt` or `epochs_summary` values in `opt_params` is not
+                `None`. If `output_dir` is not `None`, regardless of checkpoint
+                or summary settings, the graph will automatically be saved.
 
         Returns:
             int: number of total training epochs
@@ -200,10 +177,11 @@ class Network(object):
         Raises:
             ValueError: If `input_data` and `output_data` don't share time dim
             ValueError: If data time dim doesn't match that specified in model
-            ValueError: If `epochs_ckpt` is not None and output_dir is 'None'
-            ValueError: If `epochs_summary` is not 'None' and `output_dir` is 
-                'None'
-            ValueError: If `early_stop` is True and `test_indxs` is 'None'
+            ValueError: If `epochs_ckpt` value in `opt_params` is not `None` 
+                and `output_dir` is `None`
+            ValueError: If `epochs_summary` in `opt_params` is not `None` and 
+                `output_dir` is `None`
+            ValueError: If `early_stop` is `True` and `test_indxs` is 'None'
 
         """
 
@@ -326,16 +304,28 @@ class Network(object):
             train_indxs=None,
             test_indxs=None,
             opt_params=None,
-            output_dir=None ):
+            output_dir=None):
         """Training function for adam optimizer to clean up code in `train`"""
+
+        epochs_training = opt_params['epochs_training']
+        epochs_ckpt = opt_params['epochs_ckpt']
+        epochs_early_stop = opt_params['epochs_early_stop']
+        epochs_summary = opt_params['epochs_summary']
 
         num_batches = train_indxs.shape[0] // opt_params['batch_size']
 
         if opt_params['early_stop']:
             prev_cost = float('Inf')
 
+        if opt_params['run_diagnostics']:
+            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+        else:
+            run_options = None
+            run_metadata = None
+
         # start training loop
-        for epoch in range(opt_params['epochs_training']):
+        for epoch in range(epochs_training):
 
             # shuffle data before each pass
             train_indxs_perm = np.random.permutation(train_indxs)
@@ -370,52 +360,57 @@ class Network(object):
                     print('   test cost = %2.5f' % cost_test)
 
             # save model checkpoints
-            if opt_params['epochs_ckpt'] is not None and \
-                    (epoch % opt_params['epochs_ckpt'] ==
-                             opt_params['epochs_ckpt'] - 1 or epoch == 0):
+            if epochs_ckpt is not None and (
+                    epoch % epochs_ckpt == epochs_ckpt - 1 or epoch == 0):
                 save_file = os.path.join(
                     output_dir, 'ckpts',
                     str('epoch_%05g.ckpt' % epoch))
                 self.checkpoint_model(sess, save_file)
 
             # save model summaries
-            if opt_params['epochs_summary'] is not None and \
-                    (epoch % opt_params['epochs_summary'] ==
-                             opt_params['epochs_summary'] - 1
+            if epochs_summary is not None and \
+                    (epoch % epochs_summary == epochs_summary - 1
                      or epoch == 0):
                 if not display_output and opt_params['display'] is not None:
                     print('Epoch %03d:' % epoch)
 
                 # model summary
                 print('Writing train summary')
-                # run_options = tf.RunOptions(
-                #     trace_level=tf.RunOptions.FULL_TRACE)
-                # run_metadata = tf.RunMetadata()
-                # summary = sess.run(
-                #     self.merge_summaries,
-                #     feed_dict={self.indices: train_indxs},
-                #     options=run_options,
-                #     run_metadata=run_metadata)
-                # train_writer.add_run_metadata(
-                #   run_metadata, 'epoch_%d' % epoch)
-                summary = sess.run(
-                    self.merge_summaries,
-                    feed_dict={self.indices: train_indxs})
-
-                train_writer.add_summary(summary, epoch)
-                train_writer.flush()
-                if test_indxs is not None:
-                    print('Writing test summary')
+                if opt_params['run_diagnostics']:
                     summary = sess.run(
                         self.merge_summaries,
-                        feed_dict={self.indices: test_indxs})
-                    test_writer.add_summary(summary, epoch)
-                    test_writer.flush()
+                        feed_dict={self.indices: train_indxs},
+                        options=run_options,
+                        run_metadata=run_metadata)
+                    train_writer.add_run_metadata(
+                      run_metadata, 'epoch_%d' % epoch)
+                else:
+                    summary = sess.run(
+                        self.merge_summaries,
+                        feed_dict={self.indices: train_indxs})
+                train_writer.add_summary(summary, epoch)
+                train_writer.flush()
+
+                if test_indxs is not None:
+                    print('Writing test summary')
+                    if opt_params['run_diagnostics']:
+                        summary = sess.run(
+                            self.merge_summaries,
+                            feed_dict={self.indices: test_indxs},
+                            options=run_options,
+                            run_metadata=run_metadata)
+                        test_writer.add_run_metadata(
+                            run_metadata, 'epoch_%d' % epoch)
+                    else:
+                        summary = sess.run(
+                            self.merge_summaries,
+                            feed_dict={self.indices: test_indxs})
+                test_writer.add_summary(summary, epoch)
+                test_writer.flush()
 
             # check for early stopping
             if opt_params['early_stop'] and \
-                    epoch % opt_params['epochs_early_stop'] == \
-                                    opt_params['epochs_early_stop'] - 1:
+                    epoch % epochs_early_stop == epochs_early_stop - 1:
 
                 cost_test = sess.run(
                     self.cost,
@@ -424,18 +419,16 @@ class Network(object):
                 if cost_test >= prev_cost:
 
                     # save model checkpoint if desired and necessary
-                    if opt_params['epochs_ckpt'] is not None and \
-                            opt_params['epochs_ckpt'] != \
-                                    opt_params['epochs_early_stop']:
+                    if epochs_ckpt is not None and \
+                            epochs_ckpt != epochs_early_stop:
                         save_file = os.path.join(
                             output_dir, 'ckpts',
                             str('epoch_%05g.ckpt' % epoch))
                         self.checkpoint_model(sess, save_file)
 
                     # save model summaries if desired and necessary
-                    if opt_params['epochs_summary'] is not None and \
-                            opt_params['epochs_summary'] != \
-                                    opt_params['epochs_early_stop']:
+                    if epochs_summary is not None and \
+                            epochs_summary != epochs_early_stop:
                         summary = sess.run(
                             self.merge_summaries,
                             feed_dict={self.indices: train_indxs})
@@ -582,9 +575,64 @@ class Network(object):
             return dill.load(f)
 
     @classmethod
-    def optimizer_defaults(cls, opt_params, learning_alg ):
-        """Sets defaults for different optimizers. Currently only 'adam' and 
-        lbfgs"""
+    def optimizer_defaults(cls, opt_params, learning_alg):
+        """Sets defaults for different optimizers
+        
+        In the `opt_params` dictionary, the `display` and `use_gpu` keys are 
+        available for all optimizers. The following keys are used exclusively
+        for lbfgs: `max_iter`, `func_tol`, `grad_tol` and `eps`. The remaining 
+        keys are all specific to the adam optimizer.
+        
+        Args:
+            opt_params: dictionary with optimizer-specific parameters
+            opt_params['display'] (int, optional): For adam, this defines the 
+                number of epochs between updates to the console. Becomes 
+                boolean for lbfgs, prints detailed optimizer info for each 
+                iteration.
+                DEFAULT: 0/False
+            opt_params['use_gpu'] (bool, optional): `True` to fit model on gpu.
+                DEFAULT: False
+            opt_params['max_iter'] (int, optional): maximum iterations for  
+                lbfgs algorithm.
+                DEFAULT: 500
+            opt_params['func_tol'] (float, optional): see lbfgs method in SciPy 
+                optimizer. 
+                DEFAULT: 2.22e-09
+            opt_params['grad_tol'] (float, optional): see lbfgs method in SciPy 
+                optimizer. 
+                DEFAULT: 1e-05
+            opt_params['eps'] (float, optional): see lbfgs method in SciPy 
+                optimizer. 
+                DEFAULT: 1e-08
+            opt_params['learning_rate'] (float, optional): learning rate used 
+                by adam. 
+                DEFAULT: 1e-3.
+            opt_params['batch_size'] (int, optional): number of data points to 
+                use for each iteration of training.
+                DEFAULT: 128
+            opt_params['epochs_training'] (int, optional): max number of 
+                epochs.
+                DEFAULT: 100
+            opt_params['epochs_ckpt'] (int, optional): number of epochs between 
+                saving checkpoint files.
+                DEFAULT: `None`
+            opt_params['epochs_early_stop'] (int, optional): number of epochs 
+                between checks for early stopping.
+                DEFAULT: `None`
+            opt_params['early_stop'] (bool, optional): if `True`, training 
+                exits when the cost function evaluated on test_indxs begins to 
+                increase (needs updating).
+                DEFAULT: `False`
+            opt_params['epochs_summary'] (int, optional): number of epochs 
+                between saving network summary information.
+                DEFAULT: `None`
+            opt_params['run_diagnostics'] (bool, optional): `True` to record
+                compute time and memory usage of tensorflow ops during training
+                and testing. `epochs_summary` must not be `None`.
+                DEFAULT: `False`
+            learning_alg (str): 'adam' and 'lbfgs' currently supported
+                                
+        """
 
         # Non-optimizer specific defaults
         if 'display' not in opt_params:
@@ -606,7 +654,9 @@ class Network(object):
             if 'epochs_summary' not in opt_params:
                 opt_params['epochs_summary'] = None
             if 'early_stop' not in opt_params:
-                opt_params['early_stop']= False
+                opt_params['early_stop'] = False
+            if 'run_diagnostics' not in opt_params:
+                opt_params['run_diagnostics'] = False
 
         else:  # lbfgs
             if 'maxiter' not in opt_params:
