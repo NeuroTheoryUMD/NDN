@@ -1,10 +1,9 @@
-"""Basic network-building tools"""
+"""Module for managing regularization penalties"""
 
 from __future__ import print_function
 from __future__ import division
 
 import tensorflow as tf
-import numpy as np
 import FFnetwork.create_reg_matrices as makeRmats
 
 
@@ -202,19 +201,22 @@ class Regularization(object):
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max'],
-                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max'], w2),
+                tf.trace(tf.matmul(w2,
+                                   tf.matmul(self.mats['max'], w2),
                                    transpose_a=True)))
         elif reg_type == 'max_space':
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max_space'],
-                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max_space'], w2),
+                tf.trace(tf.matmul(w2,
+                                   tf.matmul(self.mats['max_space'], w2),
                                    transpose_a=True)))
         elif reg_type == 'max_filt':
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['max_filt'],
-                tf.trace(tf.matmul(w2, tf.matmul(self.mats['max_filt'], w2),
+                tf.trace(tf.matmul(w2,
+                                   tf.matmul(self.mats['max_filt'], w2),
                                    transpose_a=True)))
         elif reg_type == 'd2t':
             reg_pen = tf.multiply(
@@ -235,7 +237,8 @@ class Regularization(object):
         elif reg_type == 'center':
             reg_pen = tf.multiply(
                 self.vals_var['center'],
-                tf.trace(tf.matmul(weights, tf.matmul(self.mats['center'], weights),
+                tf.trace(tf.matmul(weights,
+                                   tf.matmul(self.mats['center'], weights),
                                    transpose_a=True)))
 
         else:
@@ -367,8 +370,9 @@ class SepRegularization(Regularization):
                 weights, [0, 0], [self.input_dims[0], self.num_outputs]))
             reg_pen = tf.multiply(
                 self.vals_var['max_filt'],
-                tf.trace(tf.matmul(wfilt2, tf.matmul(self.mats['max_filt'],
-                                                     wfilt2), transpose_a=True)))
+                tf.trace(tf.matmul(wfilt2,
+                                   tf.matmul(self.mats['max_filt'],
+                                             wfilt2), transpose_a=True)))
 
         elif reg_type == 'd2t':
             wt = tf.slice(weights, [0, 0], [self.input_dims[0],

@@ -7,13 +7,56 @@ import numpy as np
 from scipy.linalg import toeplitz
 
 
-def FFnetwork_params(
-        input_dims=None,
+def FFnetwork_params(**kwargs):
+    print('WARNING: "NDNutils.FFnetwork_params" will soon be deprecated!')
+    print('Use "NDNutils.ffnetwork_params" (with lowercase "f"s) instead.')
+
+    defaults_dict = {
+        'layer_sizes': None,
+        'input_dims': None,
+        'ei_layers': None,
+        'act_funcs': 'relu',
+        'reg_list': None,
+        'layers_to_normalize': None,
+        'xstim_n': 0,
+        'ffnet_n': None,
+        'verbose': True,
+        'network_type': 'normal',
+        'num_conv_layers': 0,  # the below are for convolutional network
+        'sep_layers': None,
+        'conv_filter_widths': None,
+        'shift_spacing': 1,
+        'log_activations': False}
+
+    for key, value in kwargs.iteritems():
+        defaults_dict[key] = value
+
+    return ffnetwork_params(
+        layer_sizes=defaults_dict['layer_sizes'],
+        input_dims=defaults_dict['input_dims'],
+        ei_layers=defaults_dict['ei_layers'],
+        act_funcs=defaults_dict['act_funcs'],
+        reg_list=defaults_dict['reg_list'],
+        layers_to_normalize=defaults_dict['layers_to_normalize'],
+        xstim_n=defaults_dict['xstim_n'],
+        ffnet_n=defaults_dict['ffnet_n'],
+        verbose=defaults_dict['verbose'],
+        network_type=defaults_dict['network_type'],
+        num_conv_layers=defaults_dict['num_conv_layers'],
+        sep_layers=defaults_dict['sep_layers'],
+        conv_filter_widths=defaults_dict['conv_filter_widths'],
+        shift_spacing=defaults_dict['shift_spacing'],
+        log_activations=defaults_dict['log_activations']
+    )
+
+
+def ffnetwork_params(
         layer_sizes=None,
+        input_dims=None,
         ei_layers=None,
         act_funcs='relu',
         reg_list=None,
-        layers_to_normalize= None,
+        layers_to_normalize=None,
         xstim_n=0,
         ffnet_n=None,
         verbose=True,
@@ -21,42 +64,52 @@ def FFnetwork_params(
         num_conv_layers=0,  # the below are for convolutional network
         sep_layers=None,
         conv_filter_widths=None,
-        shift_spacing=1):
-    """This generates the information for the network_params dictionary that is 
-    passed into the constructor for the NDN.
+        shift_spacing=1,
+        log_activations=False):
+    """generates information for the network_params dict that is passed to the
+    NDN constructor.
     
     Args:
-        input_dims (list of ints): list of the form 
-            [num_lags, num_x_pix, num_y_pix] that describes the input size for 
-            the network
         layer_sizes (list of ints): number of subunits in each layer of 
             the network. Last layer should match number of neurons (Robs). Each 
             entry can be a 3-d list, if there is a spatio-filter/temporal 
             arrangement.
-        ei_layers (`None` or list of ints): if not `None`, it should be a list 
-            of the number of inhibitory units for each layer other than the
-            output layer, so list should be of length one less than 
+        input_dims (list of ints, optional): list of the form 
+            [num_lags, num_x_pix, num_y_pix] that describes the input size for 
+            the network. If only a single dimension is needed, use 
+            [1, input_size, 1].
+        ei_layers (`None` or list of ints, optional): if not `None`, it should  
+            be a list of the number of inhibitory units for each layer other 
+            than the output layer, so list should be of length one less than 
             layer_sizes. All the non-inhibitory units are of course excitatory, 
-            and having 'None' for a layer means it will be unrestricted.
+            and having `None` for a layer means it will be unrestricted.
         act_funcs: (str or list of strs, optional): activation function for 
             network layers; replicated if a single element.
             ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 'elu' | 
             'quad' | 'lin'
-        reg_list ():
-        layers_to_normalize ():
+        reg_list (dict, optional): each key corresponds to a type of 
+            regularization (refer to regularization documentation for a 
+            complete list). An example using l2 regularization looks like
+            {'l2': [l2_layer_0_val, l2_layer_1_val, ..., l2_layer_-1_val}. If
+            a single value is given like
+            {'l2': l2_val}
+            then that value is applied to all layers in the network.           
+        layers_to_normalize (list, optional): description
         xstim_n (int or `None`): index into external list of input matrices 
             that specifies which input to process. It should be `None` if the 
             network will be directed internally (see ffnet_n)
         ffnet_n (int or `None`): internal network that this network receives 
             input from (has to be `None` if xstim_n is not `None`)
-        verbose (bool): True to print network specifications
-        network_type (str): specify type of network
+        verbose (bool, optional): `True` to print network specifications
+        network_type (str, optional): specify type of network
             ['normal'] | 'sep'
         num_conv_layers (int, optional): number of convolutional layers
         sep_layers (int, optional):
-        conv_filter_widths (list of ints): spatial dimension of filter 
-            (if different than stim_dims)
-        shift_spacing (int): stride used by convolution operation
+        conv_filter_widths (list of ints, optional): spatial dimension of 
+            filter (if different than stim_dims)
+        shift_spacing (int, optional): stride used by convolution operation
+        log_activations (bool, optional): `True` to log layer activations for
+            viewing in tensorboard
         
     Returns:
         dict: params to initialize an `FFNetwork` object
@@ -146,10 +199,11 @@ def FFnetwork_params(
         'layer_sizes': layer_sizes,
         'layer_types': layer_types,
         'activation_funcs': act_funcs,
-        'pos_constraints': pos_constraints,
         'normalize_weights': norm_weights,
+        'reg_initializers': reg_initializers,
         'num_inh': num_inh_layers,
-        'reg_initializers': reg_initializers}
+        'pos_constraints': pos_constraints,
+        'log_activations': log_activations}
 
     # if convolutional, add the following convolution-specific fields
     if num_conv_layers > 0:
@@ -382,7 +436,7 @@ def create_time_embedding(stim, pdims, up_fac=1, tent_spacing=1):
 # END create_time_embedding
 
 
-def generate_xv_folds( nt, fold=5, num_blocks=3 ):
+def generate_xv_folds(nt, fold=5, num_blocks=3):
     """Will generate unique and cross-validation indices, but subsample in each block
         NT = number of time steps
         fold = fraction of data (1/fold) to set aside for cross-validation
@@ -404,13 +458,13 @@ def generate_xv_folds( nt, fold=5, num_blocks=3 ):
     return train_inds, test_inds
 
 
-def spikes_to_Robs(spks, NT, dt):
+def spikes_to_robs(spks, num_time_pts, dt):
     """
     Description
     
     Args:
         spks (type): description
-        NT (type): description
+        num_time_pts (type): description
         dt (type): description
         
     Returns:
@@ -418,8 +472,8 @@ def spikes_to_Robs(spks, NT, dt):
 
     """
 
-    bins_to_use = range(NT+1)*dt
-    Robs, bin_edges = np.histogram(spks.flatten(), bins=bins_to_use.flatten())
-    Robs = np.expand_dims(Robs, axis=1)
+    bins_to_use = range(num_time_pts + 1) * dt
+    robs, bin_edges = np.histogram(spks.flatten(), bins=bins_to_use.flatten())
+    robs = np.expand_dims(robs, axis=1)
 
-    return Robs
+    return robs

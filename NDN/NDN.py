@@ -9,7 +9,6 @@ import tensorflow as tf
 from FFnetwork.ffnetwork import FFNetwork
 from FFnetwork.ffnetwork import side_network
 from .network import Network
-#from NDNutils import expand_input_dims_to_3d
 from NDNutils import concatenate_input_dims
 
 
@@ -66,7 +65,7 @@ class NDN(Network):
         """Constructor for network-NIM class
 
         Args:
-            network_list (list of `FFNetwork` objects): created using 
+            network_list (list of dicts): created using 
                 `NDNutils.FFNetwork_params`
             noise_dist (str, optional): specifies the probability distribution  
                 used to define the cost function
@@ -104,7 +103,8 @@ class NDN(Network):
         measured_input_list = set()
         for nn in range(self.num_networks):
             if network_list[nn]['xstim_n'] is not None:
-                measured_input_list = measured_input_list | set(network_list[nn]['xstim_n'])
+                measured_input_list = measured_input_list | \
+                                      set(network_list[nn]['xstim_n'])
         measured_input_list = list(measured_input_list)
 
         if input_dim_list is None:
@@ -486,8 +486,7 @@ class NDN(Network):
             data_filters (numpy array, optional):
             
         Returns:
-            float: value of model's cost function evaluated on previous model 
-                data or that used as input
+            float: cost function evaluated on `input_data`
 
         """
 
@@ -529,8 +528,7 @@ class NDN(Network):
             nulladjusted (bool): to explain
 
         Returns:
-            numpy array: value of log-likelihood for each unit in 
-                model
+            numpy array: value of log-likelihood for each unit in model
 
         """
 
@@ -580,8 +578,7 @@ class NDN(Network):
                 that specifies which layer to generate prediction from
 
         Returns:
-            numpy array: predicted values from 
-                network_list[ffnet_n].layers[layer]
+            numpy array: pred values from network_list[ffnet_n].layers[layer]
                 
         Raises:
             ValueError: If `layer` index is larger than number of layers in
@@ -647,8 +644,7 @@ class NDN(Network):
         return reg_dict
 
     def copy_model(self, tf_seed=0):
-        """For the moment, this just makes exact-copy without further 
-        elaboration."""
+        """Makes an exact copy of model without further elaboration."""
 
         # Assemble network_list
         target = NDN(self.network_list, ffnet_out=self.ffnet_out,

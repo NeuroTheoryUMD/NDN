@@ -149,6 +149,9 @@ class FFNetwork(object):
         elif len(params_dict['biases_initializers']) != self.num_layers:
             raise ValueError('Invalid number of biases_initializer')
 
+        if 'reg_initializers' not in params_dict:
+            params_dict['reg_initializers'] = [None] * self.num_layers
+
         if 'num_inh' not in params_dict:
             params_dict['num_inh'] = 0
         if type(params_dict['num_inh']) is not list:
@@ -166,9 +169,6 @@ class FFNetwork(object):
 
         if 'log_activations' not in params_dict:
             params_dict['log_activations'] = False
-
-        if 'reg_initializers' not in params_dict:
-            params_dict['reg_initializers'] = [None] * self.num_layers
 
         # Define network
         with tf.name_scope(self.scope):
