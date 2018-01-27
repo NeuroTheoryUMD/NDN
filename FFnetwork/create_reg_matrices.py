@@ -231,7 +231,8 @@ def create_maxpenalty_matrix(input_dims, reg_type):
             alpha = np.power(pos_x - input_dims[1]//2, 2, dtype=float) + \
                     np.power(pos_y - input_dims[2]//2, 2, dtype=float)
 
-            rmat[i, i] = np.power(alpha, 0.7, dtype=float)
+            rmat[i, i] = 0.01*alpha
+            # rmat[i, i] = np.power(alpha, 0.7, dtype=float)
 
     else:
         print('Havent made this type of reg yet. What you are getting wont work.')
