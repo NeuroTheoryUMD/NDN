@@ -638,7 +638,7 @@ class NDN(Network):
             with tf.name_scope('get_reg_pen'):  # to keep the graph clean-ish
                 for nn in range(self.num_networks):
                     for layer in range(self.networks[nn].num_layers):
-                        reg_dict['net%iL%i' % nn, layer] = \
+                        reg_dict['net%iL%i' % (nn, layer)] = \
                             self.networks[nn].layers[layer].get_reg_pen(sess)
 
         return reg_dict
