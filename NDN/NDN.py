@@ -317,9 +317,9 @@ class NDN(Network):
             # define cost function
             if self.noise_dist == 'gaussian':
                 with tf.name_scope('gaussian_loss'):
-                    # should variable 'cost' be defined here too?
+                    cost_norm = tf.cast(tf.shape(pred)[0], tf.float32)
                     cost.append(
-                        tf.nn.l2_loss(data_out - pred) / self.num_examples)
+                        tf.nn.l2_loss(data_out - pred) / cost_norm)
                     self.unit_cost = tf.concat(
                         [self.unit_cost,
                          tf.reduce_mean(tf.square(data_out-pred), axis=0)], 0)

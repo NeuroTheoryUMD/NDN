@@ -350,14 +350,16 @@ class Network(object):
                 cost = sess.run(
                     self.cost,
                     feed_dict={self.indices: train_indxs_perm})
-                print('Epoch %03d:  train cost = %2.5f' % (epoch, cost))
 
-                # print additional testing info
                 if test_indxs is not None:
                     cost_test = sess.run(
                         self.cost,
                         feed_dict={self.indices: test_indxs})
-                    print('   test cost = %2.5f' % cost_test)
+
+                    # print additional testing info
+                    print('Epoch %03d:  train cost = %2.5f, test cost = %2.5f' % (epoch, cost, cost_test))
+                else:
+                    print('Epoch %03d:  train cost = %2.5f' % (epoch, cost))
 
             # save model checkpoints
             if epochs_ckpt is not None and (
