@@ -649,6 +649,13 @@ class NDN(Network):
         # Assemble network_list
         target = NDN(self.network_list, ffnet_out=self.ffnet_out,
                      noise_dist=self.noise_dist, tf_seed=tf_seed)
+
+        # Copy all the parameters
+        for nn in range(self.num_networks):
+            for ll in range(self.networks[nn].num_layers):
+                target.networks[nn].layers[ll].weights = self.networks[nn].layers[ll].weights
+                target.networks[nn].layers[ll].biases = self.networks[nn].layers[ll].biases
+
         return target
 
     def nullLL(self, Robs):

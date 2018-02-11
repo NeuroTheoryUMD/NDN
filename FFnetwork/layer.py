@@ -286,7 +286,7 @@ class Layer(object):
             self.weights = np.maximum(self.weights, 0)
 
         if self.normalize_weights > 0:
-            wnorm = np.sqrt(np.sum(np.square(self.weights),axis=0))
+            wnorm = np.sqrt(np.sum(np.square(self.weights), axis=0))
             wnorm[np.where(wnorm == 0)] = 1
             self.weights = np.divide(self.weights, wnorm)
 
