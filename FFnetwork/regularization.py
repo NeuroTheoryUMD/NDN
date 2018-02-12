@@ -316,7 +316,7 @@ class SepRegularization(Regularization):
             raise TypeError('d2xt does not work with a separable layer.')
         elif reg_type is 'max':
             raise ValueError('Cannot use max regularization with a separable layer.')
-        elif reg_type is 'max_filter':
+        elif reg_type is 'max_filt':
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 [self.input_dims[0], 1, 1], reg_type)
             name = reg_type + '_reg'
