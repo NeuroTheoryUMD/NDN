@@ -357,9 +357,9 @@ class Network(object):
                         feed_dict={self.indices: test_indxs})
 
                     # print additional testing info
-                    print('Epoch %03d:  train cost = %10.4f, test cost = %10.4f' % (epoch, cost, cost_test))
+                    print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f' % (epoch, cost, cost_test))
                 else:
-                    print('Epoch %03d:  train cost = %2.5f' % (epoch, cost))
+                    print('Epoch %04d:  train cost = %2.5f' % (epoch, cost))
 
             # save model checkpoints
             if epochs_ckpt is not None and (
