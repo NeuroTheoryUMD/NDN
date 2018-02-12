@@ -559,14 +559,11 @@ class SepLayer(Layer):
             self._define_layer_variables()
 
             # Section weights into first dimension and space
-            kts = tf.transpose(tf.slice(
-                self.weights_var, [0, 0],
-                [self.input_dims[0], self.num_filters]))
-            ksp = tf.transpose(tf.slice(
-                self.weights_var, [self.input_dims[0], 0],
-                [self.input_dims[1]*self.input_dims[2], self.num_filters]))
-            # Note that much manipulation is necessary to prepare for the
-            # outer product with matrices
+            kts = tf.slice(self.weights_var, [0, 0],
+                           [self.input_dims[0], self.num_filters] )
+
+            ksp = tf.slice(self.weights_var, [self.input_dims[0], 0],
+                           [self.input_dims[1]*self.input_dims[2], self.num_filters])
 
             # Normalize weights (one or both dimensions)
             if self.normalize_weights in [0, 2]:
@@ -577,7 +574,8 @@ class SepLayer(Layer):
                 ksp = tf.divide(ksp, tf.maximum(wnorms, 1e-6))
 
             weights_full = tf.transpose(tf.reshape(
-                tf.matmul(tf.expand_dims(ksp, 2), tf.expand_dims(kts, 1)),
+                tf.matmul(tf.expand_dims(tf.transpose(ksp), 2),
+                          tf.expand_dims(tf.transpose(kts), 1)),
                 [self.num_filters, np.prod(self.input_dims)]))
 
             # Define computation
