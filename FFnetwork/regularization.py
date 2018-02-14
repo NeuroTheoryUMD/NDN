@@ -318,11 +318,11 @@ class SepRegularization(Regularization):
             raise ValueError('Cannot use max regularization with a separable layer.')
         elif reg_type is 'max_filt':
             reg_mat = makeRmats.create_maxpenalty_matrix(
-                [self.input_dims[0], 1, 1], reg_type)
+                [self.input_dims[0], 1, 1], 'max')
             name = reg_type + '_reg'
         elif reg_type is 'max_space':
             reg_mat = makeRmats.create_maxpenalty_matrix(
-                [self.input_dims[1]*self.input_dims[2], 1, 1], reg_type)
+                [self.input_dims[1]*self.input_dims[2], 1, 1], 'max')
             name = reg_type + '_reg'
         else:
             reg_mat = 0.0
