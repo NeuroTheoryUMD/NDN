@@ -551,7 +551,7 @@ class SepLayer(Layer):
             input_dims=input_dims,
             num_outputs=self.reg.num_outputs,
             vals=reg_initializer)
-    # END sepLayer.__init__
+    # END SepLayer.__init__
 
     def build_graph(self, inputs, params_dict=None):
 
@@ -597,6 +597,30 @@ class SepLayer(Layer):
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END sepLayer._build_layer
+
+    def write_layer_params(self, sess):
+        """Write weights/biases in tf Variables to numpy arrays. Overloads function in layer
+        in order to take care of normalization differences."""
+
+        self.weights = sess.run(self.weights_var)
+
+        if self.pos_constraint:
+            self.weights = np.maximum(self.weights, 0)
+
+        if self.normalize_weights in [0, 2]:
+            kts = self.weights[range(self.input_dims[0]),:]
+            wnorms = np.sqrt(np.sum(np.square(kts), axis=0))
+            self.weights[range(self.input_dims[0]), :] = \
+                np.divide(kts, np.maximum(wnorms, 1e-6))
+            
+        if self.normalize_weights in [1, 2]:
+            ksp = self.weights[self.input_dims[0]:, :]
+            wnorms = np.sqrt(np.sum(np.square(ksp), axis=0))
+            self.weights[self.input_dims[0]:, :] = \
+                np.divide(ksp, np.maximum(wnorms, 1e-6))
+
+        self.biases = sess.run(self.biases_var)
+    # END SepLayer.write_layer_params
 
 
 class AddLayer(Layer):
@@ -692,19 +716,7 @@ class AddLayer(Layer):
                     wnorms = tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0))
                     self.weights_var = tf.divide(self.weights_var, tf.maximum(wnorms, 1e-6))
 
-                # this was a tensor-multiplcation solution that I couldnt get working
-                #shaped_input = tf.transpose(
-                #    tf.reshape( inputs, [-1,num_input_streams, num_outputs, 1]), [0,2,3,1] )
-                #print(shaped_input)
-                #shaped_weights = tf.expand_dims( tf.expand_dims(tf.transpose(self.weights_var),0), -1)
-                #print(shaped_weights)
-                #pre = tf.matmul( shaped_input,
-                #    tf.expand_dims( tf.expand_dims(tf.transpose(self.weights_var),0), -1) )
-                #print(pre)
-
                 flattened_weights = tf.reshape(self.weights_var, [1, num_input_streams*num_outputs])
-                #print(self.scope, num_input_streams, num_outputs)
-                #print(inputs, flattened_weights)
                 # Define computation -- different from layer in that this is a broadcast-multiply
                 # rather than  matmul
                 pre = tf.multiply(inputs, flattened_weights)
@@ -723,4 +735,4 @@ class AddLayer(Layer):
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END sepLayer._build_layer
+    # END AddLayer._build_graph
