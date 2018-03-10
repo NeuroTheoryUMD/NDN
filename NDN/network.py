@@ -355,9 +355,12 @@ class Network(object):
                     cost_test = sess.run(
                         self.cost,
                         feed_dict={self.indices: test_indxs})
+                    reg_pen = sess.run(
+                        self.cost_reg,
+                        feed_dict={self.indices: train_indxs_perm})
 
                     # print additional testing info
-                    print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f' % (epoch, cost, cost_test))
+                    print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f, reg penalty = %10.4f' % (epoch, cost, cost_test, reg_pen))
                 else:
                     print('Epoch %04d:  train cost = %2.5f' % (epoch, cost))
 

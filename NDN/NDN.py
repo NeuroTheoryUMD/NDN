@@ -514,7 +514,7 @@ class NDN(Network):
         return cost
     # END get_LL
 
-    def eval_models(self, input_data, output_data, data_indxs=None,
+    def eval_models(self, input_data=None, output_data=None, data_indxs=None,
                     data_filters=None, nulladjusted=False):
         """Get cost for each output neuron without regularization terms
 
@@ -532,16 +532,20 @@ class NDN(Network):
 
         """
 
-        # check input
+        # check inputs
+        if input_data is None:
+            raise TypeError('Must specify input data')
         if type(input_data) is not list:
             input_data = [input_data]
+        if output_data is None:
+            raise TypeError('Must specify output data')
         if type(output_data) is not list:
             output_data = [output_data]
         self.num_examples = input_data[0].shape[0]
 
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
-
+            
         if data_filters is None:
             self.filter_data = False
         else:
@@ -559,7 +563,8 @@ class NDN(Network):
             if nulladjusted:
                 # note that LL_neuron is negative of the true LL, but nullLL is
                 # not (so + is actually subtraction)
-                LL_neuron += self.nullLL(output_data[data_indxs, :])
+                LL_neuron += self.nullLL(output_data[0][data_indxs, :])
+                # note that this will only be correct for single output indices
 
         return LL_neuron
     # END get_LL_neuron
@@ -655,6 +660,7 @@ class NDN(Network):
             for ll in range(self.networks[nn].num_layers):
                 target.networks[nn].layers[ll].weights = self.networks[nn].layers[ll].weights
                 target.networks[nn].layers[ll].biases = self.networks[nn].layers[ll].biases
+                target.networks[nn].layers[ll].reg = self.networks[nn].layers[ll].reg.reg_copy()
 
         return target
 
