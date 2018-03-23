@@ -8,7 +8,7 @@ from .layer import Layer
 from .layer import ConvLayer
 from .layer import SepLayer
 from .layer import AddLayer
-
+from .layer import SpikeHistoryLayer
 
 class FFNetwork(object):
     """Implementation of simple fully-connected feed-forward neural network. 
@@ -184,6 +184,7 @@ class FFNetwork(object):
 
         layer_sizes = [self.input_dims] + network_params['layer_sizes']
         self.layers = []
+        #print(self.scope, layer_sizes)
 
         for nn in range(self.num_layers):
 
@@ -221,6 +222,19 @@ class FFNetwork(object):
 
                 self.layers.append(AddLayer(
                     scope='add_layer_%i' % nn,
+                    input_dims=layer_sizes[nn],
+                    output_dims=layer_sizes[nn+1],
+                    activation_func=network_params['activation_funcs'][nn],
+                    normalize_weights=network_params['normalize_weights'][nn],
+                    reg_initializer=network_params['reg_initializers'][nn],
+                    num_inh=network_params['num_inh'][nn],
+                    pos_constraint=network_params['pos_constraints'][nn],
+                    log_activations=network_params['log_activations']))
+
+            elif self.layer_types[nn] is 'spike_history':
+
+                self.layers.append(SpikeHistoryLayer(
+                    scope='spike_history_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
                     activation_func=network_params['activation_funcs'][nn],
@@ -281,6 +295,7 @@ class FFNetwork(object):
 
     def build_graph(self, inputs, params_dict=None):
         """Build tensorflow graph for this network"""
+
         with tf.name_scope(self.scope):
             for layer in range(self.num_layers):
                 self.layers[layer].build_graph(inputs, params_dict)

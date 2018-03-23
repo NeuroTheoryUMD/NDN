@@ -13,7 +13,7 @@ class Network(object):
     """Base class for neural networks"""
 
     _allowed_learning_algs = ['adam', 'lbfgs']
-    _log_min = 1e-5  # constant to add to all arguments to logarithms
+    _log_min = 1e-6  # constant to add to all arguments to logarithms
 
     def __init__(self):
         """Constructor for Network class; model architecture should be defined 

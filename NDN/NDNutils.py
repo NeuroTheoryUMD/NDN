@@ -244,7 +244,7 @@ def expand_input_dims_to_3d(input_size):
     if not isinstance(input_size, list):
         input3d = [1, input_size, 1]
     else:
-        input3d = input_size
+        input3d = input_size[:]
     while len(input3d) < 3:
         input3d.append(1)
 
@@ -287,7 +287,7 @@ def shift_mat_zpad(x, shift, dim=0):
     
     Args:
         x (type): description
-        shfit (type): description
+        shift (type): description
         dim (type): description
         
     Returns:
@@ -361,7 +361,7 @@ def create_time_embedding(stim, pdims, up_fac=1, tent_spacing=1):
     
     Args:
         stim (type): simulus matrix (time must be in the first dim).
-        pdims (type): struct of simulus params (see NIM.create_stim_params)
+        pdims (list/array): length(3) list of stimulus dimensions
         up_fac (type): description
         tent_spacing (type): description
         
@@ -435,6 +435,26 @@ def create_time_embedding(stim, pdims, up_fac=1, tent_spacing=1):
     return xmat
 # END create_time_embedding
 
+
+def generate_spike_history(robs, nlags, neg_constraint=True, reg_par=0, xstim_n=1):
+    """Will generate X-matrix that contains Robs information for each cell. It will
+    use the default resolution of robs, and simply go back a certain number of lags.
+    To have it applied to the corresponding neuron, will need to use add_layers"""
+
+    NC = robs.shape[1]
+
+    Xspk = create_time_embedding(shift_mat_zpad(robs, 1, dim=0), pdims=[nlags, NC, 1])
+    ffnetpar = ffnetwork_params(layer_sizes=[NC], input_dims=[nlags, NC, 1],
+                                act_funcs='lin', reg_list={'d2t': reg_par},
+                                xstim_n=xstim_n, verbose=False,
+                                network_type='spike_history')
+    # Constrain spike history terms to be negative
+    ffnetpar['pos_constraints'] = [neg_constraint]
+    ffnetpar['num_inh'] = [NC]
+    ffnetpar['layer_types'] = ['spike_history']
+
+    return Xspk, ffnetpar
+# END generate_spike_history
 
 def generate_xv_folds(nt, fold=5, num_blocks=3):
     """Will generate unique and cross-validation indices, but subsample in each block

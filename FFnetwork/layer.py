@@ -210,6 +210,7 @@ class Layer(object):
 
     def _define_layer_variables(self):
         # Define tensor-flow versions of variables (placeholder and variables)
+
         with tf.name_scope('weights_init'):
             self.weights_ph = tf.placeholder_with_default(
                 self.weights,
@@ -688,10 +689,10 @@ class AddLayer(Layer):
                 pos_constraint=pos_constraint,
                 log_activations=log_activations)
 
-        # Initialize all weights to 1: which is the default combination
+        # Initialize all weights to 1, which is the default combination
         self.weights[:, :] = 1.0
 
-    # END add_layer.__init__
+    # END AddLayer.__init__
 
     def build_graph(self, inputs, params_dict=None):
         """By definition, the inputs will be composed of a number of input streams, given by
@@ -706,10 +707,12 @@ class AddLayer(Layer):
             self._define_layer_variables()
 
             if self.pos_constraint:
-                self.weights_var = tf.maximum(0.0, self.weights_var)
+                ws = tf.maximum(0.0, self.weights_var)
+            else:
+                ws = self.weights_var
 
             if num_input_streams == 1:
-                pre = tf.multiply( inputs, self.weights_var )
+                pre = tf.multiply( inputs, ws )
             else:
 
                 if self.normalize_weights > 0:
@@ -736,3 +739,105 @@ class AddLayer(Layer):
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END AddLayer._build_graph
+
+
+class SpikeHistoryLayer(Layer):
+    """Implementation of a simple additive layer that combines several input streams additively.
+    This has a number of [output] units, and number of input streams, each which the exact same
+    size as the number of output units. Each output unit then does a weighted sum over its matching
+    inputs (with a weight for each input stream)
+
+    """
+
+    def __init__(
+            self,
+            scope=None,
+            input_dims=None,  # this can be a list up to 3-dimensions
+            output_dims=None,
+            activation_func='relu',
+            normalize_weights=0,
+            reg_initializer=None,
+            num_inh=0,
+            pos_constraint=False,
+            log_activations=False):
+        """Constructor for sepLayer class
+
+        Args:
+            scope (str): name scope for variables and operations in layer
+            input_dims (int): dimensions of input data
+            output_dims (int): dimensions of output data
+            activation_func (str, optional): pointwise function applied to
+                output of affine transformation
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+                'elu' | 'quad'
+            normalize_weights (int): type of normalization to apply to the
+                weights. Default [0] is to normalize across the first dimension
+                (time/filters), but '1' will normalize across spatial
+                dimensions instead, and '2' will normalize both
+            reg_initializer (dict, optional): see Regularizer docs for info
+            num_inh (int, optional): number of inhibitory units in layer
+            pos_constraint (bool, optional): True to constrain layer weights to
+                be positive
+            log_activations (bool, optional): True to use tf.summary on layer
+                activations
+        """
+
+        # check for required inputs
+        if input_dims is None or output_dims is None:
+            raise TypeError('Must specify input and output dimensions')
+        filter_dims = input_dims[:]
+        filter_dims[1] = 1
+
+        super(SpikeHistoryLayer, self).__init__(
+                scope=scope,
+                input_dims=input_dims,
+                filter_dims=filter_dims,
+                output_dims=output_dims,
+                activation_func=activation_func,
+                normalize_weights=normalize_weights,
+                weights_initializer='zeros',
+                biases_initializer='zeros',
+                reg_initializer=reg_initializer,
+                num_inh=num_inh,
+                pos_constraint=pos_constraint,
+                log_activations=log_activations)
+
+        # Initialize all weights to be negative
+        self.weights = np.abs(self.weights)
+        self.biases[:] = 0
+
+    # END SpikeHistorylayer.__init__
+
+    def build_graph(self, inputs, params_dict=None):
+        """By definition, the inputs will be composed of a number of input streams, given by
+        the first dimension of input_dims, and each stream will have the same number of inputs
+        as the number of output units."""
+
+        with tf.name_scope(self.scope):
+            self._define_layer_variables()
+
+            if self.pos_constraint:
+                #ws_flat = tf.reshape(tf.maximum(0.0, tf.transpose(self.weights_var)), [1, self.input_dims[0]*self.output_dims[1]])
+                ws_flat = tf.reshape(tf.maximum(0.0, self.weights_var),
+                                     [1, self.input_dims[0] * self.output_dims[1]])
+            else:
+                #ws_flat = tf.reshape(tf.transpose(self.weights_var), [1, self.input_dims[0]*self.output_dims[1]])
+                ws_flat = tf.reshape(self.weights_var, [1, self.input_dims[0] * self.output_dims[1]])
+
+            pre = tf.reshape(tf.multiply(inputs, ws_flat),
+                             [-1, self.input_dims[1], self.input_dims[0]])
+            #print('bg1', pre)
+            pre = tf.reduce_sum(pre, axis=2)
+            # Dont put in any biases: pre = tf.add( pre, self.biases_var)
+            #print('bg2', pre)
+            if self.ei_mask_var is not None:
+                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+            else:
+                post = self.activation_func(pre)
+
+            self.outputs = post
+
+#        if self.log:
+#            tf.summary.histogram('act_pre', pre)
+#            tf.summary.histogram('act_post', post)
+    # END SpikeHistoryLayer._build_graph

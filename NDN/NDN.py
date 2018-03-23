@@ -156,8 +156,7 @@ class NDN(Network):
                     # print('network %i:' % nn, mm, input_dims_measured,
                     # self.networks[mm].layers[-1].output_dims )
                     input_dims_measured = concatenate_input_dims(
-                        input_dims_measured,
-                        self.networks[mm].layers[-1].output_dims)
+                        input_dims_measured, self.networks[mm].layers[-1].output_dims)
 
             # Determine external inputs
             if network_list[nn]['xstim_n'] is not None:
@@ -333,10 +332,10 @@ class NDN(Network):
                         cost_norm)))
                     self.unit_cost = tf.concat(
                         [self.unit_cost,
-                         tf.divide(-tf.reduce_sum(
+                         -tf.divide(tf.reduce_sum(
                              tf.multiply(data_out,
-                                         tf.log(self._log_min + pred)) - pred,
-                             axis=0), cost_norm)], 0)
+                                         tf.log(self._log_min + pred)) - pred, axis=0),
+                             cost_norm)], 0)
 
             elif self.noise_dist == 'bernoulli':
                 with tf.name_scope('bernoulli_loss'):
@@ -545,7 +544,7 @@ class NDN(Network):
 
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
-            
+
         if data_filters is None:
             self.filter_data = False
         else:
@@ -675,7 +674,7 @@ class NDN(Network):
         elif self.noise_dist == 'poisson':
             rbars = np.mean(Robs, axis=0)
             LLnulls = np.log(rbars) - 1.0
-            # elif self.noise_dist == 'bernoulli':
+        # elif self.noise_dist == 'bernoulli':
         else:
             LLnulls = [0] * Robs.shape[1]
             print('Not worked out yet')
