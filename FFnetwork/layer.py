@@ -247,17 +247,20 @@ class Layer(object):
             self._define_layer_variables()
 
             # Define computation
+            if self.normalize_weights > 0:
+                wnorms = tf.sqrt(tf.reduce_sum( tf.square(self.weights_var), axis=0))
+                ws = tf.divide(self.weights_var, tf.maximum(wnorms, 1e-6))
+                # pre = tf.divide( pre, tf.maximum(wnorms, 1e-6) )
+            else:
+                ws = self.weights_var
+
             if self.pos_constraint:
                 pre = tf.add(tf.matmul(
                     inputs,
-                    tf.maximum(0.0, self.weights_var)), self.biases_var)
+                    tf.maximum(0.0, ws)), self.biases_var)
             else:
                 pre = tf.add(
-                    tf.matmul(inputs, self.weights_var), self.biases_var)
-
-            if self.normalize_weights > 0:
-                wnorms = tf.sqrt( tf.reduce_sum( tf.square(self.weights_var), axis=0 ) )
-                pre = tf.divide( pre, tf.maximum(wnorms, 1e-6) )
+                    tf.matmul(inputs, ws), self.biases_var)
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
@@ -691,6 +694,7 @@ class AddLayer(Layer):
 
         # Initialize all weights to 1, which is the default combination
         self.weights[:, :] = 1.0
+        self.biases[:] = 1e-6
 
     # END AddLayer.__init__
 
@@ -717,16 +721,18 @@ class AddLayer(Layer):
 
                 if self.normalize_weights > 0:
                     wnorms = tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0))
-                    self.weights_var = tf.divide(self.weights_var, tf.maximum(wnorms, 1e-6))
+                    ws = tf.divide(self.weights_var, tf.maximum(wnorms, 1e-6))
+                else:
+                    ws = self.weights_var
 
-                flattened_weights = tf.reshape(self.weights_var, [1, num_input_streams*num_outputs])
+                flattened_weights = tf.reshape(ws, [1, num_input_streams*num_outputs])
                 # Define computation -- different from layer in that this is a broadcast-multiply
                 # rather than  matmul
                 pre = tf.multiply(inputs, flattened_weights)
                 # Sum over input streams for given output
-                pre = tf.reduce_sum( tf.reshape( pre, [-1,num_input_streams,num_outputs] ), axis=1 )
+                pre = tf.reduce_sum(tf.reshape(pre, [-1, num_input_streams, num_outputs]), axis=1)
 
-            pre = tf.add( pre, self.biases_var)
+            pre = tf.add(pre, self.biases_var)
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
@@ -795,15 +801,14 @@ class SpikeHistoryLayer(Layer):
                 output_dims=output_dims,
                 activation_func=activation_func,
                 normalize_weights=normalize_weights,
-                weights_initializer='zeros',
+                weights_initializer='trunc_normal',
                 biases_initializer='zeros',
                 reg_initializer=reg_initializer,
                 num_inh=num_inh,
                 pos_constraint=pos_constraint,
                 log_activations=log_activations)
 
-        # Initialize all weights to be negative
-        self.weights = np.abs(self.weights)
+        # Initialize all weights to be positive (and will be multiplied by -1
         self.biases[:] = 0
 
     # END SpikeHistorylayer.__init__
@@ -817,19 +822,17 @@ class SpikeHistoryLayer(Layer):
             self._define_layer_variables()
 
             if self.pos_constraint:
-                #ws_flat = tf.reshape(tf.maximum(0.0, tf.transpose(self.weights_var)), [1, self.input_dims[0]*self.output_dims[1]])
-                ws_flat = tf.reshape(tf.maximum(0.0, self.weights_var),
-                                     [1, self.input_dims[0] * self.output_dims[1]])
+                ws_flat = tf.reshape(tf.maximum(0.0, tf.transpose(self.weights_var)),
+                                     [1, self.input_dims[0]*self.input_dims[1]])
             else:
-                #ws_flat = tf.reshape(tf.transpose(self.weights_var), [1, self.input_dims[0]*self.output_dims[1]])
-                ws_flat = tf.reshape(self.weights_var, [1, self.input_dims[0] * self.output_dims[1]])
+                ws_flat = tf.reshape(tf.transpose(self.weights_var),
+                                     [1, self.input_dims[0]*self.input_dims[1]])
 
-            pre = tf.reshape(tf.multiply(inputs, ws_flat),
-                             [-1, self.input_dims[1], self.input_dims[0]])
-            #print('bg1', pre)
-            pre = tf.reduce_sum(pre, axis=2)
+            pre = tf.reduce_sum(tf.reshape(tf.multiply(inputs, ws_flat),
+                                           [-1, self.input_dims[1], self.input_dims[0]]),
+                                axis=2)
+
             # Dont put in any biases: pre = tf.add( pre, self.biases_var)
-            #print('bg2', pre)
             if self.ei_mask_var is not None:
                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
             else:
@@ -837,7 +840,7 @@ class SpikeHistoryLayer(Layer):
 
             self.outputs = post
 
-#        if self.log:
-#            tf.summary.histogram('act_pre', pre)
-#            tf.summary.histogram('act_post', post)
+        if self.log:
+            tf.summary.histogram('act_pre', pre)
+            tf.summary.histogram('act_post', post)
     # END SpikeHistoryLayer._build_graph

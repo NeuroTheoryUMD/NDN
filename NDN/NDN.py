@@ -208,7 +208,7 @@ class NDN(Network):
     def _build_graph(self,
                      learning_alg='lbfgs',
                      opt_params=None,
-                     params_to_fit=None):
+                     variable_list=None):
         """NDN._build_graph"""
 
         # Take care of optimize parameters if necessary
@@ -280,7 +280,7 @@ class NDN(Network):
                 self._define_loss()
 
             # Define optimization routine
-            var_list = self._build_fit_variable_list(params_to_fit)
+            var_list = self._build_fit_variable_list(variable_list)
 
             with tf.variable_scope('optimizer'):
                 self._define_optimizer(
@@ -562,7 +562,7 @@ class NDN(Network):
             if nulladjusted:
                 # note that LL_neuron is negative of the true LL, but nullLL is
                 # not (so + is actually subtraction)
-                LL_neuron += self.nullLL(output_data[0][data_indxs, :])
+                LL_neuron = -LL_neuron - self.nullLL(output_data[0][data_indxs, :])
                 # note that this will only be correct for single output indices
 
         return LL_neuron
@@ -662,6 +662,18 @@ class NDN(Network):
                 target.networks[nn].layers[ll].reg = self.networks[nn].layers[ll].reg.reg_copy()
 
         return target
+
+    def initialize_output_layer_bias(self, robs):
+        """Sets biases in output layer(w) to explain mean firing rate, using Robs"""
+
+        if robs is not list:
+            robs = [robs]
+        for nn in range(len(self.ffnet_out)):
+            FRs = np.mean(robs[nn], axis=0, dtype='float32')
+            assert len(FRs) == len(self.networks[self.ffnet_out[nn]].layers[-1].biases[0]), \
+                'Robs length wrong'
+            self.networks[self.ffnet_out[nn]].layers[-1].biases = FRs
+    # END NDN.initialize_output_layer_bias
 
     def nullLL(self, Robs):
         """Calculates null-model (constant firing rate) likelihood, given Robs 
