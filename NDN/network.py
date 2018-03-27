@@ -233,6 +233,8 @@ class Network(object):
             if opt_params['early_stop'] > 0 and test_indxs is None:
                 raise ValueError(
                     'test_indxs must be specified for early stopping')
+            if opt_params['early_stop'] > 0 and opt_params['epochs_early_stop'] is None:
+                opt_params['epochs_early_stop'] = 1
 
         # Build graph: self.build_graph must be defined in child of network
         self._build_graph(
@@ -426,7 +428,7 @@ class Network(object):
                     self.cost,
                     feed_dict={self.indices: test_indxs})
 
-                if cost_test >= np.maximum(prev_cost):
+                if cost_test >= np.max(prev_cost):
 
                     # save model checkpoint if desired and necessary
                     if epochs_ckpt is not None and \

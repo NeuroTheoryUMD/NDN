@@ -276,6 +276,8 @@ class Layer(object):
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
+        print(self.scope, 'reading weights initial', np.sum(np.square(self.weights)))
+        print('reading biases initial', np.sum(np.square(self.biases)))
         sess.run(
             [self.weights_var.initializer, self.biases_var.initializer],
             feed_dict={self.weights_ph: self.weights,
@@ -286,17 +288,19 @@ class Layer(object):
         """Write weights/biases in tf Variables to numpy arrays"""
 
         self.weights = sess.run(self.weights_var)
-
+        print(self.scope, 'writing weights initial', np.sum(np.square(self.weights)))
         if self.pos_constraint:
             self.weights = np.maximum(self.weights, 0)
-
+        print('     mid', np.sum(np.square(self.weights)))
         if self.normalize_weights > 0:
             wnorm = np.sqrt(np.sum(np.square(self.weights), axis=0))
             # wnorm[np.where(wnorm == 0)] = 1
             # self.weights = np.divide(self.weights, wnorm)
             self.weights = np.divide(self.weights, np.maximum(wnorm, 1e-8))
-
+            print('     post-norm', np.sum(np.square(self.weights)))
         self.biases = sess.run(self.biases_var)
+        print(self.scope, 'writing biases initial', np.sum(np.square(self.biases)))
+
     # END Layer.write_layer_params
 
     def define_regularization_loss(self):
