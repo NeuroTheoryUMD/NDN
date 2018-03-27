@@ -248,10 +248,10 @@ class Layer(object):
 
             # Define computation
             if self.normalize_weights > 0:
-                wnorms = tf.sqrt(tf.reduce_sum( tf.square(self.weights_var), axis=0))
-                ws = tf.divide(self.weights_var, tf.maximum(wnorms, 1e-6))
-                # pre = tf.divide( pre, tf.maximum(wnorms, 1e-6) )
+                wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
+                ws = tf.divide(self.weights_var, wnorms)
             else:
+                #ws = tf.identity(self.weights_var)
                 ws = self.weights_var
 
             if self.pos_constraint:
@@ -417,14 +417,14 @@ class ConvLayer(Layer):
                 pos_constraint=False,        # Note difference from layer
                 log_activations=log_activations)
 
-        # convLayer-specific properties
+        # ConvLayer-specific properties
         self.shift_spacing = shift_spacing
         self.num_shifts = num_shifts
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
         self.output_dims = [num_filters] + num_shifts
 
-    # END convLayer.__init__
+    # END ConvLayer.__init__
 
     def build_graph(self, inputs, params_dict=None):
 
@@ -447,9 +447,14 @@ class ConvLayer(Layer):
             # Reshape weights (4:D:
             conv_filter_dims = [filter_size[2], filter_size[1], filter_size[0],
                                 self.num_filters]
-            ws_conv = tf.reshape(self.weights_var, conv_filter_dims)
-            # this is reverse-order from Matlab:
-            # [space-2, space-1, lags] and num_filters is explicitly last dim
+
+            if self.normalize_weights > 0:
+                wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
+                ws_conv = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filter_dims)
+            else:
+                ws_conv = tf.reshape(self.weights_var, conv_filter_dims)
+                # this is reverse-order from Matlab:
+                # [space-2, space-1, lags] and num_filters is explicitly last dim
 
             # Make strides list
             strides = [1, 1, 1, 1]
@@ -459,7 +464,6 @@ class ConvLayer(Layer):
                 strides[2] = self.shift_spacing
 
             pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
-            #, data_format="NCHW")
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(
@@ -474,7 +478,7 @@ class ConvLayer(Layer):
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END convLayer.build_graph
+    # END ConvLayer.build_graph
 
 
 class SepLayer(Layer):
