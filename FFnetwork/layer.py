@@ -251,7 +251,7 @@ class Layer(object):
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
                 ws = tf.divide(self.weights_var, wnorms)
             else:
-                #ws = tf.identity(self.weights_var)
+                # ws = tf.identity(self.weights_var)
                 ws = self.weights_var
 
             if self.pos_constraint:
@@ -272,7 +272,7 @@ class Layer(object):
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END layer.build_graph
+    # END Layer.build_graph
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
@@ -280,6 +280,7 @@ class Layer(object):
             [self.weights_var.initializer, self.biases_var.initializer],
             feed_dict={self.weights_ph: self.weights,
                        self.biases_ph: self.biases})
+    # END Layer.assign_layer_params
 
     def write_layer_params(self, sess):
         """Write weights/biases in tf Variables to numpy arrays"""
@@ -291,10 +292,12 @@ class Layer(object):
 
         if self.normalize_weights > 0:
             wnorm = np.sqrt(np.sum(np.square(self.weights), axis=0))
-            wnorm[np.where(wnorm == 0)] = 1
-            self.weights = np.divide(self.weights, wnorm)
+            # wnorm[np.where(wnorm == 0)] = 1
+            # self.weights = np.divide(self.weights, wnorm)
+            self.weights = np.divide(self.weights, np.maximum(wnorm, 1e-8))
 
         self.biases = sess.run(self.biases_var)
+    # END Layer.write_layer_params
 
     def define_regularization_loss(self):
         """Wrapper function for building regularization portion of graph"""

@@ -116,7 +116,10 @@ class Network(object):
 
         if learning_alg == 'adam':
             self.train_step = tf.train.AdamOptimizer(
-                opt_params['learning_rate']). \
+                learning_rate=opt_params['learning_rate'],
+                beta1=opt_params['beta1'],
+                beta2=opt_params['beta2'],
+                epsilon=opt_params['epsilon']). \
                 minimize(self.cost_penalized, var_list=var_list)
         elif learning_alg == 'lbfgs':
             self.train_step = tf.contrib.opt.ScipyOptimizerInterface(
@@ -181,7 +184,7 @@ class Network(object):
                 and `output_dir` is `None`
             ValueError: If `epochs_summary` in `opt_params` is not `None` and 
                 `output_dir` is `None`
-            ValueError: If `early_stop` is `True` and `test_indxs` is 'None'
+            ValueError: If `early_stop` >0 and `test_indxs` is 'None'
 
         """
 
@@ -204,7 +207,7 @@ class Network(object):
             if temp_data.shape[0] != self.num_examples:
                 raise ValueError(
                     'Input data dims must match across input_data.')
-        for nn,temp_data in enumerate(output_data):
+        for nn, temp_data in enumerate(output_data):
             if temp_data.shape[0] != self.num_examples:
                 raise ValueError('Output dim0 must match model values')
             if self.filter_data:
@@ -227,7 +230,7 @@ class Network(object):
             if opt_params['epochs_summary'] is not None and output_dir is None:
                 raise ValueError(
                     'output_dir must be specified to save summaries')
-            if opt_params['early_stop'] and test_indxs is None:
+            if opt_params['early_stop'] > 0 and test_indxs is None:
                 raise ValueError(
                     'test_indxs must be specified for early stopping')
 
@@ -310,12 +313,13 @@ class Network(object):
         epochs_training = opt_params['epochs_training']
         epochs_ckpt = opt_params['epochs_ckpt']
         epochs_early_stop = opt_params['epochs_early_stop']
+        early_stop_pool = opt_params['early_stop']
         epochs_summary = opt_params['epochs_summary']
 
         num_batches = train_indxs.shape[0] // opt_params['batch_size']
 
-        if opt_params['early_stop']:
-            prev_cost = float('Inf')
+        if opt_params['early_stop'] > 0:
+            prev_cost = np.multiply(np.ones([early_stop_pool]), float('Inf'))
 
         if opt_params['run_diagnostics']:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -415,14 +419,14 @@ class Network(object):
                 test_writer.flush()
 
             # check for early stopping
-            if opt_params['early_stop'] and \
+            if opt_params['early_stop'] > 0 and \
                     epoch % epochs_early_stop == epochs_early_stop - 1:
 
                 cost_test = sess.run(
                     self.cost,
                     feed_dict={self.indices: test_indxs})
 
-                if cost_test >= prev_cost:
+                if cost_test >= np.maximum(prev_cost):
 
                     # save model checkpoint if desired and necessary
                     if epochs_ckpt is not None and \
@@ -449,7 +453,7 @@ class Network(object):
 
                     break  # out of epochs loop
                 else:
-                    prev_cost = cost_test
+                    prev_cost[(epoch // epochs_early_stop) % early_stop_pool] = cost_test
 
         return epoch
     # END _train_adam
@@ -625,11 +629,17 @@ class Network(object):
             opt_params['epochs_early_stop'] (int, optional): number of epochs 
                 between checks for early stopping.
                 DEFAULT: `None`
-            opt_params['early_stop'] (bool, optional): if `True`, training 
-                exits when the cost function evaluated on test_indxs begins to 
-                increase (needs updating).
-                DEFAULT: `False`
-            opt_params['epochs_summary'] (int, optional): number of epochs 
+            opt_params['early_stop'] (int, optional): if greater than zero, training
+                exits when the cost function evaluated on test_indxs is not lower than
+                the maximum over that many previous checks
+                DEFAULT: 0
+            opt_params['beta1'] (float, optional): beta1 (1st momentum term) for Adam
+                DEFAULT: 0.9
+            opt_params['beta2'] (float, optional): beta2 (2nd momentum term) for Adam
+                DEFAULT: 0.999
+            opt_params['epsilon'] (float, optional): epsilon parameter in Adam optimizer
+                DEFAULT: 1e-4 (note normal Adam default is 1e-8)
+            opt_params['epochs_summary'] (int, optional): number of epochs
                 between saving network summary information.
                 DEFAULT: `None`
             opt_params['run_diagnostics'] (bool, optional): `True` to record
@@ -637,7 +647,6 @@ class Network(object):
                 and testing. `epochs_summary` must not be `None`.
                 DEFAULT: `False`
             learning_alg (str): 'adam' and 'lbfgs' currently supported
-                                
         """
 
         # Non-optimizer specific defaults
@@ -660,7 +669,13 @@ class Network(object):
             if 'epochs_summary' not in opt_params:
                 opt_params['epochs_summary'] = None
             if 'early_stop' not in opt_params:
-                opt_params['early_stop'] = False
+                opt_params['early_stop'] = 0
+            if 'beta1' not in opt_params:
+                opt_params['beta1'] = 0.9
+            if 'beta2' not in opt_params:
+                opt_params['beta2'] = 0.999
+            if 'epsilon' not in opt_params:
+                opt_params['epsilon'] = 1e-4
             if 'run_diagnostics' not in opt_params:
                 opt_params['run_diagnostics'] = False
 
