@@ -366,6 +366,7 @@ class NDN(Network):
         # save summary of cost
         # with tf.variable_scope('summaries'):
         tf.summary.scalar('cost', self.cost)
+        tf.summary.scalar('cost', self.cost_penalized)
     # END NDN._define_loss
 
     def _assign_model_params(self, sess):

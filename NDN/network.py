@@ -360,7 +360,8 @@ class Network(object):
                         feed_dict={self.indices: train_indxs_perm})
 
                     # print additional testing info
-                    print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f, reg penalty = %10.4f' % (epoch, cost, cost_test, reg_pen))
+                    print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f, reg penalty = %10.4f'
+                          % (epoch, cost, cost_test, reg_pen))
                 else:
                     print('Epoch %04d:  train cost = %2.5f' % (epoch, cost))
 
