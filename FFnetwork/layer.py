@@ -449,6 +449,7 @@ class ConvLayer(Layer):
                                 self.num_filters]
 
             if self.normalize_weights > 0:
+                print('normalizing conv layer', self.scope)
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
                 ws_conv = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filter_dims)
             else:
