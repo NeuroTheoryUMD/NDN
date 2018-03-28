@@ -241,18 +241,24 @@ class Layer(object):
 
     # END Layer._define_layer_variables
 
+    def _normalize_weights(self, ws):
+        """"Normalize weights as dictated by normalize_variable"""
+        if self.normalize_weights > 0:
+            wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(ws), axis=0)), 1e-8)
+            ws_norm = tf.divide(ws, wnorms)
+        else:
+            # ws = tf.identity(self.weights_var)
+            ws_norm = ws
+        return ws_norm
+    # END Layer._normalize_weights
+
     def build_graph(self, inputs, params_dict=None):
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
             # Define computation
-            if self.normalize_weights > 0:
-                wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
-                ws = tf.divide(self.weights_var, wnorms)
-            else:
-                # ws = tf.identity(self.weights_var)
-                ws = self.weights_var
+            ws = self._normalize_weights(self.weights_var)
 
             if self.pos_constraint:
                 pre = tf.add(tf.matmul(
@@ -276,8 +282,6 @@ class Layer(object):
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
-        print(self.scope, 'reading weights initial', np.sum(np.square(self.weights)))
-        print('reading biases initial', np.sum(np.square(self.biases)))
         sess.run(
             [self.weights_var.initializer, self.biases_var.initializer],
             feed_dict={self.weights_ph: self.weights,
@@ -288,29 +292,21 @@ class Layer(object):
         """Write weights/biases in tf Variables to numpy arrays"""
 
         self.weights = sess.run(self.weights_var)
-        print(self.scope, 'writing weights initial', np.sum(np.square(self.weights)))
         if self.pos_constraint:
             self.weights = np.maximum(self.weights, 0)
-        print('     mid', np.sum(np.square(self.weights)))
         if self.normalize_weights > 0:
             wnorm = np.sqrt(np.sum(np.square(self.weights), axis=0))
             # wnorm[np.where(wnorm == 0)] = 1
             # self.weights = np.divide(self.weights, wnorm)
             self.weights = np.divide(self.weights, np.maximum(wnorm, 1e-8))
-            print('     post-norm', np.sum(np.square(self.weights)))
         self.biases = sess.run(self.biases_var)
-        print(self.scope, 'writing biases initial', np.sum(np.square(self.biases)))
 
     # END Layer.write_layer_params
 
     def define_regularization_loss(self):
         """Wrapper function for building regularization portion of graph"""
         with tf.name_scope(self.scope):
-            if self.normalize_weights > 0:
-                wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
-                ws = tf.divide(self.weights_var, wnorms)
-            else:
-                ws = self.weights_var
+            ws = self._normalize_weights(self.weights_var)
             return self.reg.define_reg_loss(ws)
 
     def set_regularization(self, reg_type, reg_val):
@@ -617,6 +613,28 @@ class SepLayer(Layer):
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END sepLayer._build_layer
+
+    def define_regularization_loss(self):
+        """overloaded function to handle different normalization in SepLayer"""
+        with tf.name_scope(self.scope):
+            # Normalize weights
+            kts = tf.slice(self.weights_var, [0, 0],
+                           [self.input_dims[0], self.num_filters] )
+
+            ksp = tf.slice(self.weights_var, [self.input_dims[0], 0],
+                           [self.input_dims[1]*self.input_dims[2], self.num_filters])
+
+            # Normalize weights (one or both dimensions)
+            if self.normalize_weights in [0, 2]:
+                wnorms = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
+                kts = tf.divide(kts, tf.maximum(wnorms, 1e-6))
+            if self.normalize_weights in [1, 2]:
+                wnorms = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
+                ksp = tf.divide(ksp, tf.maximum(wnorms, 1e-6))
+            # Concatenate into single weight vector
+            ws = tf.concat([kts, ksp], 0)
+            return self.reg.define_reg_loss(ws)
+
 
     def write_layer_params(self, sess):
         """Write weights/biases in tf Variables to numpy arrays. Overloads function in layer
