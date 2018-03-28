@@ -309,7 +309,7 @@ class Layer(object):
             if self.normalize_weights > 0:
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
                 ws = tf.divide(self.weights_var, wnorms)
-            else
+            else:
                 ws = self.weights_var
             return self.reg.define_reg_loss(ws)
 
