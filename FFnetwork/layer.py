@@ -378,9 +378,9 @@ class ConvLayer(Layer):
         """
 
         # Error checking
-        if pos_constraint is True:
-            raise ValueError(
-                'No positive constraint should be applied to this layer')
+        #if pos_constraint is True:
+        #    raise ValueError(
+        #        'No positive constraint should be applied to this layer')
 
         # Process stim and filter dimensions
         # (potentially both passed in as num_inputs list)
@@ -471,14 +471,17 @@ class ConvLayer(Layer):
             if conv_filter_dims[2] > 1:
                 strides[2] = self.shift_spacing
 
-            pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            if self.pos_constraint:
+                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
+            else:
+                pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(
-                    tf.add(self.activation_func(pre), self.biases_var),
+                    self.activation_func(tf.add(pre, self.biases_var)),
                     self.ei_mask_var)
             else:
-                post = tf.add(self.activation_func(pre), self.biases_var)
+                post = self.activation_func(tf.add(pre, self.biases_var))
 
             self.outputs = tf.reshape(
                 post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])

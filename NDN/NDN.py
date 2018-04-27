@@ -553,6 +553,7 @@ class NDN(Network):
             self.filter_data = True
             if type(data_filters) is not list:
                 data_filters = [data_filters]
+
         self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
