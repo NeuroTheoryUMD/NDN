@@ -8,6 +8,9 @@ import sys
 import numpy as np
 import tensorflow as tf
 
+# supress INFO log
+tf.logging.set_verbosity(tf.logging.FATAL)
+
 
 class Network(object):
     """Base class for neural networks"""

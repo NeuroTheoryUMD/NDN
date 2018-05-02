@@ -291,7 +291,7 @@ class SepRegularization(Regularization):
 
         super(SepRegularization, self).__init__(
             input_dims=input_dims,
-            num_outputs = num_outputs,
+            num_outputs=num_outputs,
             vals=vals)
 
     # END Sep_Regularization.__init__
@@ -369,15 +369,15 @@ class SepRegularization(Regularization):
             wt = tf.slice(weights, [0, 0], [self.input_dims[0],
                                             self.num_outputs])
             reg_pen = tf.multiply(self.vals_var['d2t'],
-                tf.reduce_sum(tf.square(tf.matmul(self.mats['d2t'], wt))))
+                                  tf.reduce_sum(tf.square(tf.matmul(self.mats['d2t'], wt))))
 
         elif reg_type == 'd2x':
             wspace = tf.slice(weights, [self.input_dims[0], 0],
                                [self.input_dims[1]*self.input_dims[2],
                                 self.num_outputs])
             reg_pen = tf.multiply(self.vals_var['d2x'],
-                tf.reduce_sum(tf.square(
-                    tf.matmul(self.mats['d2x'], wspace))))
+                                  tf.reduce_sum(tf.square(
+                                      tf.matmul(self.mats['d2x'], wspace))))
 
         elif reg_type == 'd2xt':
             raise TypeError('d2xt does not work with a separable layer.')

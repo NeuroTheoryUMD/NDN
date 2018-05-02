@@ -62,6 +62,7 @@ def ffnetwork_params(
         verbose=True,
         network_type='normal',
         num_conv_layers=0,  # the below are for convolutional network
+        num_convsep_layers=0,  # the below are for convolutional network
         sep_layers=None,
         conv_filter_widths=None,
         shift_spacing=1,
@@ -145,8 +146,13 @@ def ffnetwork_params(
     # Build layer_sizes, layer_types, and ei_layers
     num_layers = len(layer_sizes)
     layer_types = ['normal']*num_layers
+
+    # for now assume all conv layers come after convsep layers
+    for nn in range(num_convsep_layers):
+        layer_types[nn] = 'convsep'
     for nn in range(num_conv_layers):
-        layer_types[nn] = 'conv'
+        layer_types[num_convsep_layers+nn] = 'conv'
+
     if sep_layers is not None:
         if not isinstance(sep_layers, list):
             sep_layers = [sep_layers]
@@ -206,14 +212,15 @@ def ffnetwork_params(
         'log_activations': log_activations}
 
     # if convolutional, add the following convolution-specific fields
-    if num_conv_layers > 0:
+    if num_conv_layers + num_convsep_layers > 0:
         if not isinstance(conv_filter_widths, list):
             conv_filter_widths = [conv_filter_widths]
-        while len(conv_filter_widths) < num_conv_layers:
+        while len(conv_filter_widths) < num_conv_layers + num_convsep_layers:
             conv_filter_widths.append(None)
         network_params['conv_filter_widths'] = conv_filter_widths
 
-        network_params['shift_spacing'] = [shift_spacing]*num_conv_layers
+        network_params['shift_spacing'] = \
+            [shift_spacing]*(num_conv_layers + num_convsep_layers)
 
     if verbose:
         if input_dims is not None:
