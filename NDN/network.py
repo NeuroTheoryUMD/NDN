@@ -24,86 +24,121 @@ class Network(object):
 
         self.num_examples = 0
         self.filter_data = False
+        self.data_pipe_type = None
+
     # END Network.__init__
 
     def _initialize_data_pipeline(self):
         """Define pipeline for feeding data into model"""
 
-        # define indices placeholder to specify subset of data
-        self.indices = tf.placeholder(
-            dtype=tf.int32,
-            shape=None,
-            name='indices_ph')
+        if self.data_pipe_type == 0:
+            # define indices placeholder to specify subset of data
+            self.indices = tf.placeholder(
+                dtype=tf.int32,
+                shape=None,
+                name='indices_ph')
 
-        # INPUT DATA
-        self.data_in_ph = [None] * len(self.input_sizes)
-        self.data_in_var = [None] * len(self.input_sizes)
-        self.data_in_batch = [None] * len(self.input_sizes)
-        for i, input_size in enumerate(self.input_sizes):
-            # reduce input_sizes to single number if 3-D
-            num_inputs = np.prod(input_size)
-            # placeholders for data
-            self.data_in_ph[i] = tf.placeholder(
-                dtype=tf.float32,
-                #shape=[self.num_examples, input_size],
-                shape=[self.num_examples, num_inputs],
-                name='input_ph_%02d' % i)
-            # turn placeholders into variables so they get put on GPU
-            self.data_in_var[i] = tf.Variable(
-                self.data_in_ph[i],  # initializer for Variable
-                trainable=False,     # no GraphKeys.TRAINABLE_VARS
-                collections=[],      # no GraphKeys.GLOBAL_VARS
-                name='input_var_%02d' % i)
-            # use selected subset of data
-            self.data_in_batch[i] = tf.gather(
-                self.data_in_var[i],
-                self.indices,
-                name='input_batch_%02d' % i)
-
-        # OUTPUT DATA
-        self.data_out_ph = [None] * len(self.output_size)
-        self.data_out_var = [None] * len(self.output_size)
-        self.data_out_batch = [None] * len(self.output_size)
-        for i, output_size in enumerate(self.output_size):
-            # placeholders for data
-            self.data_out_ph[i] = tf.placeholder(
-                dtype=tf.float32,
-                shape=[self.num_examples, output_size],
-                name='output_ph_%02d' % i)
-            # turn placeholders into variables so they get put on GPU
-            self.data_out_var[i] = tf.Variable(
-                self.data_out_ph[i],  # initializer for Variable
-                trainable=False,      # no GraphKeys.TRAINABLE_VARS
-                collections=[],       # no GraphKeys.GLOBAL_VARS
-                name='output_var_%02d' % i)
-            # use selected subset of data
-            self.data_out_batch[i] = tf.gather(
-                self.data_out_var[i],
-                self.indices,
-                name='output_batch_%02d' % i)
-
-        # DATA FILTERS
-        if self.filter_data:
-            self.data_filter_ph = [None] * len(self.output_size)
-            self.data_filter_var = [None] * len(self.output_size)
-            self.data_filter_batch = [None] * len(self.output_size)
-            for ii, output_size in enumerate(self.output_size):
+            # INPUT DATA
+            self.data_in_ph = [None] * len(self.input_sizes)
+            self.data_in_var = [None] * len(self.input_sizes)
+            self.data_in_batch = [None] * len(self.input_sizes)
+            for i, input_size in enumerate(self.input_sizes):
+                # reduce input_sizes to single number if 3-D
+                num_inputs = np.prod(input_size)
                 # placeholders for data
-                self.data_filter_ph[i] = tf.placeholder(
+                self.data_in_ph[i] = tf.placeholder(
+                    dtype=tf.float32,
+                    #shape=[self.num_examples, input_size],
+                    shape=[self.num_examples, num_inputs],
+                    name='input_ph_%02d' % i)
+                # turn placeholders into variables so they get put on GPU
+                self.data_in_var[i] = tf.Variable(
+                    self.data_in_ph[i],  # initializer for Variable
+                    trainable=False,     # no GraphKeys.TRAINABLE_VARS
+                    collections=[],      # no GraphKeys.GLOBAL_VARS
+                    name='input_var_%02d' % i)
+                # use selected subset of data
+                self.data_in_batch[i] = tf.gather(
+                    self.data_in_var[i],
+                    self.indices,
+                    name='input_batch_%02d' % i)
+
+            # OUTPUT DATA
+            self.data_out_ph = [None] * len(self.output_size)
+            self.data_out_var = [None] * len(self.output_size)
+            self.data_out_batch = [None] * len(self.output_size)
+            for i, output_size in enumerate(self.output_size):
+                # placeholders for data
+                self.data_out_ph[i] = tf.placeholder(
                     dtype=tf.float32,
                     shape=[self.num_examples, output_size],
-                    name='data_filter_ph_%02d' % i)
+                    name='output_ph_%02d' % i)
                 # turn placeholders into variables so they get put on GPU
-                self.data_filter_var[i] = tf.Variable(
-                    self.data_filter_ph[i],  # initializer for Variable
-                    trainable=False,  # no GraphKeys.TRAINABLE_VARS
-                    collections=[],  # no GraphKeys.GLOBAL_VARS
-                    name='output_filter_%02d' % i)
+                self.data_out_var[i] = tf.Variable(
+                    self.data_out_ph[i],  # initializer for Variable
+                    trainable=False,      # no GraphKeys.TRAINABLE_VARS
+                    collections=[],       # no GraphKeys.GLOBAL_VARS
+                    name='output_var_%02d' % i)
                 # use selected subset of data
-                self.data_filter_batch[i] = tf.gather(
-                    self.data_filter_var[i],
+                self.data_out_batch[i] = tf.gather(
+                    self.data_out_var[i],
                     self.indices,
-                    name='output_filter_%02d' % i)
+                    name='output_batch_%02d' % i)
+
+            # DATA FILTERS
+            if self.filter_data:
+                self.data_filter_ph = [None] * len(self.output_size)
+                self.data_filter_var = [None] * len(self.output_size)
+                self.data_filter_batch = [None] * len(self.output_size)
+                for ii, output_size in enumerate(self.output_size):
+                    # placeholders for data
+                    self.data_filter_ph[i] = tf.placeholder(
+                        dtype=tf.float32,
+                        shape=[self.num_examples, output_size],
+                        name='data_filter_ph_%02d' % i)
+                    # turn placeholders into variables so they get put on GPU
+                    self.data_filter_var[i] = tf.Variable(
+                        self.data_filter_ph[i],  # initializer for Variable
+                        trainable=False,  # no GraphKeys.TRAINABLE_VARS
+                        collections=[],  # no GraphKeys.GLOBAL_VARS
+                        name='output_filter_%02d' % i)
+                    # use selected subset of data
+                    self.data_filter_batch[i] = tf.gather(
+                        self.data_filter_var[i],
+                        self.indices,
+                        name='output_filter_%02d' % i)
+
+        elif self.data_pipe_type == 1:
+            # INPUT DATA
+            self.data_in_batch = [None] * len(self.input_sizes)
+            for i, input_size in enumerate(self.input_sizes):
+                # reduce input_sizes to single number if 3-D
+                num_inputs = np.prod(input_size)
+                # placeholders for data
+                self.data_in_batch[i] = tf.placeholder(
+                    dtype=tf.float32,
+                    shape=[None, num_inputs],
+                    name='input_batch_%02d' % i)
+
+            # OUTPUT DATA
+            self.data_out_batch = [None] * len(self.output_size)
+            for i, output_size in enumerate(self.output_size):
+                # placeholders for data
+                self.data_out_batch[i] = tf.placeholder(
+                    dtype=tf.float32,
+                    shape=[None, output_size],
+                    name='output_batch_%02d' % i)
+
+            # DATA FILTERS
+            if self.filter_data:
+                self.data_filter_batch = [None] * len(self.output_size)
+                for ii, output_size in enumerate(self.output_size):
+                    # placeholders for data
+                    self.data_filter_batch[i] = tf.placeholder(
+                        dtype=tf.float32,
+                        shape=[None, output_size],
+                        name='data_filter_%02d' % i)
+
     # END Network._initialize_data_pipeline
 
     def _define_loss(self):
@@ -220,7 +255,10 @@ class Network(object):
         # Check format of opt_params (and add some defaults)
         if opt_params is None:
             opt_params = {}
-        opt_params = self.optimizer_defaults( opt_params, learning_alg )
+        opt_params = self.optimizer_defaults(opt_params, learning_alg)
+
+        # update data pipeline type before building tensorflow graph
+        self.data_pipe_type = opt_params['data_pipe_type']
 
         if train_indxs is None:
             train_indxs = np.arange(self.num_examples)
@@ -281,22 +319,55 @@ class Network(object):
             # overwrite initialized values of network with stored values
             self._restore_params(sess, input_data, output_data, data_filters)
 
-            # select learning algorithm
-            if learning_alg == 'adam':
-                epoch = self._train_adam(
-                    sess=sess,
-                    train_writer=train_writer,
-                    test_writer=test_writer,
-                    train_indxs=train_indxs,
-                    test_indxs=test_indxs,
-                    opt_params=opt_params,
-                    output_dir=output_dir)
-            elif learning_alg == 'lbfgs':
-                self.train_step.minimize(
-                    sess, feed_dict={self.indices: train_indxs})
-                epoch = float('NaN')
-            else:
-                raise ValueError('Invalid learning algorithm')
+            if self.data_pipe_type == 0:
+                # select learning algorithm
+                if learning_alg == 'adam':
+                    epoch = self._train_adam(
+                        sess=sess,
+                        train_writer=train_writer,
+                        test_writer=test_writer,
+                        train_indxs=train_indxs,
+                        test_indxs=test_indxs,
+                        opt_params=opt_params,
+                        output_dir=output_dir)
+                elif learning_alg == 'lbfgs':
+                    self.train_step.minimize(
+                        sess, feed_dict={self.indices: train_indxs})
+                    epoch = float('NaN')
+                else:
+                    raise ValueError('Invalid learning algorithm')
+
+            elif self.data_pipe_type == 1:
+                # select learning algorithm
+                if learning_alg == 'adam':
+                    epoch = self._train_adam(
+                        sess=sess,
+                        train_writer=train_writer,
+                        test_writer=test_writer,
+                        train_indxs=train_indxs,
+                        test_indxs=test_indxs,
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        opt_params=opt_params,
+                        output_dir=output_dir)
+
+                elif learning_alg == 'lbfgs':
+
+                    # put input/output data in feed_dict
+                    feed_dict = {}
+                    for i, temp_data in enumerate(input_data):
+                        feed_dict[self.data_in_batch[i]] = temp_data
+                    for i, temp_data in enumerate(output_data):
+                        feed_dict[self.data_out_batch[i]] = temp_data
+                        if self.filter_data:
+                            feed_dict[self.data_filter_batch[i]] = \
+                                data_filters[i]
+
+                    self.train_step.minimize(sess, feed_dict=feed_dict)
+                    epoch = float('NaN')
+                else:
+                    raise ValueError('Invalid learning algorithm')
 
             # write out weights/biases to numpy arrays before session closes
             self._write_model_params(sess)
@@ -311,6 +382,9 @@ class Network(object):
             test_writer=None,
             train_indxs=None,
             test_indxs=None,
+            input_data=None,
+            output_data=None,
+            data_filters=None,
             opt_params=None,
             output_dir=None):
         """Training function for adam optimizer to clean up code in `train`"""
@@ -345,10 +419,24 @@ class Network(object):
                 batch_indxs = train_indxs_perm[
                               batch * opt_params['batch_size']:
                               (batch + 1) * opt_params['batch_size']]
+
+                if self.data_pipe_type == 0:
+                    feed_dict = {self.indices: batch_indxs}
+                elif self.data_pipe_type == 1:
+                    # put input/output data in feed_dict
+                    feed_dict = {}
+                    for i, temp_data in enumerate(input_data):
+                        feed_dict[self.data_in_batch[i]] = \
+                            temp_data[batch_indxs, :]
+                    for i, temp_data in enumerate(output_data):
+                        feed_dict[self.data_out_batch[i]] = \
+                            temp_data[batch_indxs, :]
+                        if self.filter_data:
+                            feed_dict[self.data_filter_batch[i]] = \
+                                data_filters[i][batch_indxs, :]
+
                 # one step of optimization routine
-                sess.run(
-                    self.train_step,
-                    feed_dict={self.indices: batch_indxs})
+                sess.run(self.train_step, feed_dict=feed_dict)
 
             # print training updates
             display_output = False
@@ -356,6 +444,11 @@ class Network(object):
                     (epoch % opt_params['display'] == opt_params['display'] - 1
                      or epoch == 0):
                 display_output = True
+
+                # TODO: STOPPED HERE
+                if self.data_pipe_type == 0:
+                elif self.data_pipe_type == 1:
+
                 cost = sess.run(
                     self.cost,
                     feed_dict={self.indices: train_indxs_perm})
@@ -473,22 +566,24 @@ class Network(object):
         # initialize all parameters randomly
         sess.run(self.init)
 
-        # check input
-        if type(input_data) is not list:
-            input_data = [input_data]
-        if type(output_data) is not list:
-            output_data = [output_data]
+        if self.data_pipe_type == 0:
+            # check input
+            if type(input_data) is not list:
+                input_data = [input_data]
+            if type(output_data) is not list:
+                output_data = [output_data]
 
-        # initialize input/output data
-        for i, temp_data in enumerate(input_data):
-            sess.run(self.data_in_var[i].initializer,
-                     feed_dict={self.data_in_ph[i]: temp_data})
-        for i, temp_data in enumerate(output_data):
-            sess.run(self.data_out_var[i].initializer,
-                     feed_dict={self.data_out_ph[i]: temp_data})
-            if self.filter_data:
-                sess.run(self.data_filter_var[i].initializer,
-                         feed_dict={self.data_filter_ph[i]: data_filters[i]})
+            # initialize input/output data
+            for i, temp_data in enumerate(input_data):
+                sess.run(self.data_in_var[i].initializer,
+                         feed_dict={self.data_in_ph[i]: temp_data})
+            for i, temp_data in enumerate(output_data):
+                sess.run(self.data_out_var[i].initializer,
+                         feed_dict={self.data_out_ph[i]: temp_data})
+                if self.filter_data:
+                    sess.run(
+                        self.data_filter_var[i].initializer,
+                        feed_dict={self.data_filter_ph[i]: data_filters[i]})
 
         # overwrite randomly initialized values of model with stored values
         self._assign_model_params(sess)
@@ -607,6 +702,14 @@ class Network(object):
                 DEFAULT: 0/False
             opt_params['use_gpu'] (bool, optional): `True` to fit model on gpu.
                 DEFAULT: False
+            opt_params['data_pipe_type'] (int, optional): specify how data 
+                should be fed to the model.
+                0: pin input/output data to tf.Variable; when fitting models 
+                    with a GPU, this puts all data on the GPU and avoids the 
+                    overhead associated with moving data from CPU to GPU. Works
+                    well when data+model can fit on GPU
+                1: standard use of feed_dict
+                DEFAULT: 0
             opt_params['max_iter'] (int, optional): maximum iterations for  
                 lbfgs algorithm.
                 DEFAULT: 500
@@ -659,6 +762,8 @@ class Network(object):
             opt_params['display'] = None
         if 'use_gpu' not in opt_params:
             opt_params['use_gpu'] = False
+        if 'data_pipe_type' not in opt_params:
+            opt_params['data_pipe_type'] = 0
 
         if learning_alg is 'adam':
             if 'learning_rate' not in opt_params:
