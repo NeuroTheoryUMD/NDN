@@ -231,7 +231,7 @@ class NDN(Network):
 
             # define pipeline for feeding data into model
             with tf.variable_scope('data'):
-                self._initialize_data_pipeline(opt_params['data_pipe_type'])
+                self._initialize_data_pipeline()
 
             # Build network graph
             for nn in range(self.num_networks):

@@ -447,19 +447,40 @@ class Network(object):
 
                 # TODO: STOPPED HERE
                 if self.data_pipe_type == 0:
+                    feed_dict_tr = {self.indices: train_indxs_perm}
                 elif self.data_pipe_type == 1:
+                    # put input/output data in feed_dict
+                    feed_dict = {}
+                    for i, temp_data in enumerate(input_data):
+                        feed_dict[self.data_in_batch[i]] = \
+                            temp_data[batch_indxs, :]
+                    for i, temp_data in enumerate(output_data):
+                        feed_dict[self.data_out_batch[i]] = \
+                            temp_data[batch_indxs, :]
+                        if self.filter_data:
+                            feed_dict[self.data_filter_batch[i]] = \
+                                data_filters[i][batch_indxs, :]
 
-                cost = sess.run(
-                    self.cost,
-                    feed_dict={self.indices: train_indxs_perm})
+                cost = sess.run(self.cost, feed_dict=feed_dict_tr)
 
                 if test_indxs is not None:
-                    cost_test = sess.run(
-                        self.cost,
-                        feed_dict={self.indices: test_indxs})
-                    reg_pen = sess.run(
-                        self.cost_reg,
-                        feed_dict={self.indices: train_indxs_perm})
+                    if self.data_pipe_type == 0:
+                        feed_dict_test = {self.indices: test_indxs}
+                    elif self.data_pipe_type == 1:
+                        # put input/output data in feed_dict
+                        feed_dict = {}
+                        for i, temp_data in enumerate(input_data):
+                            feed_dict[self.data_in_batch[i]] = \
+                                temp_data[batch_indxs, :]
+                        for i, temp_data in enumerate(output_data):
+                            feed_dict[self.data_out_batch[i]] = \
+                                temp_data[batch_indxs, :]
+                            if self.filter_data:
+                                feed_dict[self.data_filter_batch[i]] = \
+                                    data_filters[i][batch_indxs, :]
+
+                    cost_test = sess.run(self.cost, feed_dict=feed_dict_test)
+                    reg_pen = sess.run(self.cost_reg, feed_dict=feed_dict_tr)
 
                     # print additional testing info
                     print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f, reg penalty = %10.4f'
