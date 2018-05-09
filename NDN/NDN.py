@@ -53,7 +53,7 @@ class NDN(Network):
     """
 
     _allowed_noise_dists = ['gaussian', 'poisson', 'bernoulli']
-    _allowed_layer_types = ['normal', 'conv']
+    _allowed_layer_types = ['normal', 'conv', 'sep', 'convsep', 'add']  # ca_tent # pre0 (stim preprocessing layer?)
 
     def __init__(
             self,
@@ -103,8 +103,7 @@ class NDN(Network):
         measured_input_list = set()
         for nn in range(self.num_networks):
             if network_list[nn]['xstim_n'] is not None:
-                measured_input_list = measured_input_list | \
-                                      set(network_list[nn]['xstim_n'])
+                measured_input_list |= set(network_list[nn]['xstim_n'])
         measured_input_list = list(measured_input_list)
 
         if input_dim_list is None:
@@ -219,7 +218,7 @@ class NDN(Network):
 
         # for specifying device
         if opt_params['use_gpu']:
-            self.sess_config = tf.ConfigProto(device_count={'GPU': 1})
+            self.sess_config = tf.ConfigProto(device_count={'GPU': 1})  # , log_device_placement=True)
         else:
             self.sess_config = tf.ConfigProto(device_count={'GPU': 0})
 
@@ -249,7 +248,7 @@ class NDN(Network):
                         'Must create network for side network first.'
                     input_cat = self.networks[input_network_n]
 
-                else: # assume normal network
+                else:   # assume normal network
                     # Assemble input streams -- implicitly along input axis 1
                     # (0 is T)
                     input_cat = None
@@ -556,11 +555,19 @@ class NDN(Network):
 
         self._build_graph()
 
+        if self.data_pipe_type == 'all_gpu':
+            feed_dict = {self.indices: data_indxs}
+        elif self.data_pipe_type == 'cpu_gpu':
+            feed_dict = self._get_feed_dict(input_data=input_data,
+                                            output_data=output_data,
+                                            data_filters=data_filters,
+                                            batch_indxs=data_indxs)
+
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
             LL_neuron = sess.run(
-                self.unit_cost, feed_dict={self.indices: data_indxs})
+                self.unit_cost, feed_dict=feed_dict)
 
             if nulladjusted:
                 # note that LL_neuron is negative of the true LL, but nullLL is
@@ -621,6 +628,7 @@ class NDN(Network):
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
             self._restore_params(sess, input_data, output_data)
 
+            # TODO: fix this
             pred = sess.run(
                 self.networks[ffnet_n].layers[layer].outputs,
                 feed_dict={self.indices: data_indxs})

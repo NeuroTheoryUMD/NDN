@@ -182,10 +182,9 @@ class Layer(object):
         if pos_constraint:
             init_weights = np.maximum(init_weights, 0)
         if normalize_weights > 0:
-            init_weights = np.divide(
-                init_weights,
-                np.sqrt(np.sum(np.square(init_weights), axis=0)))
-            # np.sqrt(np.sum(np.square(init_weights), axis=0))  =  np.linalg.norm(init_weights, axis=0)
+            init_weights_norm = np.linalg.norm(init_weights, axis=0)
+            nonzero_indxs = np.where(init_weights_norm > 0)[0]
+            init_weights[:, nonzero_indxs] /= init_weights_norm[nonzero_indxs]
 
         # Initialize numpy array that will feed placeholder
         self.weights = init_weights.astype('float32')
@@ -384,11 +383,6 @@ class ConvLayer(Layer):
             
         """
 
-        # Error checking
-        #if pos_constraint is True:
-        #    raise ValueError(
-        #        'No positive constraint should be applied to this layer')
-
         # Process stim and filter dimensions
         # (potentially both passed in as num_inputs list)
         if isinstance(input_dims, list):
@@ -429,7 +423,7 @@ class ConvLayer(Layer):
                 biases_initializer=biases_initializer,
                 reg_initializer=reg_initializer,
                 num_inh=num_inh,
-                pos_constraint=False,        # Note difference from layer
+                pos_constraint=pos_constraint,  # note difference from layer (not anymore)
                 log_activations=log_activations)
 
         # ConvLayer-specific properties
@@ -464,6 +458,8 @@ class ConvLayer(Layer):
                                 self.num_filters]
 
             if self.normalize_weights > 0:
+                # ws_conv = tf.reshape(tf.nn.l2_normalize(self.weights_var, axis=0),
+                #                     conv_filter_dims) # this is in tf 1.8
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
                 ws_conv = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filter_dims)
             else:
