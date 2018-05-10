@@ -628,10 +628,15 @@ class NDN(Network):
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
             self._restore_params(sess, input_data, output_data)
 
-            # TODO: fix this
-            pred = sess.run(
-                self.networks[ffnet_n].layers[layer].outputs,
-                feed_dict={self.indices: data_indxs})
+            # TODO: fix this\
+            if self.data_pipe_type == 'all_gpu':
+                pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
+                                feed_dict={self.indices: data_indxs})
+            elif self.data_pipe_type == 'cpu_gpu':
+                pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
+                                feed_dict=self._get_feed_dict(input_data=input_data,
+                                                              output_data=output_data,  # this line needed?
+                                                              batch_indxs=data_indxs))
 
         return pred
     # END generate_prediction

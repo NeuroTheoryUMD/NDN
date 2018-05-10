@@ -49,7 +49,6 @@ class Network(object):
                 # placeholders for data
                 self.data_in_ph[i] = tf.placeholder(
                     dtype=tf.float32,
-                    #shape=[self.num_examples, input_size],
                     shape=[self.num_examples, num_inputs],
                     name='input_ph_%02d' % i)
                 # turn placeholders into variables so they get put on GPU
@@ -139,11 +138,6 @@ class Network(object):
                         dtype=tf.float32,
                         shape=[None, output_size],
                         name='data_filter_%02d' % i)
-
-            self.indices = tf.placeholder(
-                dtype=tf.int32,
-                shape=None,
-                name='indices_ph')
 
     # END Network._initialize_data_pipeline
 
@@ -413,6 +407,25 @@ class Network(object):
             run_options = None
             run_metadata = None
 
+        # make feed_dict_tr
+        if self.data_pipe_type == 'all_gpu':
+            feed_dict_tr = {self.indices: train_indxs}
+        elif self.data_pipe_type == 'cpu_gpu':
+            feed_dict_tr = self._get_feed_dict(input_data=input_data,
+                                               output_data=output_data,
+                                               data_filters=data_filters,
+                                               batch_indxs=train_indxs)
+
+        # make feed_dict_test
+        if test_indxs is not None:
+            if self.data_pipe_type == 'all_gpu':
+                feed_dict_test = {self.indices: test_indxs}
+            elif self.data_pipe_type == 'cpu_gpu':
+                feed_dict_test = self._get_feed_dict(input_data=input_data,
+                                                     output_data=output_data,
+                                                     data_filters=data_filters,
+                                                     batch_indxs=test_indxs)
+
         # start training loop
         for epoch in range(epochs_training):
 
@@ -444,29 +457,10 @@ class Network(object):
                      or epoch == 0):
                 display_output = True
 
-                # TODO: Matt STOPPED HERE
-                # why not batch_indxs (instead of train_indxs_perm) ???
-                if self.data_pipe_type == 'all_gpu':
-                    feed_dict_tr = {self.indices: train_indxs_perm}
-                elif self.data_pipe_type == 'cpu_gpu':
-                    feed_dict_tr = self._get_feed_dict(input_data=input_data,
-                                                       output_data=output_data,
-                                                       data_filters=data_filters,
-                                                       batch_indxs=train_indxs_perm)
-
                 cost = sess.run(self.cost, feed_dict=feed_dict_tr)
                 reg_pen = sess.run(self.cost_reg, feed_dict=feed_dict_tr)
 
                 if test_indxs is not None:
-                    if self.data_pipe_type == 'all_gpu':
-                        feed_dict_test = {self.indices: test_indxs}
-                    elif self.data_pipe_type == 'cpu_gpu':
-                        # TODO: change to test indices
-                        feed_dict_test = self._get_feed_dict(input_data=input_data,
-                                                             output_data=output_data,
-                                                             data_filters=data_filters,
-                                                             batch_indxs=test_indxs)
-
                     cost_test = sess.run(self.cost, feed_dict=feed_dict_test)
 
                     # print additional testing info
@@ -485,19 +479,20 @@ class Network(object):
                 self.checkpoint_model(sess, save_file)
 
             # save model summaries
-            # TODO: epoch_summary
             if epochs_summary is not None and \
                     (epoch % epochs_summary == epochs_summary - 1
                      or epoch == 0):
+
                 if not display_output and opt_params['display'] is not None:
                     print('Epoch %03d:' % epoch)
 
                 # model summary
                 print('Writing train summary')
+
                 if opt_params['run_diagnostics']:
                     summary = sess.run(
                         self.merge_summaries,
-                        feed_dict={self.indices: train_indxs},
+                        feed_dict=feed_dict_tr,
                         options=run_options,
                         run_metadata=run_metadata)
                     train_writer.add_run_metadata(
@@ -505,7 +500,7 @@ class Network(object):
                 else:
                     summary = sess.run(
                         self.merge_summaries,
-                        feed_dict={self.indices: train_indxs})
+                        feed_dict=feed_dict_tr)
                 train_writer.add_summary(summary, epoch)
                 train_writer.flush()
 
@@ -514,7 +509,7 @@ class Network(object):
                     if opt_params['run_diagnostics']:
                         summary = sess.run(
                             self.merge_summaries,
-                            feed_dict={self.indices: test_indxs},
+                            feed_dict=feed_dict_test,
                             options=run_options,
                             run_metadata=run_metadata)
                         test_writer.add_run_metadata(
@@ -522,18 +517,15 @@ class Network(object):
                     else:
                         summary = sess.run(
                             self.merge_summaries,
-                            feed_dict={self.indices: test_indxs})
+                            feed_dict=feed_dict_test)
                 test_writer.add_summary(summary, epoch)
                 test_writer.flush()
 
-            # TODO: early stop
             # check for early stopping
             if opt_params['early_stop'] > 0 and \
                     epoch % epochs_early_stop == epochs_early_stop - 1:
 
-                cost_test = sess.run(
-                    self.cost,
-                    feed_dict={self.indices: test_indxs})
+                cost_test = sess.run(self.cost, feed_dict=feed_dict_test)
 
                 if cost_test >= np.max(prev_cost):
 
@@ -548,26 +540,24 @@ class Network(object):
                     # save model summaries if desired and necessary
                     if epochs_summary is not None and \
                             epochs_summary != epochs_early_stop:
-                        summary = sess.run(
-                            self.merge_summaries,
-                            feed_dict={self.indices: train_indxs})
+                        summary = sess.run(self.merge_summaries,
+                                           feed_dict=feed_dict_tr)
                         train_writer.add_summary(summary, epoch)
                         print('Writing train summary')
                         if test_indxs is not None:
-                            summary = sess.run(
-                                self.merge_summaries,
-                                feed_dict={self.indices: test_indxs})
+                            summary = sess.run(self.merge_summaries,
+                                               feed_dict=feed_dict_test)
                             test_writer.add_summary(summary, epoch)
                             print('Writing test summary')
 
                     break  # out of epochs loop
                 else:
                     prev_cost[(epoch // epochs_early_stop) % early_stop_pool] = cost_test
-
         return epoch
+    #    return epoch
     # END _train_adam
 
-    def _get_feed_dict(self, input_data, output_data, data_filters, batch_indxs):
+    def _get_feed_dict(self, input_data, output_data, batch_indxs, data_filters=None):
         """Generates feed dict to be used with the slow data pipeline"""
         feed_dict = {}
         for i, temp_data in enumerate(input_data):
@@ -591,7 +581,7 @@ class Network(object):
 
         # initialize all parameters randomly
         sess.run(self.init)
-# TODO: this needs fix
+
         if self.data_pipe_type == 'all_gpu':
             # check input
             if type(input_data) is not list:
