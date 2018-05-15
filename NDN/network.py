@@ -17,7 +17,7 @@ class Network(object):
     """Base class for neural networks"""
 
     _allowed_learning_algs = ['adam', 'lbfgs']
-    _allowed_data_pipeline_types = ['all_gpu', 'cpu_gpu']
+    _allowed_data_pipeline_types = ['data_as_var', 'feed_dict', 'iterator']
     _log_min = 1e-6  # constant to add to all arguments to logarithms
 
     def __init__(self):
@@ -26,14 +26,14 @@ class Network(object):
 
         self.num_examples = 0
         self.filter_data = False
-        self.data_pipe_type = 'all_cpu'
+        self.data_pipe_type = 'feed_dict'
 
     # END Network.__init__
 
     def _initialize_data_pipeline(self):
         """Define pipeline for feeding data into model"""
 
-        if self.data_pipe_type == 'all_gpu':
+        if self.data_pipe_type == 'data_as_var':
             # define indices placeholder to specify subset of data
             self.indices = tf.placeholder(
                 dtype=tf.int32,
@@ -65,10 +65,10 @@ class Network(object):
                     name='input_batch_%02d' % i)
 
             # OUTPUT DATA
-            self.data_out_ph = [None] * len(self.output_size)
-            self.data_out_var = [None] * len(self.output_size)
-            self.data_out_batch = [None] * len(self.output_size)
-            for i, output_size in enumerate(self.output_size):
+            self.data_out_ph = [None] * len(self.output_sizes)
+            self.data_out_var = [None] * len(self.output_sizes)
+            self.data_out_batch = [None] * len(self.output_sizes)
+            for i, output_size in enumerate(self.output_sizes):
                 # placeholders for data
                 self.data_out_ph[i] = tf.placeholder(
                     dtype=tf.float32,
@@ -88,10 +88,10 @@ class Network(object):
 
             # DATA FILTERS
             if self.filter_data:
-                self.data_filter_ph = [None] * len(self.output_size)
-                self.data_filter_var = [None] * len(self.output_size)
-                self.data_filter_batch = [None] * len(self.output_size)
-                for ii, output_size in enumerate(self.output_size):
+                self.data_filter_ph = [None] * len(self.output_sizes)
+                self.data_filter_var = [None] * len(self.output_sizes)
+                self.data_filter_batch = [None] * len(self.output_sizes)
+                for ii, output_size in enumerate(self.output_sizes):
                     # placeholders for data
                     self.data_filter_ph[i] = tf.placeholder(
                         dtype=tf.float32,
@@ -109,7 +109,7 @@ class Network(object):
                         self.indices,
                         name='output_filter_%02d' % i)
 
-        elif self.data_pipe_type == 'cpu_gpu':
+        elif self.data_pipe_type == 'feed_dict':
             # INPUT DATA
             self.data_in_batch = [None] * len(self.input_sizes)
             for i, input_size in enumerate(self.input_sizes):
@@ -122,8 +122,8 @@ class Network(object):
                     name='input_batch_%02d' % i)
 
             # OUTPUT DATA
-            self.data_out_batch = [None] * len(self.output_size)
-            for i, output_size in enumerate(self.output_size):
+            self.data_out_batch = [None] * len(self.output_sizes)
+            for i, output_size in enumerate(self.output_sizes):
                 # placeholders for data
                 self.data_out_batch[i] = tf.placeholder(
                     dtype=tf.float32,
@@ -132,13 +132,97 @@ class Network(object):
 
             # DATA FILTERS
             if self.filter_data:
-                self.data_filter_batch = [None] * len(self.output_size)
-                for i, output_size in enumerate(self.output_size):
+                self.data_filter_batch = [None] * len(self.output_sizes)
+                for i, output_size in enumerate(self.output_sizes):
                     # placeholders for data
                     self.data_filter_batch[i] = tf.placeholder(
                         dtype=tf.float32,
                         shape=[None, output_size],
                         name='data_filter_%02d' % i)
+
+        elif self.data_pipe_type == 'iterator':
+
+            # define with placeholder to specify later
+            self.batch_size_ph = tf.placeholder(
+                dtype=tf.int64,
+                shape=None,
+                name='batch_size_ph')
+
+            # keep track of input tensors
+            tensors = {}
+
+            # INPUT DATA
+            self.data_in_ph = [None] * len(self.input_sizes)
+            self.data_in_batch = [None] * len(self.input_sizes)
+            for i, input_size in enumerate(self.input_sizes):
+                # reduce input_sizes to single number if 3-D
+                num_inputs = np.prod(input_size)
+                # placeholders for data
+                name = 'input_ph_%02d' % i
+                self.data_in_ph[i] = tf.placeholder(
+                    dtype=tf.float32,
+                    shape=[None, num_inputs],
+                    name=name)
+                # add placeholder to dict of input tensors
+                tensors[name] = self.data_in_ph[i]
+
+            # OUTPUT DATA
+            self.data_out_ph = [None] * len(self.output_sizes)
+            self.data_out_batch = [None] * len(self.output_sizes)
+            for i, output_size in enumerate(self.output_sizes):
+                name = 'output_ph_%02d' % i
+                # placeholders for data
+                self.data_out_ph[i] = tf.placeholder(
+                    dtype=tf.float32,
+                    shape=[None, output_size],
+                    name=name)
+                # add placeholder to dict of input tensors
+                tensors[name] = self.data_out_ph[i]
+
+            # DATA FILTERS
+            if self.filter_data:
+                self.data_filter_ph = [None] * len(self.output_sizes)
+                self.data_filter_batch = [None] * len(self.output_sizes)
+                for i, output_size in enumerate(self.output_sizes):
+                    name = 'data_filter_ph_%02d' % i
+                    # placeholders for data
+                    self.data_filter_ph[i] = tf.placeholder(
+                        dtype=tf.float32,
+                        shape=[None, output_size],
+                        name=name)
+                tensors[name] = self.data_filter_ph[i]
+
+            # construct dataset object from placeholder dict
+            dataset = tf.data.Dataset.from_tensor_slices(tensors)
+            # auto shuffle data
+            dataset = dataset.shuffle(buffer_size=10000)
+            # auto batch data
+            dataset = dataset.batch(self.batch_size_ph)
+            # repeat (important that this comes after shuffling and batching)
+            dataset = dataset.repeat()
+            # prepare each batch on cpu while running previous through model on
+            # GPU
+            dataset = dataset.prefetch(buffer_size=1)
+
+            # build iterator object to access elements from dataset; make
+            # 'initializable' so that we can easily switch between training and
+            # xv datasets
+            self.iterator = dataset.make_initializable_iterator()
+            next_element = self.iterator.get_next()
+
+            # pull input/output/filter data out of 'next_element'
+            for i, _ in enumerate(self.input_sizes):
+                name = 'input_ph_%02d' % i
+                self.data_in_batch[i] = next_element[name]
+
+            for i, _ in enumerate(self.output_sizes):
+                name = 'output_ph_%02d' % i
+                self.data_out_batch[i] = next_element[name]
+
+            if self.filter_data:
+                for i, _ in enumerate(self.output_sizes):
+                    name = 'data_filter_ph_%02d' % i
+                    self.data_filter_batch[i] = next_element[name]
 
     # END Network._initialize_data_pipeline
 
@@ -320,9 +404,9 @@ class Network(object):
             # overwrite initialized values of network with stored values
             self._restore_params(sess, input_data, output_data, data_filters)
 
-            if self.data_pipe_type == 'all_gpu':
+            if self.data_pipe_type is 'data_as_var':
                 # select learning algorithm
-                if learning_alg == 'adam':
+                if learning_alg is 'adam':
                     epoch = self._train_adam(
                         sess=sess,
                         train_writer=train_writer,
@@ -331,16 +415,16 @@ class Network(object):
                         test_indxs=test_indxs,
                         opt_params=opt_params,
                         output_dir=output_dir)
-                elif learning_alg == 'lbfgs':
+                elif learning_alg is 'lbfgs':
                     self.train_step.minimize(
                         sess, feed_dict={self.indices: train_indxs})
                     epoch = float('NaN')
                 else:
                     raise ValueError('Invalid learning algorithm')
 
-            elif self.data_pipe_type == 'cpu_gpu':
+            elif self.data_pipe_type is 'feed_dict':
                 # select learning algorithm
-                if learning_alg == 'adam':
+                if learning_alg is 'adam':
                     epoch = self._train_adam(
                         sess=sess,
                         train_writer=train_writer,
@@ -353,13 +437,35 @@ class Network(object):
                         opt_params=opt_params,
                         output_dir=output_dir)
 
-                elif learning_alg == 'lbfgs':
-                    feed_dict = self._get_feed_dict(input_data=input_data,
-                                                    output_data=output_data,  # this line needed?
-                                                    batch_indxs=train_indxs)
+                elif learning_alg is 'lbfgs':
+                    feed_dict = self._get_feed_dict(
+                        input_data=input_data,
+                        output_data=output_data,  # this line needed?
+                        batch_indxs=train_indxs)
 
                     self.train_step.minimize(sess, feed_dict=feed_dict)
                     epoch = float('NaN')
+                else:
+                    raise ValueError('Invalid learning algorithm')
+
+            elif self.data_pipe_type is 'iterator':
+                # select learning algorithm
+                if learning_alg is 'adam':
+                    epoch = self._train_adam(
+                        sess=sess,
+                        train_writer=train_writer,
+                        test_writer=test_writer,
+                        train_indxs=train_indxs,
+                        test_indxs=test_indxs,
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        opt_params=opt_params,
+                        output_dir=output_dir)
+
+                elif learning_alg is 'lbfgs':
+                    raise ValueError(
+                        'Cannot use lbfgs algorithm with iterator pipeline')
                 else:
                     raise ValueError('Invalid learning algorithm')
 
@@ -385,12 +491,11 @@ class Network(object):
 
         epochs_training = opt_params['epochs_training']
         epochs_ckpt = opt_params['epochs_ckpt']
-        epochs_early_stop = opt_params['epochs_early_stop']
-        early_stop_pool = opt_params['early_stop']
+        epochs_early_stop = opt_params['early_stop']
         epochs_summary = opt_params['epochs_summary']
 
-        if opt_params['early_stop'] > 0:
-            prev_costs = np.multiply(np.ones([early_stop_pool]), float('NaN'))
+        if epochs_early_stop > 0:
+            prev_costs = np.multiply(np.ones([epochs_early_stop]), float('NaN'))
             #prev_costs[0] = float('Inf')
             cost_means = []
 
@@ -404,23 +509,35 @@ class Network(object):
             run_metadata = None
 
         # make feed_dict_tr
-        if self.data_pipe_type == 'all_gpu':
+        if self.data_pipe_type is 'data_as_var':
             feed_dict_tr = {self.indices: train_indxs}
-        elif self.data_pipe_type == 'cpu_gpu':
-            feed_dict_tr = self._get_feed_dict(input_data=input_data,
-                                               output_data=output_data,
-                                               data_filters=data_filters,
-                                               batch_indxs=train_indxs)
+        elif self.data_pipe_type is 'feed_dict':
+            feed_dict_tr = self._get_feed_dict(
+                input_data=input_data,
+                output_data=output_data,
+                data_filters=data_filters,
+                batch_indxs=train_indxs)
+        elif self.data_pipe_type is 'iterator':
+            feed_dict_tr = self._get_feed_dict2(
+                input_data=input_data,
+                output_data=output_data,
+                data_filters=data_filters,
+                batch_indxs=train_indxs)
+            feed_dict_tr[self.batch_size_ph] = opt_params['batch_size']
+            sess.run(self.iterator.initializer, feed_dict=feed_dict_tr)
 
         # make feed_dict_test
         if test_indxs is not None:
-            if self.data_pipe_type == 'all_gpu':
+            if self.data_pipe_type is 'data_as_var':
                 feed_dict_test = {self.indices: test_indxs}
-            elif self.data_pipe_type == 'cpu_gpu':
-                feed_dict_test = self._get_feed_dict(input_data=input_data,
-                                                     output_data=output_data,
-                                                     data_filters=data_filters,
-                                                     batch_indxs=test_indxs)
+            elif self.data_pipe_type is 'feed_dict':
+                feed_dict_test = self._get_feed_dict(
+                    input_data=input_data,
+                    output_data=output_data,
+                    data_filters=data_filters,
+                    batch_indxs=test_indxs)
+            elif self.data_pipe_type is 'iterator':
+                feed_dict_test = {}
 
         # start training loop
         for epoch in range(epochs_training):
@@ -430,21 +547,27 @@ class Network(object):
 
             # pass through dataset once
             for batch in range(num_batches):
-                # get training indices for this batch
-                batch_indxs = train_indxs_perm[
-                              batch * opt_params['batch_size']:
-                              (batch + 1) * opt_params['batch_size']]
+                if (self.data_pipe_type is 'data_as_var') or (
+                        self.data_pipe_type is 'feed_dict'):
+                    # get training indices for this batch
+                    batch_indxs = train_indxs_perm[
+                                  batch * opt_params['batch_size']:
+                                  (batch + 1) * opt_params['batch_size']]
 
-                # get the feed_dict for batch_indxs
-                if self.data_pipe_type == 'all_gpu':
-                    feed_dict = {self.indices: batch_indxs}
-                elif self.data_pipe_type == 'cpu_gpu':
-                    feed_dict = self._get_feed_dict(input_data=input_data,
-                                                    output_data=output_data,
-                                                    data_filters=data_filters,
-                                                    batch_indxs=batch_indxs)
                 # one step of optimization routine
-                sess.run(self.train_step, feed_dict=feed_dict)
+                if self.data_pipe_type is 'data_as_var':
+                    # get the feed_dict for batch_indxs
+                    feed_dict = {self.indices: batch_indxs}
+                    sess.run(self.train_step, feed_dict=feed_dict)
+                elif self.data_pipe_type is 'feed_dict':
+                    feed_dict = self._get_feed_dict(
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        batch_indxs=batch_indxs)
+                    sess.run(self.train_step, feed_dict=feed_dict)
+                elif self.data_pipe_type is 'iterator':
+                    sess.run(self.train_step)
 
             # print training updates
             if opt_params['display'] is not None and \
@@ -545,8 +668,9 @@ class Network(object):
     #    return epoch
     # END _train_adam
 
-    def _get_feed_dict(self, input_data, output_data, batch_indxs, data_filters=None):
-        """Generates feed dict to be used with the slow data pipeline"""
+    def _get_feed_dict(self, input_data, output_data, batch_indxs,
+                       data_filters=None):
+        """Generates feed dict to be used with the `feed_dict` data pipeline"""
         feed_dict = {}
         for i, temp_data in enumerate(input_data):
             feed_dict[self.data_in_batch[i]] = \
@@ -556,6 +680,22 @@ class Network(object):
                 temp_data[batch_indxs, :]
             if self.filter_data:
                 feed_dict[self.data_filter_batch[i]] = \
+                    data_filters[i][batch_indxs, :]
+        return feed_dict
+    # END _get_feed_dict
+
+    def _get_feed_dict2(self, input_data, output_data, batch_indxs,
+                       data_filters=None):
+        """Generates feed dict to be used with the `feed_dict` data pipeline"""
+        feed_dict = {}
+        for i, temp_data in enumerate(input_data):
+            feed_dict[self.data_in_ph[i]] = \
+                temp_data[batch_indxs, :]
+        for i, temp_data in enumerate(output_data):
+            feed_dict[self.data_out_ph[i]] = \
+                temp_data[batch_indxs, :]
+            if self.filter_data:
+                feed_dict[self.data_filter_ph[i]] = \
                     data_filters[i][batch_indxs, :]
         return feed_dict
     # END _get_feed_dict
@@ -570,7 +710,7 @@ class Network(object):
         # initialize all parameters randomly
         sess.run(self.init)
 
-        if self.data_pipe_type == 'all_gpu':
+        if self.data_pipe_type == 'data_as_var':
             # check input
             if type(input_data) is not list:
                 input_data = [input_data]
@@ -767,7 +907,7 @@ class Network(object):
         if 'use_gpu' not in opt_params:
             opt_params['use_gpu'] = False
         if 'data_pipe_type' not in opt_params:
-            opt_params['data_pipe_type'] = 'all_gpu'
+            opt_params['data_pipe_type'] = 'data_as_var'
 
         if learning_alg is 'adam':
             if 'learning_rate' not in opt_params:

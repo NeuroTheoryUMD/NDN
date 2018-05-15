@@ -122,7 +122,7 @@ class NDN(Network):
         self.ffnet_out = ffnet_out
         self.input_sizes = input_dim_list
         # list of output sizes (for Robs placeholders)
-        self.output_size = [0] * len(ffnet_out)
+        self.output_sizes = [0] * len(ffnet_out)
         self.noise_dist = noise_dist
         self.tf_seed = tf_seed
 
@@ -200,7 +200,7 @@ class NDN(Network):
         # Assemble outputs
         for nn in range(len(self.ffnet_out)):
             ffnet_n = self.ffnet_out[nn]
-            self.output_size[nn] = \
+            self.output_sizes[nn] = \
                 self.networks[ffnet_n].layers[-1].weights.shape[1]
     # END NDN._define_network
 
@@ -555,9 +555,9 @@ class NDN(Network):
 
         self._build_graph()
 
-        if self.data_pipe_type == 'all_gpu':
+        if self.data_pipe_type == 'data_as_var':
             feed_dict = {self.indices: data_indxs}
-        elif self.data_pipe_type == 'cpu_gpu':
+        elif self.data_pipe_type == 'feed_dict':
             feed_dict = self._get_feed_dict(input_data=input_data,
                                             output_data=output_data,
                                             data_filters=data_filters,
@@ -627,10 +627,10 @@ class NDN(Network):
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
             self._restore_params(sess, input_data, output_data)
 
-            if self.data_pipe_type == 'all_gpu':
+            if self.data_pipe_type == 'data_as_var':
                 pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
                                 feed_dict={self.indices: data_indxs})
-            elif self.data_pipe_type == 'cpu_gpu':
+            elif self.data_pipe_type == 'feed_dict':
                 pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
                                 feed_dict=self._get_feed_dict(input_data=input_data,
                                                               output_data=output_data,  # this line needed?
