@@ -578,8 +578,7 @@ class NDN(Network):
         return LL_neuron
     # END get_LL_neuron
 
-    def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1,
-                            layer=-1):
+    def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1, layer=-1):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -628,7 +627,6 @@ class NDN(Network):
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
             self._restore_params(sess, input_data, output_data)
 
-            # TODO: fix this\
             if self.data_pipe_type == 'all_gpu':
                 pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
                                 feed_dict={self.indices: data_indxs})
@@ -691,20 +689,20 @@ class NDN(Network):
             self.networks[self.ffnet_out[nn]].layers[-1].biases = FRs
     # END NDN.initialize_output_layer_bias
 
-    def nullLL(self, Robs):
+    def nullLL(self, robs):
         """Calculates null-model (constant firing rate) likelihood, given Robs 
         (which determines what firing rate for each cell)"""
 
         if self.noise_dist == 'gaussian':
             # In this case, LLnull is just var of data
-            LLnulls = np.var(Robs, axis=0)
+            LLnulls = np.var(robs, axis=0)
 
         elif self.noise_dist == 'poisson':
-            rbars = np.mean(Robs, axis=0)
+            rbars = np.mean(robs, axis=0)
             LLnulls = np.log(rbars) - 1.0
         # elif self.noise_dist == 'bernoulli':
         else:
-            LLnulls = [0] * Robs.shape[1]
+            LLnulls = [0] * robs.shape[1]
             print('Not worked out yet')
 
         return LLnulls

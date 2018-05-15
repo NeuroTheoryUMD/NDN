@@ -7,6 +7,7 @@ import os
 import sys
 import numpy as np
 import tensorflow as tf
+import warnings
 
 # supress INFO log
 tf.logging.set_verbosity(tf.logging.FATAL)
@@ -25,7 +26,7 @@ class Network(object):
 
         self.num_examples = 0
         self.filter_data = False
-        self.data_pipe_type = None
+        self.data_pipe_type = 'all_cpu'
 
     # END Network.__init__
 
@@ -353,16 +354,9 @@ class Network(object):
                         output_dir=output_dir)
 
                 elif learning_alg == 'lbfgs':
-
-                    # put input/output data in feed_dict
-                    feed_dict = {}
-                    for i, temp_data in enumerate(input_data):
-                        feed_dict[self.data_in_batch[i]] = temp_data
-                    for i, temp_data in enumerate(output_data):
-                        feed_dict[self.data_out_batch[i]] = temp_data
-                        if self.filter_data:
-                            feed_dict[self.data_filter_batch[i]] = \
-                                data_filters[i]
+                    feed_dict = self._get_feed_dict(input_data=input_data,
+                                                    output_data=output_data,  # this line needed?
+                                                    batch_indxs=train_indxs)
 
                     self.train_step.minimize(sess, feed_dict=feed_dict)
                     epoch = float('NaN')
@@ -395,10 +389,12 @@ class Network(object):
         early_stop_pool = opt_params['early_stop']
         epochs_summary = opt_params['epochs_summary']
 
-        num_batches = train_indxs.shape[0] // opt_params['batch_size']
-
         if opt_params['early_stop'] > 0:
-            prev_cost = np.multiply(np.ones([early_stop_pool]), float('Inf'))
+            prev_costs = np.multiply(np.ones([early_stop_pool]), float('NaN'))
+            #prev_costs[0] = float('Inf')
+            cost_means = []
+
+        num_batches = train_indxs.shape[0] // opt_params['batch_size']
 
         if opt_params['run_diagnostics']:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -439,6 +435,7 @@ class Network(object):
                               batch * opt_params['batch_size']:
                               (batch + 1) * opt_params['batch_size']]
 
+                # get the feed_dict for batch_indxs
                 if self.data_pipe_type == 'all_gpu':
                     feed_dict = {self.indices: batch_indxs}
                 elif self.data_pipe_type == 'cpu_gpu':
@@ -446,16 +443,13 @@ class Network(object):
                                                     output_data=output_data,
                                                     data_filters=data_filters,
                                                     batch_indxs=batch_indxs)
-
                 # one step of optimization routine
                 sess.run(self.train_step, feed_dict=feed_dict)
 
             # print training updates
-            display_output = False
             if opt_params['display'] is not None and \
                     (epoch % opt_params['display'] == opt_params['display'] - 1
                      or epoch == 0):
-                display_output = True
 
                 cost = sess.run(self.cost, feed_dict=feed_dict_tr)
                 reg_pen = sess.run(self.cost_reg, feed_dict=feed_dict_tr)
@@ -483,20 +477,13 @@ class Network(object):
                     (epoch % epochs_summary == epochs_summary - 1
                      or epoch == 0):
 
-                if not display_output and opt_params['display'] is not None:
-                    print('Epoch %03d:' % epoch)
-
-                # model summary
-                print('Writing train summary')
-
                 if opt_params['run_diagnostics']:
                     summary = sess.run(
                         self.merge_summaries,
                         feed_dict=feed_dict_tr,
                         options=run_options,
                         run_metadata=run_metadata)
-                    train_writer.add_run_metadata(
-                      run_metadata, 'epoch_%d' % epoch)
+                    train_writer.add_run_metadata(run_metadata, 'epoch_%d' % epoch)
                 else:
                     summary = sess.run(
                         self.merge_summaries,
@@ -505,54 +492,55 @@ class Network(object):
                 train_writer.flush()
 
                 if test_indxs is not None:
-                    print('Writing test summary')
                     if opt_params['run_diagnostics']:
                         summary = sess.run(
                             self.merge_summaries,
                             feed_dict=feed_dict_test,
                             options=run_options,
                             run_metadata=run_metadata)
-                        test_writer.add_run_metadata(
-                            run_metadata, 'epoch_%d' % epoch)
+                        test_writer.add_run_metadata(run_metadata, 'epoch_%d' % epoch)
                     else:
                         summary = sess.run(
                             self.merge_summaries,
                             feed_dict=feed_dict_test)
-                test_writer.add_summary(summary, epoch)
-                test_writer.flush()
+                    test_writer.add_summary(summary, epoch)
+                    test_writer.flush()
 
-            # check for early stopping
-            if opt_params['early_stop'] > 0 and \
-                    epoch % epochs_early_stop == epochs_early_stop - 1:
+            if opt_params['early_stop'] > 0:
 
-                cost_test = sess.run(self.cost, feed_dict=feed_dict_test)
+                #print('\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+                #print('Eoch: %d:\n' % epoch)
+                #import matplotlib.pyplot as plt
+                #plt.figure(figsize=(4, 2))
+                #plt.plot(prev_costs)
+                #plt.title('prev_costs array')
+                #plt.show()
 
-                if cost_test >= np.max(prev_cost):
+                # if you want to suppress useless warning
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=RuntimeWarning)
+                    mean_before = np.nanmean(prev_costs)
 
-                    # save model checkpoint if desired and necessary
-                    if epochs_ckpt is not None and \
-                            epochs_ckpt != epochs_early_stop:
-                        save_file = os.path.join(
-                            output_dir, 'ckpts',
-                            str('epoch_%05g.ckpt' % epoch))
-                        self.checkpoint_model(sess, save_file)
+                #mean_before = np.nanmean(prev_costs)
 
-                    # save model summaries if desired and necessary
-                    if epochs_summary is not None and \
-                            epochs_summary != epochs_early_stop:
-                        summary = sess.run(self.merge_summaries,
-                                           feed_dict=feed_dict_tr)
-                        train_writer.add_summary(summary, epoch)
-                        print('Writing train summary')
-                        if test_indxs is not None:
-                            summary = sess.run(self.merge_summaries,
-                                               feed_dict=feed_dict_test)
-                            test_writer.add_summary(summary, epoch)
-                            print('Writing test summary')
+                prev_costs = np.roll(prev_costs, 1)
+                prev_costs[0] = sess.run(self.cost, feed_dict=feed_dict_test)
 
-                    break  # out of epochs loop
-                else:
-                    prev_cost[(epoch // epochs_early_stop) % early_stop_pool] = cost_test
+                mean_now = np.nanmean(prev_costs)
+
+                cost_means = np.append(cost_means, mean_now)
+
+                #print('delta := ( mean_before - mean_now ) / mean_before     --->    delta = %s' %
+                #      ((mean_before - mean_now) / mean_before))
+
+                if mean_now >= mean_before:
+                    print('Early stop criteria met, stopping train now...')
+                    #plt.figure(figsize=(8, 4))
+                    #plt.plot(cost_means)
+                    #plt.title('cost_means (after break)')
+                    #plt.show()
+                    break
+
         return epoch
     #    return epoch
     # END _train_adam
@@ -632,7 +620,7 @@ class Network(object):
             os.makedirs(os.path.dirname(save_file))
 
         self.saver.save(sess, save_file)
-        print('Model checkpointed to %s' % save_file)
+#        print('Model checkpointed to %s' % save_file)
 
     def restore_model(self, save_file, input_data, output_data):
         """Restore previously checkpointed model parameters in tf Variables 
