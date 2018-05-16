@@ -141,73 +141,14 @@ class Network(object):
                         name='data_filter_%02d' % i)
 
         elif self.data_pipe_type == 'iterator':
-
-            # define with placeholder to specify later
-            self.batch_size_ph = tf.placeholder(
-                dtype=tf.int64,
-                shape=None,
-                name='batch_size_ph')
-
-            # keep track of input tensors
-            tensors = {}
-
-            # INPUT DATA
-            self.data_in_ph = [None] * len(self.input_sizes)
-            self.data_in_batch = [None] * len(self.input_sizes)
-            for i, input_size in enumerate(self.input_sizes):
-                # reduce input_sizes to single number if 3-D
-                num_inputs = np.prod(input_size)
-                # placeholders for data
-                name = 'input_ph_%02d' % i
-                self.data_in_ph[i] = tf.placeholder(
-                    dtype=tf.float32,
-                    shape=[None, num_inputs],
-                    name=name)
-                # add placeholder to dict of input tensors
-                tensors[name] = self.data_in_ph[i]
-
-            # OUTPUT DATA
-            self.data_out_ph = [None] * len(self.output_sizes)
-            self.data_out_batch = [None] * len(self.output_sizes)
-            for i, output_size in enumerate(self.output_sizes):
-                name = 'output_ph_%02d' % i
-                # placeholders for data
-                self.data_out_ph[i] = tf.placeholder(
-                    dtype=tf.float32,
-                    shape=[None, output_size],
-                    name=name)
-                # add placeholder to dict of input tensors
-                tensors[name] = self.data_out_ph[i]
-
-            # DATA FILTERS
-            if self.filter_data:
-                self.data_filter_ph = [None] * len(self.output_sizes)
-                self.data_filter_batch = [None] * len(self.output_sizes)
-                for i, output_size in enumerate(self.output_sizes):
-                    name = 'data_filter_ph_%02d' % i
-                    # placeholders for data
-                    self.data_filter_ph[i] = tf.placeholder(
-                        dtype=tf.float32,
-                        shape=[None, output_size],
-                        name=name)
-                tensors[name] = self.data_filter_ph[i]
-
-            # construct dataset object from placeholder dict
-            dataset = tf.data.Dataset.from_tensor_slices(tensors)
-            # auto shuffle data
-            dataset = dataset.shuffle(buffer_size=10000)
-            # auto batch data
-            dataset = dataset.batch(self.batch_size_ph)
-            # repeat (important that this comes after shuffling and batching)
-            dataset = dataset.repeat()
-            # prepare each batch on cpu while running previous through model on
-            # GPU
-            dataset = dataset.prefetch(buffer_size=1)
-
             # build iterator object to access elements from dataset; make
             # 'initializable' so that we can easily switch between training and
             # xv datasets
-            self.iterator = dataset.make_initializable_iterator()
+            self.iterator_handle = tf.placeholder(tf.string, shape=[])
+            self.iterator = tf.data.Iterator.from_string_handle(
+                self.iterator_handle,
+                self.dataset_types,
+                self.dataset_shapes)
             next_element = self.iterator.get_next()
 
             # pull input/output/filter data out of 'next_element'
@@ -465,7 +406,7 @@ class Network(object):
 
                 elif learning_alg is 'lbfgs':
                     raise ValueError(
-                        'Cannot use lbfgs algorithm with iterator pipeline')
+                        'Use of iterator pipeline with lbfgs not supported')
                 else:
                     raise ValueError('Invalid learning algorithm')
 
@@ -518,13 +459,23 @@ class Network(object):
                 data_filters=data_filters,
                 batch_indxs=train_indxs)
         elif self.data_pipe_type is 'iterator':
-            feed_dict_tr = self._get_feed_dict2(
+            dataset_tr = self._build_dataset(
                 input_data=input_data,
                 output_data=output_data,
                 data_filters=data_filters,
-                batch_indxs=train_indxs)
-            feed_dict_tr[self.batch_size_ph] = opt_params['batch_size']
-            sess.run(self.iterator.initializer, feed_dict=feed_dict_tr)
+                indxs=train_indxs,
+                training_dataset=True,
+                batch_size=opt_params['batch_size'])
+            # build iterator object to access elements from dataset; make
+            # 'initializable' so that we can easily switch between training and
+            # testing datasets
+            iterator_tr = dataset_tr.make_one_shot_iterator()
+            # get string handle of iterator
+            iter_handle_tr = sess.run(iterator_tr.string_handle())
+
+            # store info on dataset for buiding data pipeline
+            self.dataset_types = dataset_tr.output_types
+            self.dataset_shapes = dataset_tr.output_shapes
 
         # make feed_dict_test
         if test_indxs is not None:
@@ -537,7 +488,19 @@ class Network(object):
                     data_filters=data_filters,
                     batch_indxs=test_indxs)
             elif self.data_pipe_type is 'iterator':
-                feed_dict_test = {}
+                dataset_test = self._build_dataset(
+                    input_data=input_data,
+                    output_data=output_data,
+                    data_filters=data_filters,
+                    indxs=test_indxs,
+                    training_dataset=False,
+                    batch_size=opt_params['batch_size'])
+                # build iterator object to access elements from dataset; make
+                # 'initializable' so that we can easily switch between training
+                # and testing datasets
+                iterator_test = dataset_test.make_one_shot_iterator()
+                # get string handle of iterator
+                iter_handle_test = sess.run(iterator_test.string_handle())
 
         # start training loop
         for epoch in range(epochs_training):
@@ -565,9 +528,10 @@ class Network(object):
                         output_data=output_data,
                         data_filters=data_filters,
                         batch_indxs=batch_indxs)
-                    sess.run(self.train_step, feed_dict=feed_dict)
                 elif self.data_pipe_type is 'iterator':
-                    sess.run(self.train_step)
+                    feed_dict = {self.iterator_handle: iter_handle_tr}
+
+                sess.run(self.train_step, feed_dict=feed_dict)
 
             # print training updates
             if opt_params['display'] is not None and \
@@ -684,21 +648,44 @@ class Network(object):
         return feed_dict
     # END _get_feed_dict
 
-    def _get_feed_dict2(self, input_data, output_data, batch_indxs,
-                       data_filters=None):
-        """Generates feed dict to be used with the `feed_dict` data pipeline"""
-        feed_dict = {}
-        for i, temp_data in enumerate(input_data):
-            feed_dict[self.data_in_ph[i]] = \
-                temp_data[batch_indxs, :]
-        for i, temp_data in enumerate(output_data):
-            feed_dict[self.data_out_ph[i]] = \
-                temp_data[batch_indxs, :]
-            if self.filter_data:
-                feed_dict[self.data_filter_ph[i]] = \
-                    data_filters[i][batch_indxs, :]
-        return feed_dict
-    # END _get_feed_dict
+    def _build_dataset(self, input_data, output_data, data_filters=None,
+                        indxs=None, batch_size=32, training_dataset=True):
+
+        # keep track of input tensors
+        tensors = {}
+
+        # INPUT DATA
+        for i, input_size in enumerate(self.input_sizes):
+            name = 'input_%02d' % i
+            # add data to dict of input tensors
+            tensors[name] = input_data[i][indxs, :]
+
+        # OUTPUT DATA
+        for i, output_size in enumerate(self.output_sizes):
+            name = 'output_ph_%02d' % i
+            # add data to dict of input tensors
+            tensors[name] = output_data[i][indxs, :]
+
+        # DATA FILTERS
+        if self.filter_data:
+            for i, output_size in enumerate(self.output_sizes):
+                name = 'data_filter_ph_%02d' % i
+                tensors[name] = data_filters[i][indxs, :]
+
+        # construct dataset object from placeholder dict
+        dataset = tf.data.Dataset.from_tensor_slices(tensors)
+        if training_dataset:
+            # auto shuffle data
+            dataset = dataset.shuffle(buffer_size=10000)
+            # auto batch data
+            dataset = dataset.batch(batch_size)
+            # repeat (important that this comes after shuffling and batching)
+            dataset = dataset.repeat()
+        # prepare each batch on cpu while running previous through model on
+        # GPU
+        dataset = dataset.prefetch(buffer_size=1)
+
+        return dataset
 
     def _restore_params(self, sess, input_data, output_data,
                         data_filters=None):
