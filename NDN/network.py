@@ -26,7 +26,10 @@ class Network(object):
 
         self.num_examples = 0
         self.filter_data = False
+        # for tf.data API / 'iterator' pipeline
         self.data_pipe_type = 'data_as_var'
+        self.dataset_types = None
+        self.dataset_shapes = None
 
     # END Network.__init__
 
@@ -152,17 +155,20 @@ class Network(object):
             next_element = self.iterator.get_next()
 
             # pull input/output/filter data out of 'next_element'
+            self.data_in_batch = [None] * len(self.input_sizes)
             for i, _ in enumerate(self.input_sizes):
-                name = 'input_ph_%02d' % i
+                name = 'input_%02d' % i
                 self.data_in_batch[i] = next_element[name]
 
+            self.data_out_batch = [None] * len(self.output_sizes)
             for i, _ in enumerate(self.output_sizes):
-                name = 'output_ph_%02d' % i
+                name = 'output_%02d' % i
                 self.data_out_batch[i] = next_element[name]
 
             if self.filter_data:
+                self.data_filter_batch = [None] * len(self.output_sizes)
                 for i, _ in enumerate(self.output_sizes):
-                    name = 'data_filter_ph_%02d' % i
+                    name = 'filter_%02d' % i
                     self.data_filter_batch[i] = next_element[name]
 
     # END Network._initialize_data_pipeline
@@ -303,6 +309,29 @@ class Network(object):
             if opt_params['early_stop'] > 0 and opt_params['epochs_early_stop'] is None:
                 opt_params['epochs_early_stop'] = 1
 
+        # build datasets if using 'iterator' pipeline
+        if self.data_pipe_type is 'iterator':
+            dataset_tr = self._build_dataset(
+                input_data=input_data,
+                output_data=output_data,
+                data_filters=data_filters,
+                indxs=train_indxs,
+                training_dataset=True,
+                batch_size=opt_params['batch_size'])
+            # store info on dataset for buiding data pipeline
+            self.dataset_types = dataset_tr.output_types
+            self.dataset_shapes = dataset_tr.output_shapes
+            if test_indxs is not None:
+                dataset_test = self._build_dataset(
+                    input_data=input_data,
+                    output_data=output_data,
+                    data_filters=data_filters,
+                    indxs=test_indxs,
+                    training_dataset=False,
+                    batch_size=opt_params['batch_size'])
+            else:
+                dataset_test = None
+
         # Build graph: self.build_graph must be defined in child of network
         self._build_graph(
             learning_alg=learning_alg,
@@ -398,9 +427,8 @@ class Network(object):
                         test_writer=test_writer,
                         train_indxs=train_indxs,
                         test_indxs=test_indxs,
-                        input_data=input_data,
-                        output_data=output_data,
-                        data_filters=data_filters,
+                        dataset_tr=dataset_tr,
+                        dataset_test=dataset_test,
                         opt_params=opt_params,
                         output_dir=output_dir)
 
@@ -426,6 +454,8 @@ class Network(object):
             input_data=None,
             output_data=None,
             data_filters=None,
+            dataset_tr=None,
+            dataset_test=None,
             opt_params=None,
             output_dir=None):
         """Training function for adam optimizer to clean up code in `train`"""
@@ -436,9 +466,8 @@ class Network(object):
         epochs_summary = opt_params['epochs_summary']
 
         if epochs_early_stop > 0:
-            prev_costs = np.multiply(np.ones([epochs_early_stop]), float('NaN'))
-            #prev_costs[0] = float('Inf')
-            cost_means = []
+            prev_costs = np.multiply(np.ones([epochs_early_stop]),
+                                     float('NaN'))
 
         num_batches_tr = train_indxs.shape[0] // opt_params['batch_size']
         if test_indxs is not None:
@@ -451,55 +480,14 @@ class Network(object):
             run_options = None
             run_metadata = None
 
-        # make feed_dict_tr
-        if self.data_pipe_type is 'data_as_var':
-            feed_dict_tr = {self.indices: train_indxs}
-        elif self.data_pipe_type is 'feed_dict':
-            feed_dict_tr = self._get_feed_dict(
-                input_data=input_data,
-                output_data=output_data,
-                data_filters=data_filters,
-                batch_indxs=train_indxs)
-        elif self.data_pipe_type is 'iterator':
-            dataset_tr = self._build_dataset(
-                input_data=input_data,
-                output_data=output_data,
-                data_filters=data_filters,
-                indxs=train_indxs,
-                training_dataset=True,
-                batch_size=opt_params['batch_size'])
-            # build iterator object to access elements from dataset; make
-            # 'initializable' so that we can easily switch between training and
-            # testing datasets
+        if self.data_pipe_type is 'iterator':
+            # build iterator object to access elements from dataset
             iterator_tr = dataset_tr.make_one_shot_iterator()
             # get string handle of iterator
             iter_handle_tr = sess.run(iterator_tr.string_handle())
 
-            # store info on dataset for buiding data pipeline
-            self.dataset_types = dataset_tr.output_types
-            self.dataset_shapes = dataset_tr.output_shapes
-
-        # make feed_dict_test
-        if test_indxs is not None:
-            if self.data_pipe_type is 'data_as_var':
-                feed_dict_test = {self.indices: test_indxs}
-            elif self.data_pipe_type is 'feed_dict':
-                feed_dict_test = self._get_feed_dict(
-                    input_data=input_data,
-                    output_data=output_data,
-                    data_filters=data_filters,
-                    batch_indxs=test_indxs)
-            elif self.data_pipe_type is 'iterator':
-                dataset_test = self._build_dataset(
-                    input_data=input_data,
-                    output_data=output_data,
-                    data_filters=data_filters,
-                    indxs=test_indxs,
-                    training_dataset=False,
-                    batch_size=opt_params['batch_size'])
-                # build iterator object to access elements from dataset; make
-                # 'initializable' so that we can easily switch between training
-                # and testing datasets
+            if test_indxs is not None:
+                # build iterator object to access elements from dataset
                 iterator_test = dataset_test.make_one_shot_iterator()
                 # get string handle of iterator
                 iter_handle_test = sess.run(iterator_test.string_handle())
@@ -516,14 +504,13 @@ class Network(object):
                         self.data_pipe_type is 'feed_dict'):
                     # get training indices for this batch
                     batch_indxs = train_indxs_perm[
-                                  batch * opt_params['batch_size']:
-                                  (batch + 1) * opt_params['batch_size']]
+                        batch * opt_params['batch_size']:
+                        (batch + 1) * opt_params['batch_size']]
 
                 # one step of optimization routine
                 if self.data_pipe_type is 'data_as_var':
                     # get the feed_dict for batch_indxs
                     feed_dict = {self.indices: batch_indxs}
-                    sess.run(self.train_step, feed_dict=feed_dict)
                 elif self.data_pipe_type is 'feed_dict':
                     feed_dict = self._get_feed_dict(
                         input_data=input_data,
@@ -545,26 +532,19 @@ class Network(object):
                     batch_indxs_tr = train_indxs[
                                      batch_tr * opt_params['batch_size']:
                                      (batch_tr + 1) * opt_params['batch_size']]
-
                     if self.data_pipe_type is 'data_as_var':
-                        feed_dict_tr = {self.indices: batch_indxs_tr}
+                        feed_dict = {self.indices: batch_indxs_tr}
                     elif self.data_pipe_type is 'feed_dict':
-                        feed_dict_tr = self._get_feed_dict(
+                        feed_dict = self._get_feed_dict(
                             input_data=input_data,
                             output_data=output_data,
                             data_filters=data_filters,
                             batch_indxs=batch_indxs_tr)
-                    # elif self.data_pipe_type is 'iterator':
-                    #    feed_dict_tr = self._get_feed_dict2(
-                    #        input_data=input_data,
-                    #        output_data=output_data,
-                    #        data_filters=data_filters,
-                    #        batch_indxs=train_indxs)
-                    #    feed_dict_tr[self.batch_size_ph] = opt_params['batch_size']
-                    #    sess.run(self.iterator.initializer, feed_dict=feed_dict_tr)
+                    elif self.data_pipe_type is 'iterator':
+                        feed_dict = {self.iterator_handle: iter_handle_tr}
 
-                    cost_tr += sess.run(self.cost, feed_dict=feed_dict_tr)
-                    reg_pen += sess.run(self.cost_reg, feed_dict=feed_dict_tr)
+                    cost_tr += sess.run(self.cost, feed_dict=feed_dict)
+                    reg_pen += sess.run(self.cost_reg, feed_dict=feed_dict)
 
                 cost_tr /= num_batches_tr
                 reg_pen /= num_batches_tr
@@ -572,18 +552,21 @@ class Network(object):
                 if test_indxs is not None:
                     for batch_test in range(num_batches_test):
                         batch_indxs_test = test_indxs[
-                                           batch_test * opt_params['batch_size']:
-                                           (batch_test + 1) * opt_params['batch_size']]
+                            batch_test * opt_params['batch_size']:
+                            (batch_test + 1) * opt_params['batch_size']]
                         if self.data_pipe_type is 'data_as_var':
-                            feed_dict_test = {self.indices: batch_indxs_test}
+                            feed_dict = {self.indices: batch_indxs_test}
                         elif self.data_pipe_type is 'feed_dict':
-                            feed_dict_test = self._get_feed_dict(
+                            feed_dict = self._get_feed_dict(
                                 input_data=input_data,
                                 output_data=output_data,
                                 data_filters=data_filters,
                                 batch_indxs=batch_indxs_test)
+                        elif self.data_pipe_type is 'iterator':
+                            feed_dict = {
+                                self.iterator_handle: iter_handle_test}
 
-                        cost_test += sess.run(self.cost, feed_dict=feed_dict_test)
+                        cost_test += sess.run(self.cost, feed_dict=feed_dict)
                     cost_test /= num_batches_test
 
                 # print additional testing info
@@ -603,17 +586,18 @@ class Network(object):
                     (epoch % epochs_summary == epochs_summary - 1
                      or epoch == 0):
 
+                # TODO: what to use with feed_dict?
                 if opt_params['run_diagnostics']:
                     summary = sess.run(
                         self.merge_summaries,
-                        feed_dict=feed_dict_tr,
+                        feed_dict=feed_dict,
                         options=run_options,
                         run_metadata=run_metadata)
                     train_writer.add_run_metadata(run_metadata, 'epoch_%d' % epoch)
                 else:
                     summary = sess.run(
                         self.merge_summaries,
-                        feed_dict=feed_dict_tr)
+                        feed_dict=feed_dict)
                 train_writer.add_summary(summary, epoch)
                 train_writer.flush()
 
@@ -621,25 +605,18 @@ class Network(object):
                     if opt_params['run_diagnostics']:
                         summary = sess.run(
                             self.merge_summaries,
-                            feed_dict=feed_dict_test,
+                            feed_dict=feed_dict,
                             options=run_options,
                             run_metadata=run_metadata)
                         test_writer.add_run_metadata(run_metadata, 'epoch_%d' % epoch)
                     else:
                         summary = sess.run(
                             self.merge_summaries,
-                            feed_dict=feed_dict_test)
+                            feed_dict=feed_dict)
                     test_writer.add_summary(summary, epoch)
                     test_writer.flush()
 
             if opt_params['early_stop'] > 0:
-                #print('\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-                #print('Eoch: %d:\n' % epoch)
-                #import matplotlib.pyplot as plt
-                #plt.figure(figsize=(4, 2))
-                #plt.plot(prev_costs)
-                #plt.title('prev_costs array')
-                #plt.show()
 
                 # if you want to suppress that useless warning
                 with warnings.catch_warnings():
@@ -649,17 +626,19 @@ class Network(object):
                 cost_test = 0
                 for batch_test in range(num_batches_test):
                     batch_indxs_test = test_indxs[
-                                       batch_test * opt_params['batch_size']:
-                                       (batch_test + 1) * opt_params['batch_size']]
+                        batch_test * opt_params['batch_size']:
+                        (batch_test + 1) * opt_params['batch_size']]
                     if self.data_pipe_type is 'data_as_var':
-                        feed_dict_test = {self.indices: batch_indxs_test}
+                        feed_dict = {self.indices: batch_indxs_test}
                     elif self.data_pipe_type is 'feed_dict':
-                        feed_dict_test = self._get_feed_dict(
+                        feed_dict = self._get_feed_dict(
                             input_data=input_data,
                             output_data=output_data,
                             data_filters=data_filters,
                             batch_indxs=batch_indxs_test)
-                    cost_test += sess.run(self.cost, feed_dict=feed_dict_test)
+                    elif self.data_pipe_type is 'iterator':
+                        feed_dict = {self.iterator_handle: iter_handle_test}
+                    cost_test += sess.run(self.cost, feed_dict=feed_dict)
                 cost_test /= num_batches_test
 
                 prev_costs = np.roll(prev_costs, 1)
@@ -667,17 +646,8 @@ class Network(object):
 
                 mean_now = np.nanmean(prev_costs)
 
-                #cost_means = np.append(cost_means, mean_now)
-
-                #print('delta := ( mean_before - mean_now ) / mean_before     --->    delta = %s' %
-                #      ((mean_before - mean_now) / mean_before))
-
                 if mean_now >= mean_before:
                     print('Early stop criteria met, stopping train now...')
-                    #plt.figure(figsize=(8, 4))
-                    #plt.plot(cost_means)
-                    #plt.title('cost_means (after break)')
-                    #plt.show()
                     break
 
         return epoch
@@ -701,7 +671,7 @@ class Network(object):
     # END _get_feed_dict
 
     def _build_dataset(self, input_data, output_data, data_filters=None,
-                        indxs=None, batch_size=32, training_dataset=True):
+                       indxs=None, batch_size=32, training_dataset=True):
 
         # keep track of input tensors
         tensors = {}
@@ -714,25 +684,29 @@ class Network(object):
 
         # OUTPUT DATA
         for i, output_size in enumerate(self.output_sizes):
-            name = 'output_ph_%02d' % i
+            name = 'output_%02d' % i
             # add data to dict of input tensors
             tensors[name] = output_data[i][indxs, :]
 
         # DATA FILTERS
         if self.filter_data:
             for i, output_size in enumerate(self.output_sizes):
-                name = 'data_filter_ph_%02d' % i
+                name = 'filter_%02d' % i
                 tensors[name] = data_filters[i][indxs, :]
 
         # construct dataset object from placeholder dict
         dataset = tf.data.Dataset.from_tensor_slices(tensors)
+
         if training_dataset:
             # auto shuffle data
             dataset = dataset.shuffle(buffer_size=10000)
+
+        if batch_size > 0:
             # auto batch data
             dataset = dataset.batch(batch_size)
-            # repeat (important that this comes after shuffling and batching)
-            dataset = dataset.repeat()
+
+        # repeat (important that this comes after shuffling and batching)
+        dataset = dataset.repeat()
         # prepare each batch on cpu while running previous through model on
         # GPU
         dataset = dataset.prefetch(buffer_size=1)
