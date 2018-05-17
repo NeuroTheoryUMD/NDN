@@ -466,12 +466,9 @@ class Network(object):
         epochs_summary = opt_params['epochs_summary']
 
         if epochs_early_stop > 0:
-            prev_costs = np.multiply(np.ones([epochs_early_stop]),
-                                     float('NaN'))
+            prev_costs = np.multiply(np.ones([epochs_early_stop]), float('NaN'))
 
         num_batches_tr = train_indxs.shape[0] // opt_params['batch_size']
-        if test_indxs is not None:
-            num_batches_test = test_indxs.shape[0] // opt_params['batch_size']
 
         if opt_params['run_diagnostics']:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -493,6 +490,7 @@ class Network(object):
                 iter_handle_test = sess.run(iterator_test.string_handle())
 
         # start training loop
+        best_epoch = 0
         for epoch in range(epochs_training):
 
             # shuffle data before each pass
@@ -550,24 +548,13 @@ class Network(object):
                 reg_pen /= num_batches_tr
 
                 if test_indxs is not None:
-                    for batch_test in range(num_batches_test):
-                        batch_indxs_test = test_indxs[
-                            batch_test * opt_params['batch_size']:
-                            (batch_test + 1) * opt_params['batch_size']]
-                        if self.data_pipe_type is 'data_as_var':
-                            feed_dict = {self.indices: batch_indxs_test}
-                        elif self.data_pipe_type is 'feed_dict':
-                            feed_dict = self._get_feed_dict(
-                                input_data=input_data,
-                                output_data=output_data,
-                                data_filters=data_filters,
-                                batch_indxs=batch_indxs_test)
-                        elif self.data_pipe_type is 'iterator':
-                            feed_dict = {
-                                self.iterator_handle: iter_handle_test}
-
-                        cost_test += sess.run(self.cost, feed_dict=feed_dict)
-                    cost_test /= num_batches_test
+                    cost_test = self._get_test_cost(sess=sess,
+                                                    input_data=input_data,
+                                                    output_data=output_data,
+                                                    data_filters=data_filters,
+                                                    test_indxs=test_indxs,
+                                                    opt_params=opt_params,
+                                                    iter_handle=iter_handle_test)
 
                 # print additional testing info
                 print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f, reg penalty = %10.4f'
@@ -623,36 +610,63 @@ class Network(object):
                     warnings.simplefilter("ignore", category=RuntimeWarning)
                     mean_before = np.nanmean(prev_costs)
 
-                cost_test = 0
-                for batch_test in range(num_batches_test):
-                    batch_indxs_test = test_indxs[
-                        batch_test * opt_params['batch_size']:
-                        (batch_test + 1) * opt_params['batch_size']]
-                    if self.data_pipe_type is 'data_as_var':
-                        feed_dict = {self.indices: batch_indxs_test}
-                    elif self.data_pipe_type is 'feed_dict':
-                        feed_dict = self._get_feed_dict(
-                            input_data=input_data,
-                            output_data=output_data,
-                            data_filters=data_filters,
-                            batch_indxs=batch_indxs_test)
-                    elif self.data_pipe_type is 'iterator':
-                        feed_dict = {self.iterator_handle: iter_handle_test}
-                    cost_test += sess.run(self.cost, feed_dict=feed_dict)
-                cost_test /= num_batches_test
+                cost_test = self._get_test_cost(sess=sess,
+                                                input_data=input_data,
+                                                output_data=output_data,
+                                                data_filters=data_filters,
+                                                test_indxs=test_indxs,
+                                                opt_params=opt_params,
+                                                iter_handle=iter_handle_test)
 
                 prev_costs = np.roll(prev_costs, 1)
                 prev_costs[0] = cost_test
 
                 mean_now = np.nanmean(prev_costs)
 
+                if prev_costs[0] <= prev_costs[1]:
+                    best_epoch = epoch
+
                 if mean_now >= mean_before:
-                    print('Early stop criteria met, stopping train now...')
+                    print('\n*** early stop criteria met... stopping train now...')
+                    print('*** number of epochs used: %d,  best epoch: %04d\n' % (epoch, best_epoch))
                     break
 
         return epoch
     #    return epoch
     # END _train_adam
+
+    def _get_test_cost(self, sess, input_data, output_data, data_filters,
+                       test_indxs, opt_params, iter_handle):
+        if opt_params['batch_size_test'] is not None:
+            num_batches_test = test_indxs.shape[0] // opt_params['batch_size_test']
+            cost_test = 0
+            for batch_test in range(num_batches_test):
+                batch_indxs_test = test_indxs[
+                                   batch_test * opt_params['batch_size_test']:
+                                   (batch_test + 1) * opt_params['batch_size_test']]
+                if self.data_pipe_type is 'data_as_var':
+                    feed_dict = {self.indices: batch_indxs_test}
+                elif self.data_pipe_type is 'feed_dict':
+                    feed_dict = self._get_feed_dict(
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        batch_indxs=batch_indxs_test)
+                elif self.data_pipe_type is 'iterator':
+                    feed_dict = {self.iterator_handle: iter_handle}
+                cost_test += sess.run(self.cost, feed_dict=feed_dict)
+            cost_test /= num_batches_test
+        else:
+            if self.data_pipe_type is 'data_as_var':
+                feed_dict = {self.indices: test_indxs}
+            elif self.data_pipe_type is 'feed_dict':
+                feed_dict = self._get_feed_dict(
+                    input_data=input_data,
+                    output_data=output_data,
+                    data_filters=data_filters,
+                    batch_indxs=test_indxs)
+            cost_test = sess.run(self.cost, feed_dict=feed_dict)
+        return cost_test
 
     def _get_feed_dict(self, input_data, output_data, batch_indxs,
                        data_filters=None):
@@ -885,6 +899,9 @@ class Network(object):
             opt_params['batch_size'] (int, optional): number of data points to 
                 use for each iteration of training.
                 DEFAULT: 128
+            opt_params['batch_size_test] (int, optional): number of data points to
+                use for each iteration of finding test cost (use if data is big)
+                DEFAULT: None
             opt_params['epochs_training'] (int, optional): max number of 
                 epochs.
                 DEFAULT: 100
@@ -927,6 +944,8 @@ class Network(object):
                 opt_params['learning_rate'] = 1e-3
             if 'batch_size' not in opt_params:
                 opt_params['batch_size'] = 128
+            if 'batch_size_test' not in opt_params:
+                opt_params['batch_size_test'] = None
             if 'epochs_training' not in opt_params:
                 opt_params['epochs_training'] = 100
             if 'epochs_ckpt' not in opt_params:
