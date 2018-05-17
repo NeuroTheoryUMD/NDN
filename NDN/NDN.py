@@ -632,9 +632,10 @@ class NDN(Network):
                                 feed_dict={self.indices: data_indxs})
             elif self.data_pipe_type == 'feed_dict':
                 pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
-                                feed_dict=self._get_feed_dict(input_data=input_data,
-                                                              output_data=output_data,  # this line needed?
-                                                              batch_indxs=data_indxs))
+                                feed_dict=self._get_feed_dict(
+                                    input_data=input_data,
+                                    output_data=output_data,  # this line needed?
+                                    batch_indxs=data_indxs))
 
         return pred
     # END generate_prediction
