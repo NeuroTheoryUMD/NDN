@@ -306,7 +306,8 @@ class Network(object):
             if opt_params['early_stop'] > 0 and test_indxs is None:
                 raise ValueError(
                     'test_indxs must be specified for early stopping')
-            if opt_params['early_stop'] > 0 and opt_params['epochs_early_stop'] is None:
+            if opt_params['early_stop'] > 0 and \
+                    opt_params['epochs_early_stop'] is None:
                 opt_params['epochs_early_stop'] = 1
 
         # build datasets if using 'iterator' pipeline
@@ -553,8 +554,7 @@ class Network(object):
                                                     output_data=output_data,
                                                     data_filters=data_filters,
                                                     test_indxs=test_indxs,
-                                                    opt_params=opt_params,
-                                                    iter_handle=iter_handle_test)
+                                                    opt_params=opt_params)
 
                 # print additional testing info
                 print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f, reg penalty = %10.4f'
@@ -615,20 +615,31 @@ class Network(object):
                                                 output_data=output_data,
                                                 data_filters=data_filters,
                                                 test_indxs=test_indxs,
-                                                opt_params=opt_params,
-                                                iter_handle=iter_handle_test)
+                                                opt_params=opt_params)
 
                 prev_costs = np.roll(prev_costs, 1)
                 prev_costs[0] = cost_test
 
                 mean_now = np.nanmean(prev_costs)
 
-                if prev_costs[0] <= prev_costs[1]:
+                if prev_costs[0] < prev_costs[1]:
+                    print('epoch: %d, chkpting... updating best model...' % epoch)
+                    save_file = os.path.join(output_dir, 'ckpts', 'best_model')
+                    self.checkpoint_model(sess, save_file)
                     best_epoch = epoch
 
                 if mean_now >= mean_before:
-                    print('\n*** early stop criteria met... stopping train now...')
-                    print('*** number of epochs used: %d,  best epoch: %04d\n' % (epoch, best_epoch))
+                    print('\n*** early stop criteria met...'
+                          'stopping train now...')
+                    print('*** number of epochs used: %d,  '
+                          'best epoch: %04d, '
+                          'cost valule at best epoch: %04f\n'
+                          % (epoch, best_epoch, prev_costs[epoch-best_epoch]))
+                    # restore saved variables into tf Variables
+                    self.saver.restore(sess, save_file)
+                    print('...printing prev_costs vector:')
+                    print(prev_costs)
+                    print('\n')
                     break
 
         return epoch
@@ -636,7 +647,17 @@ class Network(object):
     # END _train_adam
 
     def _get_test_cost(self, sess, input_data, output_data, data_filters,
-                       test_indxs, opt_params, iter_handle):
+                       test_indxs, opt_params):
+        """
+        :param sess:
+        :param input_data:
+        :param output_data:
+        :param data_filters:
+        :param test_indxs: *** as a temporary solution when data_pipe_type is iterator, feed
+        handle_iter_test as in place of test_indxs
+        :param opt_params:
+        :return:
+        """
         if opt_params['batch_size_test'] is not None:
             num_batches_test = test_indxs.shape[0] // opt_params['batch_size_test']
             cost_test = 0
@@ -653,7 +674,7 @@ class Network(object):
                         data_filters=data_filters,
                         batch_indxs=batch_indxs_test)
                 elif self.data_pipe_type is 'iterator':
-                    feed_dict = {self.iterator_handle: iter_handle}
+                    feed_dict = {self.iterator_handle: test_indxs}
                 cost_test += sess.run(self.cost, feed_dict=feed_dict)
             cost_test /= num_batches_test
         else:
@@ -665,6 +686,8 @@ class Network(object):
                     output_data=output_data,
                     data_filters=data_filters,
                     batch_indxs=test_indxs)
+            elif self.data_pipe_type is 'iterator':
+                feed_dict = {self.iterator_handle: test_indxs}
             cost_test = sess.run(self.cost, feed_dict=feed_dict)
         return cost_test
 
@@ -789,7 +812,7 @@ class Network(object):
         self.saver.save(sess, save_file)
 #        print('Model checkpointed to %s' % save_file)
 
-    def restore_model(self, save_file, input_data, output_data):
+    def restore_model(self, save_file, input_data=None, output_data=None):
         """Restore previously checkpointed model parameters in tf Variables 
 
         Args:
@@ -807,6 +830,23 @@ class Network(object):
         if not os.path.isfile(save_file + '.meta'):
             raise ValueError(str('%s is not a valid filename' % save_file))
 
+        # Build graph: self.build_graph must be defined in child of network
+        # check input
+        if type(input_data) is not list:
+            input_data = [input_data]
+        if type(output_data) is not list:
+            output_data = [output_data]
+        self.num_examples = input_data[0].shape[0]
+        for temp_data in input_data:
+            if temp_data.shape[0] != self.num_examples:
+                raise ValueError(
+                    'Input data dims must match across input_data.')
+        for nn, temp_data in enumerate(output_data):
+            if temp_data.shape[0] != self.num_examples:
+                raise ValueError('Output dim0 must match model values')
+
+        self._build_graph()
+
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
             # initialize tf params in new session
@@ -814,7 +854,7 @@ class Network(object):
             # restore saved variables into tf Variables
             self.saver.restore(sess, save_file)
             # write out weights/biases to numpy arrays before session closes
-            self.network.write_model_params(sess)
+            self._write_model_params(sess)
 
     def save_model(self, save_file):
         """Save full network object using dill (extension of pickle)

@@ -324,6 +324,10 @@ class SepRegularization(Regularization):
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 [self.input_dims[1]*self.input_dims[2], 1, 1], 'max')
             name = reg_type + '_reg'
+        elif reg_type is 'center':
+            reg_mat = makeRmats.create_maxpenalty_matrix(
+                [self.input_dims[1]*self.input_dims[2], 1, 1], 'max')
+            name = reg_type + '_reg'
         else:
             reg_mat = 0.0
             name = 'lp_placeholder'
@@ -381,6 +385,8 @@ class SepRegularization(Regularization):
 
         elif reg_type == 'd2xt':
             raise TypeError('d2xt does not work with a separable layer.')
+        elif reg_type == 'center':
+            raise TypeError('center is not implemented with layers in sep cathegories.')
         else:
             reg_pen = tf.constant(0.0)
         return reg_pen

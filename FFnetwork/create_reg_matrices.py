@@ -207,12 +207,12 @@ def create_maxpenalty_matrix(input_dims, reg_type):
 
     # additional dimensions are spatial (Nx and Ny)
     num_pix = input_dims[1] * input_dims[2]
-    NK = num_filt * num_pix
+    dims_prod = num_filt * num_pix
 
-    rmat = np.zeros([NK, NK], dtype=np.float32)
+    rmat = np.zeros([dims_prod, dims_prod], dtype=np.float32)
     if reg_type is 'max':
         # Simply subtract the diagonal from all-ones
-        rmat = np.ones([NK, NK], dtype=np.float32) - np.eye(NK, dtype=np.float32)
+        rmat = np.ones([dims_prod, dims_prod], dtype=np.float32) - np.eye(dims_prod, dtype=np.float32)
 
     elif reg_type is 'max_filt':
         ek = np.ones([num_filt, num_filt], dtype=np.float32) - np.eye(num_filt, dtype=np.float32)
@@ -223,13 +223,12 @@ def create_maxpenalty_matrix(input_dims, reg_type):
         rmat = np.kron(ex, np.eye(num_filt, dtype=np.float32))
 
     elif reg_type is 'center':
-        for i in range(NK):
-
+        for i in range(dims_prod):
             pos_x = (i % (input_dims[0] * input_dims[1])) // input_dims[0]
             pos_y = i // (input_dims[0] * input_dims[1])
 
-            center_x = input_dims[1]//2
-            center_y = input_dims[2]//2
+            center_x = (input_dims[1] - 1) / 2
+            center_y = (input_dims[2] - 1) / 2
 
             alpha = np.square(pos_x - center_x) + np.square(pos_y - center_y)
 
