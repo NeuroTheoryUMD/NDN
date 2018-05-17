@@ -254,7 +254,7 @@ class Network(object):
                 and `output_dir` is `None`
             ValueError: If `epochs_summary` in `opt_params` is not `None` and 
                 `output_dir` is `None`
-            ValueError: If `early_stop` >0 and `test_indxs` is 'None'
+            ValueError: If `early_stop` > 0 and `test_indxs` is 'None'
 
         """
 
