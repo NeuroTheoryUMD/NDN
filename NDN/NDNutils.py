@@ -7,49 +7,6 @@ import numpy as np
 from scipy.linalg import toeplitz
 
 
-def FFnetwork_params(**kwargs):
-    print('WARNING: "NDNutils.FFnetwork_params" will soon be deprecated!')
-    print('Use "NDNutils.ffnetwork_params" (with lowercase "f"s) instead.')
-
-    defaults_dict = {
-        'layer_sizes': None,
-        'input_dims': None,
-        'ei_layers': None,
-        'act_funcs': 'relu',
-        'reg_list': None,
-        'layers_to_normalize': None,
-        'xstim_n': 0,
-        'ffnet_n': None,
-        'verbose': True,
-        'network_type': 'normal',
-        'num_conv_layers': 0,  # the below are for convolutional network
-        'sep_layers': None,
-        'conv_filter_widths': None,
-        'shift_spacing': 1,
-        'log_activations': False}
-
-    for key, value in kwargs.iteritems():
-        defaults_dict[key] = value
-
-    return ffnetwork_params(
-        layer_sizes=defaults_dict['layer_sizes'],
-        input_dims=defaults_dict['input_dims'],
-        ei_layers=defaults_dict['ei_layers'],
-        act_funcs=defaults_dict['act_funcs'],
-        reg_list=defaults_dict['reg_list'],
-        layers_to_normalize=defaults_dict['layers_to_normalize'],
-        xstim_n=defaults_dict['xstim_n'],
-        ffnet_n=defaults_dict['ffnet_n'],
-        verbose=defaults_dict['verbose'],
-        network_type=defaults_dict['network_type'],
-        num_conv_layers=defaults_dict['num_conv_layers'],
-        sep_layers=defaults_dict['sep_layers'],
-        conv_filter_widths=defaults_dict['conv_filter_widths'],
-        shift_spacing=defaults_dict['shift_spacing'],
-        log_activations=defaults_dict['log_activations']
-    )
-
-
 def ffnetwork_params(
         layer_sizes=None,
         input_dims=None,
@@ -61,8 +18,8 @@ def ffnetwork_params(
         ffnet_n=None,
         verbose=True,
         network_type='normal',
-        num_conv_layers=0,  # the below are for convolutional network
-        num_convsep_layers=0,  # the below are for convolutional network
+        num_conv_layers=0,      # the below are for convolutional network
+        num_convsep_layers=0,
         sep_layers=None,
         conv_filter_widths=None,
         shift_spacing=1,
@@ -105,6 +62,8 @@ def ffnetwork_params(
         network_type (str, optional): specify type of network
             ['normal'] | 'sep'
         num_conv_layers (int, optional): number of convolutional layers
+        num_convsep_layers (int, optional): number of convolutional, separable
+            layers
         sep_layers (int, optional):
         conv_filter_widths (list of ints, optional): spatial dimension of 
             filter (if different than stim_dims)
@@ -443,7 +402,8 @@ def create_time_embedding(stim, pdims, up_fac=1, tent_spacing=1):
 # END create_time_embedding
 
 
-def generate_spike_history(robs, nlags, neg_constraint=True, reg_par=0, xstim_n=1):
+def generate_spike_history(robs, nlags, neg_constraint=True, reg_par=0,
+                           xstim_n=1):
     """Will generate X-matrix that contains Robs information for each cell. It will
     use the default resolution of robs, and simply go back a certain number of lags.
     To have it applied to the corresponding neuron, will need to use add_layers"""
@@ -462,6 +422,7 @@ def generate_spike_history(robs, nlags, neg_constraint=True, reg_par=0, xstim_n=
 
     return Xspk, ffnetpar
 # END generate_spike_history
+
 
 def generate_xv_folds(nt, fold=5, num_blocks=3):
     """Will generate unique and cross-validation indices, but subsample in each block

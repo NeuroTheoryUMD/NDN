@@ -469,7 +469,8 @@ class Network(object):
         epochs_summary = opt_params['epochs_summary']
 
         if epochs_early_stop > 0:
-            prev_costs = np.multiply(np.ones([epochs_early_stop]), float('NaN'))
+            prev_costs = np.multiply(np.ones([epochs_early_stop]),
+                                     float('NaN'))
 
         num_batches_tr = train_indxs.shape[0] // opt_params['batch_size']
 
@@ -480,6 +481,7 @@ class Network(object):
             run_options = None
             run_metadata = None
 
+        # build iterator handles if using that input pipeline type
         if self.data_pipe_type is 'iterator':
             # build iterator object to access elements from dataset
             iterator_tr = dataset_tr.make_one_shot_iterator()
@@ -554,20 +556,23 @@ class Network(object):
                 reg_pen /= num_batches_tr
 
                 if test_indxs is not None:
-                    if self.data_pipe_type == 'data_as_var' or 'feed_dict':
-                        cost_test = self._get_test_cost(sess=sess,
-                                                        input_data=input_data,
-                                                        output_data=output_data,
-                                                        data_filters=data_filters,
-                                                        test_indxs=test_indxs,
-                                                        opt_params=opt_params)
-                    elif self.data_pipe_type == 'iterator':
-                        cost_test = self._get_test_cost(sess=sess,
-                                                        input_data=input_data,
-                                                        output_data=output_data,
-                                                        data_filters=data_filters,
-                                                        test_indxs=iter_handle_test,
-                                                        opt_params=opt_params)
+                    if self.data_pipe_type is 'data_as_var' or \
+                            self.data_pipe_type is 'feed_dict':
+                        cost_test = self._get_test_cost(
+                            sess=sess,
+                            input_data=input_data,
+                            output_data=output_data,
+                            data_filters=data_filters,
+                            test_indxs=test_indxs,
+                            opt_params=opt_params)
+                    elif self.data_pipe_type is 'iterator':
+                        cost_test = self._get_test_cost(
+                            sess=sess,
+                            input_data=input_data,
+                            output_data=output_data,
+                            data_filters=data_filters,
+                            test_indxs=iter_handle_test,
+                            opt_params=opt_params)
 
                 # print additional testing info
                 print('Epoch %04d:  train cost = %10.4f,'
@@ -595,7 +600,8 @@ class Network(object):
                         feed_dict=feed_dict,
                         options=run_options,
                         run_metadata=run_metadata)
-                    train_writer.add_run_metadata(run_metadata, 'epoch_%d' % epoch)
+                    train_writer.add_run_metadata(
+                        run_metadata, 'epoch_%d' % epoch)
                 else:
                     summary = sess.run(
                         self.merge_summaries,
@@ -610,7 +616,8 @@ class Network(object):
                             feed_dict=feed_dict,
                             options=run_options,
                             run_metadata=run_metadata)
-                        test_writer.add_run_metadata(run_metadata, 'epoch_%d' % epoch)
+                        test_writer.add_run_metadata(
+                            run_metadata, 'epoch_%d' % epoch)
                     else:
                         summary = sess.run(
                             self.merge_summaries,
@@ -625,20 +632,23 @@ class Network(object):
                     warnings.simplefilter("ignore", category=RuntimeWarning)
                     mean_before = np.nanmean(prev_costs)
 
-                if self.data_pipe_type == 'data_as_var' or 'feed_dict':
-                    cost_test = self._get_test_cost(sess=sess,
-                                                    input_data=input_data,
-                                                    output_data=output_data,
-                                                    data_filters=data_filters,
-                                                    test_indxs=test_indxs,
-                                                    opt_params=opt_params)
-                elif self.data_pipe_type == 'iterator':
-                    cost_test = self._get_test_cost(sess=sess,
-                                                    input_data=input_data,
-                                                    output_data=output_data,
-                                                    data_filters=data_filters,
-                                                    test_indxs=iter_handle_test,
-                                                    opt_params=opt_params)
+                if self.data_pipe_type is 'data_as_var' or \
+                        self.data_pipe_type is 'feed_dict':
+                    cost_test = self._get_test_cost(
+                        sess=sess,
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        test_indxs=test_indxs,
+                        opt_params=opt_params)
+                elif self.data_pipe_type is 'iterator':
+                    cost_test = self._get_test_cost(
+                        sess=sess,
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        test_indxs=iter_handle_test,
+                        opt_params=opt_params)
 
                 prev_costs = np.roll(prev_costs, 1)
                 prev_costs[0] = cost_test
@@ -673,23 +683,16 @@ class Network(object):
 
     def _get_test_cost(self, sess, input_data, output_data, data_filters,
                        test_indxs, opt_params):
-        """
-        :param sess:
-        :param input_data:
-        :param output_data:
-        :param data_filters:
-        :param test_indxs: *** as a temporary solution when data_pipe_type is iterator, feed
-        handle_iter_test as in place of test_indxs
-        :param opt_params:
-        :return:
-        """
+        """Utility function to clean up code in `_train_adam` method"""
+
         if opt_params['batch_size_test'] is not None:
-            num_batches_test = test_indxs.shape[0] // opt_params['batch_size_test']
+            num_batches_test = test_indxs.shape[0] // \
+                               opt_params['batch_size_test']
             cost_test = 0
             for batch_test in range(num_batches_test):
                 batch_indxs_test = test_indxs[
-                                   batch_test * opt_params['batch_size_test']:
-                                   (batch_test + 1) * opt_params['batch_size_test']]
+                    batch_test * opt_params['batch_size_test']:
+                    (batch_test + 1) * opt_params['batch_size_test']]
                 if self.data_pipe_type is 'data_as_var':
                     feed_dict = {self.indices: batch_indxs_test}
                 elif self.data_pipe_type is 'feed_dict':
@@ -716,24 +719,38 @@ class Network(object):
             cost_test = sess.run(self.cost, feed_dict=feed_dict)
         return cost_test
 
-    def _get_feed_dict(self, input_data, output_data, batch_indxs,
-                       data_filters=None):
+    def _get_feed_dict(
+            self,
+            input_data=None,
+            output_data=None,
+            batch_indxs=None,
+            data_filters=None):
         """Generates feed dict to be used with the `feed_dict` data pipeline"""
+
+        if batch_indxs is None:
+            batch_indxs = np.arange(input_data[0].shape[0])
+
         feed_dict = {}
-        for i, temp_data in enumerate(input_data):
-            feed_dict[self.data_in_batch[i]] = \
-                temp_data[batch_indxs, :]
-        for i, temp_data in enumerate(output_data):
-            feed_dict[self.data_out_batch[i]] = \
-                temp_data[batch_indxs, :]
-            if self.filter_data:
+        if input_data is not None:
+            for i, temp_data in enumerate(input_data):
+                feed_dict[self.data_in_batch[i]] = \
+                    temp_data[batch_indxs, :]
+        if output_data is not None:
+            for i, temp_data in enumerate(output_data):
+                feed_dict[self.data_out_batch[i]] = \
+                    temp_data[batch_indxs, :]
+        if data_filters is not None:
+            for i, temp_data in enumerate(output_data):
                 feed_dict[self.data_filter_batch[i]] = \
                     data_filters[i][batch_indxs, :]
+
         return feed_dict
     # END _get_feed_dict
 
     def _build_dataset(self, input_data, output_data, data_filters=None,
                        indxs=None, batch_size=32, training_dataset=True):
+        """Generates tf.data.Dataset object to be used with the `iterator` data
+        pipeline"""
 
         # keep track of input tensors
         tensors = {}
@@ -841,11 +858,12 @@ class Network(object):
         """Restore previously checkpointed model parameters in tf Variables 
 
         Args:
-            sess (tf.Session object): current session object to run graph
             save_file (str): full path to saved model
-            input_data (time x input_dim numpy array): input to network
-            output_data (time x output_dim numpy array): desired output of 
-                network
+            input_data (time x input_dim numpy array, optional): input to 
+                network; required if self.data_pipe_type is `data_as_var`
+            output_data (time x output_dim numpy array, optional): desired 
+                output of network; required if self.data_pipe_type is 
+                `data_as_var`
 
         Raises:
             ValueError: If `save_file` is not a valid filename
@@ -855,21 +873,22 @@ class Network(object):
         if not os.path.isfile(save_file + '.meta'):
             raise ValueError(str('%s is not a valid filename' % save_file))
 
-        # Build graph: self.build_graph must be defined in child of network
         # check input
-        if type(input_data) is not list:
-            input_data = [input_data]
-        if type(output_data) is not list:
-            output_data = [output_data]
-        self.num_examples = input_data[0].shape[0]
-        for temp_data in input_data:
-            if temp_data.shape[0] != self.num_examples:
-                raise ValueError(
-                    'Input data dims must match across input_data.')
-        for nn, temp_data in enumerate(output_data):
-            if temp_data.shape[0] != self.num_examples:
-                raise ValueError('Output dim0 must match model values')
+        if self.data_pipe_type == 'data_as_var':
+            if type(input_data) is not list:
+                input_data = [input_data]
+            if type(output_data) is not list:
+                output_data = [output_data]
+            self.num_examples = input_data[0].shape[0]
+            for temp_data in input_data:
+                if temp_data.shape[0] != self.num_examples:
+                    raise ValueError(
+                        'Input data dims must match across input_data.')
+            for nn, temp_data in enumerate(output_data):
+                if temp_data.shape[0] != self.num_examples:
+                    raise ValueError('Output dim0 must match model values')
 
+        # Build graph: self._build_graph must be defined in child of network
         self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:

@@ -26,7 +26,7 @@ class NDN(Network):
         input_sizes (list of lists): list of the form 
             [num_lags, num_x_pix, num_y_pix] that describes the input size for 
             each input stream
-        output_size (list of ints): number of output units for each output 
+        output_sizes (list of ints): number of output units for each output 
             stream
         noise_dist (str): specifies the probability distribution used to define
             the cost function
@@ -53,7 +53,8 @@ class NDN(Network):
     """
 
     _allowed_noise_dists = ['gaussian', 'poisson', 'bernoulli']
-    _allowed_layer_types = ['normal', 'conv', 'sep', 'convsep', 'add']  # ca_tent # pre0 (stim preprocessing layer?)
+    _allowed_layer_types = ['normal', 'conv', 'sep', 'convsep', 'add']
+    # ca_tent # pre0 (stim preprocessing layer?)
 
     def __init__(
             self,
@@ -155,7 +156,8 @@ class NDN(Network):
                     # print('network %i:' % nn, mm, input_dims_measured,
                     # self.networks[mm].layers[-1].output_dims )
                     input_dims_measured = concatenate_input_dims(
-                        input_dims_measured, self.networks[mm].layers[-1].output_dims)
+                        input_dims_measured,
+                        self.networks[mm].layers[-1].output_dims)
 
             # Determine external inputs
             if network_list[nn]['xstim_n'] is not None:
@@ -204,10 +206,11 @@ class NDN(Network):
                 self.networks[ffnet_n].layers[-1].weights.shape[1]
     # END NDN._define_network
 
-    def _build_graph(self,
-                     learning_alg='lbfgs',
-                     opt_params=None,
-                     variable_list=None):
+    def _build_graph(
+            self,
+            learning_alg='lbfgs',
+            opt_params=None,
+            variable_list=None):
         """NDN._build_graph"""
 
         # Take care of optimize parameters if necessary
@@ -218,7 +221,7 @@ class NDN(Network):
 
         # for specifying device
         if opt_params['use_gpu']:
-            self.sess_config = tf.ConfigProto(device_count={'GPU': 1})  # , log_device_placement=True)
+            self.sess_config = tf.ConfigProto(device_count={'GPU': 1})
         else:
             self.sess_config = tf.ConfigProto(device_count={'GPU': 0})
 
@@ -495,21 +498,63 @@ class NDN(Network):
             input_data = [input_data]
         if type(output_data) is not list:
             output_data = [output_data]
-        self.num_examples = input_data[0].shape[0]
-        if data_indxs is None:
-            data_indxs = np.arange(self.num_examples)
-        if data_filters is None:
-            self.filter_data = False
-        else:
+        if data_filters is not None:
             self.filter_data = True
             if type(data_filters) is not list:
                 data_filters = [data_filters]
+            assert len(data_filters) == len(output_data), \
+                'Number of data filters must match output data.'
+        self.num_examples = input_data[0].shape[0]
+        for temp_data in input_data:
+            if temp_data.shape[0] != self.num_examples:
+                raise ValueError(
+                    'Input data dims must match across input_data.')
+        for nn, temp_data in enumerate(output_data):
+            if temp_data.shape[0] != self.num_examples:
+                raise ValueError('Output dim0 must match model values')
+            if self.filter_data:
+                assert data_filters[nn].shape == temp_data.shape, \
+                    'data_filter sizes must match output_data'
+        if data_indxs is None:
+            data_indxs = np.arange(self.num_examples)
+
+        # build datasets if using 'iterator' pipeline
+        if self.data_pipe_type is 'iterator':
+            dataset = self._build_dataset(
+                input_data=input_data,
+                output_data=output_data,
+                data_filters=data_filters,
+                indxs=data_indxs,
+                training_dataset=False,
+                batch_size=self.num_examples)
+            # store info on dataset for buiding data pipeline
+            self.dataset_types = dataset.output_types
+            self.dataset_shapes = dataset.output_shapes
+            # build iterator object to access elements from dataset
+            iterator = dataset.make_one_shot_iterator()
+
         self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
+
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
-            cost = sess.run(self.cost, feed_dict={self.indices: data_indxs})
+
+            if self.data_pipe_type is 'data_as_var':
+                # get the feed_dict for batch_indxs
+                feed_dict = {self.indices: data_indxs}
+            elif self.data_pipe_type is 'feed_dict':
+                feed_dict = self._get_feed_dict(
+                    input_data=input_data,
+                    output_data=output_data,
+                    data_filters=data_filters,
+                    batch_indxs=data_indxs)
+            elif self.data_pipe_type is 'iterator':
+                # get string handle of iterator
+                iter_handle = sess.run(iterator.string_handle())
+                feed_dict = {self.iterator_handle: iter_handle}
+
+            cost = sess.run(self.cost, feed_dict=feed_dict)
 
         return cost
     # END get_LL
@@ -532,53 +577,81 @@ class NDN(Network):
 
         """
 
-        # check inputs
-        if input_data is None:
-            raise TypeError('Must specify input data')
+        # check input
         if type(input_data) is not list:
             input_data = [input_data]
-        if output_data is None:
-            raise TypeError('Must specify output data')
         if type(output_data) is not list:
             output_data = [output_data]
-        self.num_examples = input_data[0].shape[0]
-
-        if data_indxs is None:
-            data_indxs = np.arange(self.num_examples)
-
-        if data_filters is None:
-            self.filter_data = False
-        else:
+        if data_filters is not None:
             self.filter_data = True
             if type(data_filters) is not list:
                 data_filters = [data_filters]
+            assert len(data_filters) == len(output_data), \
+                'Number of data filters must match output data.'
+        self.num_examples = input_data[0].shape[0]
+        for temp_data in input_data:
+            if temp_data.shape[0] != self.num_examples:
+                raise ValueError(
+                    'Input data dims must match across input_data.')
+        for nn, temp_data in enumerate(output_data):
+            if temp_data.shape[0] != self.num_examples:
+                raise ValueError('Output dim0 must match model values')
+            if self.filter_data:
+                assert data_filters[nn].shape == temp_data.shape, \
+                    'data_filter sizes must match output_data'
+        if data_indxs is None:
+            data_indxs = np.arange(self.num_examples)
+
+        # build datasets if using 'iterator' pipeline
+        if self.data_pipe_type is 'iterator':
+            dataset = self._build_dataset(
+                input_data=input_data,
+                output_data=output_data,
+                data_filters=data_filters,
+                indxs=data_indxs,
+                training_dataset=False,
+                batch_size=self.num_examples)
+            # store info on dataset for buiding data pipeline
+            self.dataset_types = dataset.output_types
+            self.dataset_shapes = dataset.output_shapes
+            # build iterator object to access elements from dataset
+            iterator = dataset.make_one_shot_iterator()
 
         self._build_graph()
 
-        if self.data_pipe_type == 'data_as_var':
-            feed_dict = {self.indices: data_indxs}
-        elif self.data_pipe_type == 'feed_dict':
-            feed_dict = self._get_feed_dict(input_data=input_data,
-                                            output_data=output_data,
-                                            data_filters=data_filters,
-                                            batch_indxs=data_indxs)
-
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
+
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
-            LL_neuron = sess.run(
-                self.unit_cost, feed_dict=feed_dict)
+
+            if self.data_pipe_type is 'data_as_var':
+                # get the feed_dict for batch_indxs
+                feed_dict = {self.indices: data_indxs}
+            elif self.data_pipe_type is 'feed_dict':
+                feed_dict = self._get_feed_dict(
+                    input_data=input_data,
+                    output_data=output_data,
+                    data_filters=data_filters,
+                    batch_indxs=data_indxs)
+            elif self.data_pipe_type is 'iterator':
+                # get string handle of iterator
+                iter_handle = sess.run(iterator.string_handle())
+                feed_dict = {self.iterator_handle: iter_handle}
+
+            ll_neuron = sess.run(self.unit_cost, feed_dict=feed_dict)
 
             if nulladjusted:
-                # note that LL_neuron is negative of the true LL, but nullLL is
-                # not (so + is actually subtraction)
-                LL_neuron = -LL_neuron - self.nullLL(output_data[0][data_indxs, :])
+                # note that ll_neuron is negative of the true log-likelihood,
+                # but nullLL is not (so + is actually subtraction)
+                ll_neuron = -ll_neuron - \
+                            self.nullLL(output_data[0][data_indxs, :])
                 # note that this will only be correct for single output indices
 
-        return LL_neuron
+        return ll_neuron
     # END get_LL_neuron
 
-    def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1, layer=-1):
+    def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1,
+                            layer=-1):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -603,39 +676,62 @@ class NDN(Network):
         if type(input_data) is not list:
             input_data = [input_data]
         self.num_examples = input_data[0].shape[0]
+        for temp_data in input_data:
+            if temp_data.shape[0] != self.num_examples:
+                raise ValueError(
+                    'Input data dims must match across input_data.')
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
         if layer >= len(self.networks[ffnet_n].layers):
                 ValueError('This layer does not exist.')
+        if data_indxs is None:
+            data_indxs = np.arange(self.num_examples)
 
         # Generate fake_output data and take care of data-filtering, in case
         # necessary
         self.filter_data = False
         num_outputs = len(self.ffnet_out)
-        output_data = [None]*num_outputs
+        output_data = [None] * num_outputs
         for nn in range(num_outputs):
             output_data[nn] = np.zeros(
                 [self.num_examples,
                  self.networks[ffnet_n].layers[-1].weights.shape[1]],
                 dtype='float32')
 
+        # build datasets if using 'iterator' pipeline
+        if self.data_pipe_type is 'iterator':
+            dataset = self._build_dataset(
+                input_data=input_data,
+                output_data=output_data,
+                indxs=data_indxs,
+                training_dataset=False,
+                batch_size=self.num_examples)
+            # store info on dataset for buiding data pipeline
+            self.dataset_types = dataset.output_types
+            self.dataset_shapes = dataset.output_shapes
+            # build iterator object to access elements from dataset
+            iterator = dataset.make_one_shot_iterator()
+
         self._build_graph()
 
-        if data_indxs is None:
-            data_indxs = np.arange(self.num_examples)
-
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
+
             self._restore_params(sess, input_data, output_data)
 
             if self.data_pipe_type == 'data_as_var':
-                pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
-                                feed_dict={self.indices: data_indxs})
+                feed_dict = {self.indices: data_indxs}
             elif self.data_pipe_type == 'feed_dict':
-                pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
-                                feed_dict=self._get_feed_dict(
-                                    input_data=input_data,
-                                    output_data=output_data,  # this line needed?
-                                    batch_indxs=data_indxs))
+                feed_dict = self._get_feed_dict(
+                    input_data=input_data,
+                    batch_indxs=data_indxs)
+            elif self.data_pipe_type is 'iterator':
+                # get string handle of iterator
+                iter_handle = sess.run(iterator.string_handle())
+                feed_dict = {self.iterator_handle: iter_handle}
+
+            pred = sess.run(
+                self.networks[ffnet_n].layers[layer].outputs,
+                feed_dict=feed_dict)
 
         return pred
     # END generate_prediction
@@ -645,6 +741,7 @@ class NDN(Network):
 
         reg_dict = {}
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
+
             # initialize all parameters randomly
             sess.run(self.init)
 
@@ -672,22 +769,27 @@ class NDN(Network):
         # Copy all the parameters
         for nn in range(self.num_networks):
             for ll in range(self.networks[nn].num_layers):
-                target.networks[nn].layers[ll].weights = self.networks[nn].layers[ll].weights
-                target.networks[nn].layers[ll].biases = self.networks[nn].layers[ll].biases
-                target.networks[nn].layers[ll].reg = self.networks[nn].layers[ll].reg.reg_copy()
+                target.networks[nn].layers[ll].weights = \
+                    self.networks[nn].layers[ll].weights
+                target.networks[nn].layers[ll].biases = \
+                    self.networks[nn].layers[ll].biases
+                target.networks[nn].layers[ll].reg = \
+                    self.networks[nn].layers[ll].reg.reg_copy()
 
         return target
 
     def initialize_output_layer_bias(self, robs):
-        """Sets biases in output layer(w) to explain mean firing rate, using Robs"""
+        """Sets biases in output layer(w) to explain mean firing rate, using 
+        Robs"""
 
         if robs is not list:
             robs = [robs]
         for nn in range(len(self.ffnet_out)):
-            FRs = np.mean(robs[nn], axis=0, dtype='float32')
-            assert len(FRs) == len(self.networks[self.ffnet_out[nn]].layers[-1].biases[0]), \
+            frs = np.mean(robs[nn], axis=0, dtype='float32')
+            assert len(frs) == len(
+                self.networks[self.ffnet_out[nn]].layers[-1].biases[0]), \
                 'Robs length wrong'
-            self.networks[self.ffnet_out[nn]].layers[-1].biases = FRs
+            self.networks[self.ffnet_out[nn]].layers[-1].biases = frs
     # END NDN.initialize_output_layer_bias
 
     def nullLL(self, robs):
