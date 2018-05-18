@@ -243,6 +243,8 @@ class Network(object):
                 `epochs_ckpt` or `epochs_summary` values in `opt_params` is not
                 `None`. If `output_dir` is not `None`, regardless of checkpoint
                 or summary settings, the graph will automatically be saved.
+                Must be present if early_stopping is desired to restore the
+                best fit, otherwise it will restore the model at break point.
 
         Returns:
             int: number of total training epochs
@@ -490,8 +492,11 @@ class Network(object):
                 # get string handle of iterator
                 iter_handle_test = sess.run(iterator_test.string_handle())
 
-        # start training loop
+        # used in early_stopping
         best_epoch = 0
+        best_cost = float('Inf')
+
+        # start training loop
         for epoch in range(epochs_training):
 
             # shuffle data before each pass
@@ -549,15 +554,25 @@ class Network(object):
                 reg_pen /= num_batches_tr
 
                 if test_indxs is not None:
-                    cost_test = self._get_test_cost(sess=sess,
-                                                    input_data=input_data,
-                                                    output_data=output_data,
-                                                    data_filters=data_filters,
-                                                    test_indxs=test_indxs,
-                                                    opt_params=opt_params)
+                    if self.data_pipe_type == 'data_as_var' or 'feed_dict':
+                        cost_test = self._get_test_cost(sess=sess,
+                                                        input_data=input_data,
+                                                        output_data=output_data,
+                                                        data_filters=data_filters,
+                                                        test_indxs=test_indxs,
+                                                        opt_params=opt_params)
+                    elif self.data_pipe_type == 'iterator':
+                        cost_test = self._get_test_cost(sess=sess,
+                                                        input_data=input_data,
+                                                        output_data=output_data,
+                                                        data_filters=data_filters,
+                                                        test_indxs=iter_handle_test,
+                                                        opt_params=opt_params)
 
                 # print additional testing info
-                print('Epoch %04d:  train cost = %10.4f, test cost = %10.4f, reg penalty = %10.4f'
+                print('Epoch %04d:  train cost = %10.4f,'
+                      'test cost = %10.4f,'
+                      'reg penalty = %10.4f'
                       % (epoch, cost_tr, cost_test, reg_pen))
 
             # save model checkpoints
@@ -610,36 +625,46 @@ class Network(object):
                     warnings.simplefilter("ignore", category=RuntimeWarning)
                     mean_before = np.nanmean(prev_costs)
 
-                cost_test = self._get_test_cost(sess=sess,
-                                                input_data=input_data,
-                                                output_data=output_data,
-                                                data_filters=data_filters,
-                                                test_indxs=test_indxs,
-                                                opt_params=opt_params)
+                if self.data_pipe_type == 'data_as_var' or 'feed_dict':
+                    cost_test = self._get_test_cost(sess=sess,
+                                                    input_data=input_data,
+                                                    output_data=output_data,
+                                                    data_filters=data_filters,
+                                                    test_indxs=test_indxs,
+                                                    opt_params=opt_params)
+                elif self.data_pipe_type == 'iterator':
+                    cost_test = self._get_test_cost(sess=sess,
+                                                    input_data=input_data,
+                                                    output_data=output_data,
+                                                    data_filters=data_filters,
+                                                    test_indxs=iter_handle_test,
+                                                    opt_params=opt_params)
 
                 prev_costs = np.roll(prev_costs, 1)
                 prev_costs[0] = cost_test
 
                 mean_now = np.nanmean(prev_costs)
 
-                if prev_costs[0] < prev_costs[1]:
-                    print('epoch: %d, chkpting... updating best model...' % epoch)
-                    save_file = os.path.join(output_dir, 'ckpts', 'best_model')
-                    self.checkpoint_model(sess, save_file)
+                if cost_test < best_cost:
+                    # update best cost and the epoch that it happened at
+                    best_cost = cost_test
                     best_epoch = epoch
+                    # chkpt model if desired
+                    if output_dir is not None:
+                        save_file = os.path.join(output_dir,
+                                                 'ckpts', 'best_model')
+                        self.checkpoint_model(sess, save_file)
 
                 if mean_now >= mean_before:
                     print('\n*** early stop criteria met...'
                           'stopping train now...')
-                    print('*** number of epochs used: %d,  '
-                          'best epoch: %04d, '
-                          'cost valule at best epoch: %04f\n'
-                          % (epoch, best_epoch, prev_costs[epoch-best_epoch]))
+                    print('     ---> number of epochs used: %d,  '
+                          'end cost: %04f' % (epoch, cost_test))
+                    print('     ---> best epoch: %d,  '
+                          'best cost: %04f\n' % (best_epoch, best_cost))
                     # restore saved variables into tf Variables
-                    self.saver.restore(sess, save_file)
-                    print('...printing prev_costs vector:')
-                    print(prev_costs)
-                    print('\n')
+                    if output_dir is not None:
+                        self.saver.restore(sess, save_file)
                     break
 
         return epoch
@@ -939,8 +964,9 @@ class Network(object):
             opt_params['batch_size'] (int, optional): number of data points to 
                 use for each iteration of training.
                 DEFAULT: 128
-            opt_params['batch_size_test] (int, optional): number of data points to
-                use for each iteration of finding test cost (use if data is big)
+            opt_params['batch_size_test] (int, optional): number of data
+                points to use for each iteration of finding test cost
+                (use if data is big)
                 DEFAULT: None
             opt_params['epochs_training'] (int, optional): max number of 
                 epochs.
@@ -951,15 +977,18 @@ class Network(object):
             opt_params['epochs_early_stop'] (int, optional): number of epochs 
                 between checks for early stopping.
                 DEFAULT: `None`
-            opt_params['early_stop'] (int, optional): if greater than zero, training
-                exits when the cost function evaluated on test_indxs is not lower than
-                the maximum over that many previous checks
+            opt_params['early_stop'] (int, optional): if greater than zero,
+                training exits when the cost function evaluated on test_indxs is
+                not lower than the maximum over that many previous checks
                 DEFAULT: 0
-            opt_params['beta1'] (float, optional): beta1 (1st momentum term) for Adam
+            opt_params['beta1'] (float, optional): beta1 (1st momentum term)
+                for Adam
                 DEFAULT: 0.9
-            opt_params['beta2'] (float, optional): beta2 (2nd momentum term) for Adam
+            opt_params['beta2'] (float, optional): beta2 (2nd momentum term)
+                for Adam
                 DEFAULT: 0.999
-            opt_params['epsilon'] (float, optional): epsilon parameter in Adam optimizer
+            opt_params['epsilon'] (float, optional): epsilon parameter in
+                Adam optimizer
                 DEFAULT: 1e-4 (note normal Adam default is 1e-8)
             opt_params['epochs_summary'] (int, optional): number of epochs
                 between saving network summary information.
