@@ -308,9 +308,6 @@ class Network(object):
             if opt_params['early_stop'] > 0 and test_indxs is None:
                 raise ValueError(
                     'test_indxs must be specified for early stopping')
-            if opt_params['early_stop'] > 0 and \
-                    opt_params['epochs_early_stop'] is None:
-                opt_params['epochs_early_stop'] = 1
 
         # build datasets if using 'iterator' pipeline
         if self.data_pipe_type is 'iterator':
@@ -465,11 +462,10 @@ class Network(object):
 
         epochs_training = opt_params['epochs_training']
         epochs_ckpt = opt_params['epochs_ckpt']
-        epochs_early_stop = opt_params['early_stop']
         epochs_summary = opt_params['epochs_summary']
 
-        if epochs_early_stop > 0:
-            prev_costs = np.multiply(np.ones([epochs_early_stop]),
+        if opt_params['early_stop'] > 0:
+            prev_costs = np.multiply(np.ones(opt_params['early_stop']),
                                      float('NaN'))
 
         num_batches_tr = train_indxs.shape[0] // opt_params['batch_size']
@@ -575,10 +571,11 @@ class Network(object):
                             opt_params=opt_params)
 
                 # print additional testing info
-                print('Epoch %04d:  train cost = %10.4f,'
-                      'test cost = %10.4f,'
+                print('Epoch %04d:  avg train cost = %10.4f,  '
+                      'avg test cost = %10.4f,  '
                       'reg penalty = %10.4f'
-                      % (epoch, cost_tr, cost_test, reg_pen))
+                      % (epoch, cost_tr / self.output_sizes[0],
+                         cost_test / self.output_sizes[0], reg_pen))
 
             # save model checkpoints
             if epochs_ckpt is not None and (
@@ -655,17 +652,31 @@ class Network(object):
 
                 mean_now = np.nanmean(prev_costs)
 
+                delta = (mean_before - mean_now) / mean_before
+
+                # to check and refine the condition on chkpting best model
+                # print(epoch, delta, 'delta condition:', delta < 1e-4)
+
                 if cost_test < best_cost:
                     # update best cost and the epoch that it happened at
                     best_cost = cost_test
                     best_epoch = epoch
                     # chkpt model if desired
                     if output_dir is not None:
-                        save_file = os.path.join(output_dir,
-                                                 'ckpts', 'best_model')
-                        self.checkpoint_model(sess, save_file)
+                        chkpted = False
+                        if opt_params['early_stop_mode'] == 1:
+                            save_file = os.path.join(output_dir,
+                                                     'ckpts', 'best_model')
+                            self.checkpoint_model(sess, save_file)
+                            chkpted = True
+                        elif opt_params['early_stop_mode'] == 2 and \
+                                delta < 5e-5:
+                            save_file = os.path.join(output_dir,
+                                                     'ckpts', 'best_model')
+                            self.checkpoint_model(sess, save_file)
+                            chkpted = True
 
-                if mean_now >= mean_before:
+                if mean_now >= mean_before:  # or equivalently delta <= 0
                     print('\n*** early stop criteria met...'
                           'stopping train now...')
                     print('     ---> number of epochs used: %d,  '
@@ -673,13 +684,14 @@ class Network(object):
                     print('     ---> best epoch: %d,  '
                           'best cost: %04f\n' % (best_epoch, best_cost))
                     # restore saved variables into tf Variables
-                    if output_dir is not None:
+                    if output_dir is not None and chkpted and \
+                            opt_params['early_stop_mode'] > 0:
+                        # save_file exists if chkpted is True
                         self.saver.restore(sess, save_file)
                     break
-
         return epoch
-    #    return epoch
-    # END _train_adam
+        #    return epoch
+        # END _train_adam
 
     def _get_test_cost(self, sess, input_data, output_data, data_filters,
                        test_indxs, opt_params):
@@ -942,60 +954,62 @@ class Network(object):
     @classmethod
     def optimizer_defaults(cls, opt_params, learning_alg):
         """Sets defaults for different optimizers
-        
-        In the `opt_params` dictionary, the `display` and `use_gpu` keys are 
+
+        In the `opt_params` dictionary, the `display` and `use_gpu` keys are
         available for all optimizers. The following keys are used exclusively
-        for lbfgs: `max_iter`, `func_tol`, `grad_tol` and `eps`. The remaining 
+        for lbfgs: `max_iter`, `func_tol`, `grad_tol` and `eps`. The remaining
         keys are all specific to the adam optimizer.
-        
+
         Args:
             opt_params: dictionary with optimizer-specific parameters
-            opt_params['display'] (int, optional): For adam, this defines the 
-                number of epochs between updates to the console. Becomes 
-                boolean for lbfgs, prints detailed optimizer info for each 
+            opt_params['display'] (int, optional): For adam, this defines the
+                number of epochs between updates to the console. Becomes
+                boolean for lbfgs, prints detailed optimizer info for each
                 iteration.
                 DEFAULT: 0/False
             opt_params['use_gpu'] (bool, optional): `True` to fit model on gpu.
                 DEFAULT: False
-            opt_params['data_pipe_type'] (int, optional): specify how data 
+            opt_params['data_pipe_type'] (int, optional): specify how data
                 should be fed to the model.
-                0: pin input/output data to tf.Variable; when fitting models 
-                    with a GPU, this puts all data on the GPU and avoids the 
+                0: pin input/output data to tf.Variable; when fitting models
+                    with a GPU, this puts all data on the GPU and avoids the
                     overhead associated with moving data from CPU to GPU. Works
                     well when data+model can fit on GPU
                 1: standard use of feed_dict
                 DEFAULT: 0
-            opt_params['max_iter'] (int, optional): maximum iterations for  
+            opt_params['max_iter'] (int, optional): maximum iterations for
                 lbfgs algorithm.
                 DEFAULT: 500
-            opt_params['func_tol'] (float, optional): see lbfgs method in SciPy 
-                optimizer. 
+            opt_params['func_tol'] (float, optional): see lbfgs method in SciPy
+                optimizer.
                 DEFAULT: 2.22e-09
-            opt_params['grad_tol'] (float, optional): see lbfgs method in SciPy 
-                optimizer. 
+            opt_params['grad_tol'] (float, optional): see lbfgs method in SciPy
+                optimizer.
                 DEFAULT: 1e-05
-            opt_params['eps'] (float, optional): see lbfgs method in SciPy 
-                optimizer. 
+            opt_params['eps'] (float, optional): see lbfgs method in SciPy
+                optimizer.
                 DEFAULT: 1e-08
-            opt_params['learning_rate'] (float, optional): learning rate used 
-                by adam. 
+            opt_params['learning_rate'] (float, optional): learning rate used
+                by adam.
                 DEFAULT: 1e-3.
-            opt_params['batch_size'] (int, optional): number of data points to 
+            opt_params['batch_size'] (int, optional): number of data points to
                 use for each iteration of training.
                 DEFAULT: 128
             opt_params['batch_size_test] (int, optional): number of data
                 points to use for each iteration of finding test cost
                 (use if data is big)
                 DEFAULT: None
-            opt_params['epochs_training'] (int, optional): max number of 
+            opt_params['epochs_training'] (int, optional): max number of
                 epochs.
                 DEFAULT: 100
-            opt_params['epochs_ckpt'] (int, optional): number of epochs between 
+            opt_params['epochs_ckpt'] (int, optional): number of epochs between
                 saving checkpoint files.
                 DEFAULT: `None`
-            opt_params['epochs_early_stop'] (int, optional): number of epochs 
-                between checks for early stopping.
-                DEFAULT: `None`
+            opt_params['early_stop_mode'] (int, optional): different options include
+                0: don't chkpt, return the last model after loop break
+                1: chkpt all models and choose the best one from the pool
+                2: chkpt in a smart way, when training session is about to converge
+                DEFAULT: `0`
             opt_params['early_stop'] (int, optional): if greater than zero,
                 training exits when the cost function evaluated on test_indxs is
                 not lower than the maximum over that many previous checks
@@ -1038,8 +1052,8 @@ class Network(object):
                 opt_params['epochs_training'] = 100
             if 'epochs_ckpt' not in opt_params:
                 opt_params['epochs_ckpt'] = None
-            if 'epochs_early_stop' not in opt_params:
-                opt_params['epochs_early_stop'] = None
+            if 'early_stop_mode' not in opt_params:
+                opt_params['early_stop_mode'] = 0
             if 'epochs_summary' not in opt_params:
                 opt_params['epochs_summary'] = None
             if 'early_stop' not in opt_params:
@@ -1060,7 +1074,7 @@ class Network(object):
             # max{ | proj g_i | i = 1, ..., n} <= pgtol
             # where pg_i is the i-th component of the projected gradient.
             if 'func_tol' not in opt_params:
-                opt_params['func_tol'] = 2.220446049250313e-09  #?
+                opt_params['func_tol'] = 2.220446049250313e-09  # ?
             if 'grad_tol' not in opt_params:
                 opt_params['grad_tol'] = 1e-05
             if 'eps' not in opt_params:
