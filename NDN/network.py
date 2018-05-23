@@ -493,6 +493,7 @@ class Network(object):
         # used in early_stopping
         best_epoch = 0
         best_cost = float('Inf')
+        chkpted = False
 
         # start training loop
         for epoch in range(epochs_training):
@@ -663,7 +664,6 @@ class Network(object):
                     best_epoch = epoch
                     # chkpt model if desired
                     if output_dir is not None:
-                        chkpted = False
                         if opt_params['early_stop_mode'] == 1:
                             save_file = os.path.join(output_dir,
                                                      'ckpts', 'best_model')
@@ -686,7 +686,7 @@ class Network(object):
                     # restore saved variables into tf Variables
                     if output_dir is not None and chkpted and \
                             opt_params['early_stop_mode'] > 0:
-                        # save_file exists if chkpted is True
+                        # save_file exists only if chkpted is True
                         self.saver.restore(sess, save_file)
                     break
         return epoch
