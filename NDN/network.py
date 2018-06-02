@@ -8,6 +8,7 @@ import sys
 import numpy as np
 import tensorflow as tf
 import warnings
+import shutil
 
 # supress INFO log
 tf.logging.set_verbosity(tf.logging.FATAL)
@@ -666,13 +667,13 @@ class Network(object):
                     if output_dir is not None:
                         if opt_params['early_stop_mode'] == 1:
                             save_file = os.path.join(output_dir,
-                                                     'ckpts', 'best_model')
+                                                     'bstmods', 'best_model')
                             self.checkpoint_model(sess, save_file)
                             chkpted = True
                         elif opt_params['early_stop_mode'] == 2 and \
                                 delta < 5e-5:
                             save_file = os.path.join(output_dir,
-                                                     'ckpts', 'best_model')
+                                                     'bstmods', 'best_model')
                             self.checkpoint_model(sess, save_file)
                             chkpted = True
 
@@ -688,6 +689,10 @@ class Network(object):
                             opt_params['early_stop_mode'] > 0:
                         # save_file exists only if chkpted is True
                         self.saver.restore(sess, save_file)
+                        # delete files before break to clean up space
+                        shutil.rmtree(os.path.join(output_dir, 'bstmods'),
+                                      ignore_errors=True)
+
                     break
         return epoch
         #    return epoch
