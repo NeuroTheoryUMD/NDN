@@ -466,8 +466,8 @@ class NDN(Network):
         if layer_target is None:
             # set all layers
             for nn in range(self.num_networks):
-                layer_target = range(self.networks[ffnet_n].num_layers)
-        elif not isinstance(layer_target,list):
+                layer_target = range(self.networks[nn].num_layers)
+        elif not isinstance(layer_target, list):
                 layer_target = [layer_target]
 
         # set regularization at the layer level

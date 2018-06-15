@@ -677,23 +677,41 @@ class Network(object):
                             self.checkpoint_model(sess, save_file)
                             chkpted = True
 
-                if mean_now >= mean_before:  # or equivalently delta <= 0
-                    print('\n*** early stop criteria met...'
-                          'stopping train now...')
-                    print('     ---> number of epochs used: %d,  '
-                          'end cost: %04f' % (epoch, cost_test))
-                    print('     ---> best epoch: %d,  '
-                          'best cost: %04f\n' % (best_epoch, best_cost))
-                    # restore saved variables into tf Variables
-                    if output_dir is not None and chkpted and \
-                            opt_params['early_stop_mode'] > 0:
-                        # save_file exists only if chkpted is True
-                        self.saver.restore(sess, save_file)
-                        # delete files before break to clean up space
-                        shutil.rmtree(os.path.join(output_dir, 'bstmods'),
-                                      ignore_errors=True)
-
-                    break
+                if (opt_params['early_stop_mode'] == 1 and
+                        epoch > opt_params['early_stop']):
+                    if mean_now >= mean_before:  # or equivalently delta <= 0
+                        print('\n*** early stop criteria met...'
+                              'stopping train now...')
+                        print('     ---> number of epochs used: %d,  '
+                              'end cost: %04f' % (epoch, cost_test))
+                        print('     ---> best epoch: %d,  '
+                              'best cost: %04f\n' % (best_epoch, best_cost))
+                        # restore saved variables into tf Variables
+                        if output_dir is not None and chkpted and \
+                                opt_params['early_stop_mode'] > 0:
+                            # save_file exists only if chkpted is True
+                            self.saver.restore(sess, save_file)
+                            # delete files before break to clean up space
+                            shutil.rmtree(os.path.join(output_dir, 'bstmods'),
+                                          ignore_errors=True)
+                        break
+                else:
+                    if mean_now >= mean_before:  # or equivalently delta <= 0
+                        print('\n*** early stop criteria met...'
+                              'stopping train now...')
+                        print('     ---> number of epochs used: %d,  '
+                              'end cost: %04f' % (epoch, cost_test))
+                        print('     ---> best epoch: %d,  '
+                              'best cost: %04f\n' % (best_epoch, best_cost))
+                        # restore saved variables into tf Variables
+                        if output_dir is not None and chkpted and \
+                                opt_params['early_stop_mode'] > 0:
+                            # save_file exists only if chkpted is True
+                            self.saver.restore(sess, save_file)
+                            # delete files before break to clean up space
+                            shutil.rmtree(os.path.join(output_dir, 'bstmods'),
+                                          ignore_errors=True)
+                        break
         return epoch
         #    return epoch
         # END _train_adam
@@ -936,6 +954,7 @@ class Network(object):
             dill.dump(self, f)
         print('Model pickled to %s' % save_file)
 
+    # noinspection PyInterpreter
     @classmethod
     def load_model(cls, save_file):
         """Restore previously saved network object 
@@ -1016,8 +1035,10 @@ class Network(object):
                 2: chkpt in a smart way, when training session is about to converge
                 DEFAULT: `0`
             opt_params['early_stop'] (int, optional): if greater than zero,
-                training exits when the cost function evaluated on test_indxs is
-                not lower than the maximum over that many previous checks
+                training ends when the cost function evaluated on test_indxs is
+                not lower than the maximum over that many previous checks.
+                (Note that when early_stop > 0 and early_stop_mode = 1, early
+                stopping will come in effect after epoch > early_stop pool size)
                 DEFAULT: 0
             opt_params['beta1'] (float, optional): beta1 (1st momentum term)
                 for Adam

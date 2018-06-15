@@ -818,8 +818,8 @@ class ConvSepLayer(Layer):
             shaped_input = tf.reshape(inputs, input_dims)
 
             # Reshape weights (4:D:
-            conv_filter_dims = [self.filter_dims[2], self.filter_dims[1], self.filter_dims[0],
-                                self.num_filters]
+            conv_filter_dims = [self.filter_dims[2], self.filter_dims[1],
+                                self.filter_dims[0], self.num_filters]
             ws_conv = tf.reshape(weights_full, conv_filter_dims)
 
             # Make strides list
@@ -830,7 +830,8 @@ class ConvSepLayer(Layer):
                 strides[2] = self.shift_spacing
 
             if self.pos_constraint:
-                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
+                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides,
+                                   padding='SAME')
             else:
                 pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
 
@@ -842,7 +843,8 @@ class ConvSepLayer(Layer):
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
             self.outputs = tf.reshape(
-                post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
+                post, [-1,
+                       self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)

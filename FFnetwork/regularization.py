@@ -28,7 +28,7 @@ class Regularization(object):
 
     """
 
-    _allowed_reg_types = ['l1', 'l2', 'norm2',
+    _allowed_reg_types = ['l1', 'l2', 'norm2', 'norm2_space', 'norm2_filt',
                           'd2t', 'd2x', 'd2xt',
                           'max', 'max_filt', 'max_space', 'center']
 
@@ -350,6 +350,19 @@ class SepRegularization(Regularization):
             reg_pen = tf.multiply(
                 self.vals_var['norm2'],
                 tf.square(tf.reduce_sum(tf.square(weights))-self.num_outputs))
+        elif reg_type == 'norm2_filt':
+            wfilt = tf.slice(weights, [0, 0], [self.input_dims[0],
+                                               self.num_outputs])
+            reg_pen = tf.multiply(
+                self.vals_var['norm2_filt'],
+                tf.square(tf.reduce_sum(tf.square(wfilt))-self.num_outputs))
+        elif reg_type == 'norm2_space':
+            wspace = tf.slice(weights, [self.input_dims[0], 0],
+                              [self.input_dims[1]*self.input_dims[2],
+                               self.num_outputs])
+            reg_pen = tf.multiply(
+                self.vals_var['norm2_space'],
+                tf.square(tf.reduce_sum(tf.square(wspace))-self.num_outputs))
 
         elif reg_type == 'max_space':
             wspace2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
@@ -377,8 +390,8 @@ class SepRegularization(Regularization):
 
         elif reg_type == 'd2x':
             wspace = tf.slice(weights, [self.input_dims[0], 0],
-                               [self.input_dims[1]*self.input_dims[2],
-                                self.num_outputs])
+                              [self.input_dims[1]*self.input_dims[2],
+                               self.num_outputs])
             reg_pen = tf.multiply(self.vals_var['d2x'],
                                   tf.reduce_sum(tf.square(
                                       tf.matmul(self.mats['d2x'], wspace))))
