@@ -677,9 +677,9 @@ class Network(object):
                             self.checkpoint_model(sess, save_file)
                             chkpted = True
 
-                if (opt_params['early_stop_mode'] == 1 and
-                        epoch > opt_params['early_stop']):
-                    if mean_now >= mean_before:  # or equivalently delta <= 0
+                if opt_params['early_stop_mode'] == 1:
+                    if (epoch > opt_params['early_stop'] and
+                            mean_now >= mean_before):  # or equivalently delta <= 0
                         print('\n*** early stop criteria met...'
                               'stopping train now...')
                         print('     ---> number of epochs used: %d,  '
