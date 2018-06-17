@@ -279,7 +279,7 @@ class NDN(Network):
 
             # Define loss function
             with tf.variable_scope('loss'):
-                self._define_loss()
+                self._define_loss( poisson_unit_norm=opt_params['poisson_unit_norm'] )
 
             # Define optimization routine
             var_list = self._build_fit_variable_list(variable_list)
@@ -299,7 +299,7 @@ class NDN(Network):
             self.init = tf.global_variables_initializer()
     # END NDN._build_graph
 
-    def _define_loss(self):
+    def _define_loss(self, poisson_unit_norm=False):
         """Loss function that will be used to optimize model parameters"""
 
         cost = []
@@ -327,11 +327,17 @@ class NDN(Network):
 
             elif self.noise_dist == 'poisson':
                 with tf.name_scope('poisson_loss'):
-                    cost_norm = tf.maximum(tf.reduce_sum(data_out, axis=0), 1)
+
+                    if poisson_unit_norm: # normalize on unit-by-unit basis
+                        cost_norm = tf.maximum(tf.reduce_sum(data_out, axis=0), 1)
+                    else:
+                        cost_norm = tf.maximum(tf.reduce_mean(tf.reduce_sum(data_out, axis=0)), 1)
+                        #cost.append(-tf.divide(tf.reduce_sum(tf.nn.log_poisson_loss( data_out, pred)), cost_norm ))
+
                     cost.append(-tf.reduce_sum(tf.divide(
-                        tf.multiply(data_out,
-                                    tf.log(self._log_min + pred)) - pred,
+                        tf.multiply(data_out, tf.log(self._log_min + pred)) - pred,
                         cost_norm)))
+
                     self.unit_cost = tf.concat(
                         [self.unit_cost,
                          -tf.divide(tf.reduce_sum(

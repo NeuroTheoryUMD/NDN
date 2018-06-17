@@ -549,7 +549,6 @@ class Network(object):
 
                     cost_tr += sess.run(self.cost, feed_dict=feed_dict)
                     reg_pen += sess.run(self.cost_reg, feed_dict=feed_dict)
-
                 cost_tr /= num_batches_tr
                 reg_pen /= num_batches_tr
 
@@ -1056,6 +1055,9 @@ class Network(object):
                 compute time and memory usage of tensorflow ops during training
                 and testing. `epochs_summary` must not be `None`.
                 DEFAULT: `False`
+            opt_params['poisson_unit_norm'] (bool, optional): 'True' will normalize
+                each units likelihood by its own Robs. Otherwise ('False') will
+                normalize by the sum across units
             learning_alg (str): 'adam' and 'lbfgs' currently supported
         """
 
@@ -1092,6 +1094,8 @@ class Network(object):
                 opt_params['epsilon'] = 1e-4
             if 'run_diagnostics' not in opt_params:
                 opt_params['run_diagnostics'] = False
+            if 'poisson_unit_norm' not in opt_params:
+                opt_params['poisson_unit_norm'] = False
 
         else:  # lbfgs
             if 'maxiter' not in opt_params:
