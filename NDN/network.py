@@ -1068,6 +1068,8 @@ class Network(object):
             opt_params['use_gpu'] = False
         if 'data_pipe_type' not in opt_params:
             opt_params['data_pipe_type'] = 'data_as_var'
+        if 'poisson_unit_norm' not in opt_params:
+            opt_params['poisson_unit_norm'] = False
 
         if learning_alg is 'adam':
             if 'learning_rate' not in opt_params:
@@ -1094,8 +1096,6 @@ class Network(object):
                 opt_params['epsilon'] = 1e-4
             if 'run_diagnostics' not in opt_params:
                 opt_params['run_diagnostics'] = False
-            if 'poisson_unit_norm' not in opt_params:
-                opt_params['poisson_unit_norm'] = False
 
         else:  # lbfgs
             if 'maxiter' not in opt_params:
