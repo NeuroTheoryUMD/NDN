@@ -576,7 +576,7 @@ class Network(object):
                       'avg test cost = %10.4f,  '
                       'reg penalty = %10.4f'
                       % (epoch, cost_tr / self.output_sizes[0],
-                         cost_test / self.output_sizes[0], reg_pen))
+                         cost_test / self.output_sizes[0], reg_pen / self.output_sizes[0]))
 
             # save model checkpoints
             if epochs_ckpt is not None and (

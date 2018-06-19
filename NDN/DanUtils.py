@@ -48,6 +48,7 @@ def reg_path(
     test_mods = []
 
     for nn in range(num_regs):
+        print( 'Regularization test:', reg_type,'=',reg_vals[nn] )
         test_mod = NDNmodel.copy_model()
         test_mod.set_regularization( reg_type, reg_vals[nn], ffnet_n, layer_n )
         test_mod.train(input_data=input_data, output_data=output_data,
