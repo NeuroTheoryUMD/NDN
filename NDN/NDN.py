@@ -328,9 +328,11 @@ class NDN(Network):
             elif self.noise_dist == 'poisson':
                 with tf.name_scope('poisson_loss'):
 
-                    if poisson_unit_norm: # normalize on unit-by-unit basis
+                    if poisson_unit_norm:
+                        # normalize with spike count on unit-by-unit basis
                         cost_norm = tf.maximum(tf.reduce_sum(data_out, axis=0), 1)
                     else:
+                        # normalize using the spike count
                         cost_norm = tf.maximum(tf.reduce_mean(tf.reduce_sum(data_out, axis=0)), 1)
                         #cost.append(-tf.divide(tf.reduce_sum(tf.nn.log_poisson_loss( data_out, pred)), cost_norm ))
 

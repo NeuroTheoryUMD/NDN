@@ -6,7 +6,6 @@ import NDN as NDN
 #import NDN.NDNutils as NDNutils
 
 
-
 def reg_path(
         NDNmodel=None,
         input_data=None,
@@ -29,7 +28,7 @@ def reg_path(
 
         Raises:
             TypeError: If `layer_sizes` is not specified
-"""
+    """
 
     if NDNmodel is None:
         raise TypeError('Must specify NDN to regularize.')
@@ -62,3 +61,38 @@ def reg_path(
 
     return LLxs, test_mods
 # END reg_path
+
+def filtered_eval_model(
+        unit_number,
+        NDNmodel=None,
+        input_data=None,
+        output_data=None,
+        test_indxs=None,
+        data_filters=None,
+        nulladjusted=False):
+
+    """This will return each neuron model evaluated on valid indices (given datafilter).
+    It will also return those valid indices for each unit"""
+
+    if NDNmodel is None:
+        raise TypeError('Must specify NDN to regularize.')
+    if input_data is None:
+        raise TypeError('Must specify input_data.')
+    if output_data is None:
+        raise TypeError('Must specify output_data.')
+    if data_filters is None:
+        raise TypeError('Must specify data_filters.')
+    if test_indxs is None:
+        raise TypeError('Must specify testing indices.')
+
+    #NT, NU = data_filters.shape
+    #LLx = np.zeros([NU], dtype='float32')
+    #XVindx_list = []
+    #for cc in range(NU):
+    inds = np.intersect1d(test_indxs, np.where(data_filters[:, unit_number] > 0))
+    all_LLs = NDNmodel.eval_models(
+        input_data=input_data, output_data=output_data,
+        data_indxs=inds, data_filters=data_filters, nulladjusted=nulladjusted)
+
+    return all_LLs[unit_number]
+# END filtered_eval_model
