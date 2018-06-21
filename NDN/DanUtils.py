@@ -2,7 +2,7 @@
 
 from __future__ import division
 import numpy as np
-import NDN as NDN
+#import NDN as NDN
 #import NDN.NDNutils as NDNutils
 
 

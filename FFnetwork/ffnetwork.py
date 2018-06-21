@@ -26,7 +26,7 @@ class FFNetwork(object):
         num_layers (int): number of layers in network (not including input)
         layer_types (list of strs): a string for each layer in the network that 
             specifies its type.
-            'normal' | 'sep' | 'conv'
+            'normal' | 'sep' | 'conv' | 'convsep' | 'biconv' | 'add' | 'spike_history'
         layers (list of `Layer` objects): layers of network
         log (bool): use tf summary writers in layer activations
 
@@ -291,6 +291,37 @@ class FFNetwork(object):
 
                 self.layers.append(ConvSepLayer(
                     scope='sepconv_layer_%i' % nn,
+                    input_dims=layer_sizes[nn],
+                    num_filters=layer_sizes[nn+1],
+                    filter_dims=conv_filter_size,
+                    shift_spacing=network_params['shift_spacing'][nn],
+                    activation_func=network_params['activation_funcs'][nn],
+                    normalize_weights=network_params['normalize_weights'][nn],
+                    weights_initializer=network_params['weights_initializers'][nn],
+                    biases_initializer=network_params['biases_initializers'][nn],
+                    reg_initializer=network_params['reg_initializers'][nn],
+                    num_inh=network_params['num_inh'][nn],
+                    pos_constraint=network_params['pos_constraints'][nn],
+                    log_activations=network_params['log_activations']))
+
+                # Modify output size to take into account shifts
+                if nn < self.num_layers:
+                    layer_sizes[nn+1] = self.layers[nn].output_dims
+
+            elif self.layer_types[nn] is 'biconv':
+
+                if network_params['conv_filter_widths'][nn] is None:
+                    conv_filter_size = layer_sizes[nn]
+                else:
+                    conv_filter_size = [
+                        layer_sizes[nn][0],
+                        network_params['conv_filter_widths'][nn], 1]
+                    if layer_sizes[nn][2] > 1:
+                        conv_filter_size[2] = \
+                            network_params['conv_filter_widths'][nn]
+
+                self.layers.append(ConvLayer(
+                    scope='conv_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn+1],
                     filter_dims=conv_filter_size,

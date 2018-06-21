@@ -272,7 +272,7 @@ class Regularization(object):
 
         return reg_target
     # END Regularization.reg_copy
-    # END Regularization
+# END Regularization
 
 
 class SepRegularization(Regularization):
@@ -293,7 +293,6 @@ class SepRegularization(Regularization):
             input_dims=input_dims,
             num_outputs=num_outputs,
             vals=vals)
-
     # END Sep_Regularization.__init__
 
     def _build_reg_mats(self, reg_type):
@@ -411,3 +410,15 @@ class SepRegularization(Regularization):
             reg_pen = tf.constant(0.0)
         return reg_pen
     # END Sep_Regularization._calc_reg_penalty
+
+    def reg_copy(self):
+        """Copy regularization to new structure"""
+
+        reg_target = SepRegularization(
+            input_dims=self.input_dims,
+            num_outputs=self.num_outputs)
+        reg_target.vals = self.vals
+        reg_target.mats = self.mats
+
+        return reg_target
+    # END SepRegularization.reg_copy

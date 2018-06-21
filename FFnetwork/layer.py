@@ -1114,3 +1114,80 @@ class SpikeHistoryLayer(Layer):
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END SpikeHistoryLayer._build_graph
+
+class BiConvLayer(ConvLayer):
+    """Implementation of convolutional layer
+
+    Attributes:
+        shift_spacing (int): stride of convolution operation
+        num_shifts (int): number of shifts in horizontal and vertical
+            directions for convolution operation
+
+    """
+
+    def __init__(
+            self,
+            scope=None,
+            input_dims=None,  # this can be a list up to 3-dimensions
+            num_filters=None,
+            filter_dims=None,  # this can be a list up to 3-dimensions
+            shift_spacing=1,
+            activation_func='relu',
+            normalize_weights=0,
+            weights_initializer='trunc_normal',
+            biases_initializer='zeros',
+            reg_initializer=None,
+            num_inh=0,
+            pos_constraint=False,
+            log_activations=False):
+        """Constructor for convLayer class
+
+        Args:
+            scope (str): name scope for variables and operations in layer
+            input_dims (int or list of ints): dimensions of input data
+            num_filters (int): number of convolutional filters in layer
+            filter_dims (int or list of ints): dimensions of input data
+            shift_spacing (int): stride of convolution operation
+            activation_func (str, optional): pointwise function applied to
+                output of affine transformation
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+                'elu' | 'quad'
+            normalize_weights (int): 1 to normalize weights 0 otherwise
+                [0] | 1
+            weights_initializer (str, optional): initializer for the weights
+                ['trunc_normal'] | 'normal' | 'zeros'
+            biases_initializer (str, optional): initializer for the biases
+                'trunc_normal' | 'normal' | ['zeros']
+            reg_initializer (dict, optional): see Regularizer docs for info
+            num_inh (int, optional): number of inhibitory units in layer
+            pos_constraint (bool, optional): True to constrain layer weights to
+                be positive
+            log_activations (bool, optional): True to use tf.summary on layer
+                activations
+
+        Raises:
+            ValueError: If `pos_constraint` is `True`
+
+        """
+
+        super(BiConvLayer, self).__init__(
+            scope=scope,
+            input_dims=input_dims,
+            num_filters=num_filters,
+            filter_dims=filter_dims,
+            shift_spacing=shift_spacing,
+            activation_func=activation_func,
+            normalize_weights=normalize_weights,
+            weights_initializer=weights_initializer,
+            biases_initializer=biases_initializer,
+            reg_initializer=reg_initializer,
+            num_inh=num_inh,
+            pos_constraint=pos_constraint,  # note difference from layer (not anymore)
+            log_activations=log_activations)
+
+        # BiConvLayer-specific modifications
+        self.num_shifts[0] = self.num_shifts[0]/2
+        self.num_filters = self.num_filters*2
+        self.output_dims[0] = self.num_filters
+        self.output_dims[1] = self.num_shifts[0]
+    # END BiConvLayer.__init__
