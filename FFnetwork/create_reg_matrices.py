@@ -57,7 +57,7 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
 
     if nPix == 1:  # for 0-spatial-dimensional stimuli can only do temporal
 
-        assert reg_type is 'd2t', 'Can only do temporal reg for stimuli without spatial dims'
+        assert reg_type == 'd2t', 'Can only do temporal reg for stimuli without spatial dims'
 
         Tmat = sp.spdiags(np.concatenate((et, -2 * et, et), axis=0), [-1, 0, 1], nLags, nLags)
         # if stim_params.boundary_conds(1) == -1 # if periodic boundary cond
@@ -65,7 +65,7 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
         #    Tmat(1, end) = 1;
 
     elif stim_dims[2] == 1:  # for 1 - spatial dimensional stimuli
-        if reg_type is 'd2t':
+        if reg_type == 'd2t':
             assert nLags > 1, 'No d2t regularization possible with no lags.'
 
             # D1t = spdiags([et - 2 * et et], [-1 0 1], nLags, nLags)';
@@ -77,7 +77,7 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
             Ix = sp.eye(stim_dims[1])
             Tmat = sp.kron(Ix, D1t)
 
-        elif reg_type is 'd2x':
+        elif reg_type == 'd2x':
             It = sp.eye(nLags)
             # Matlab code: D1x = spdiags([ex -2*ex ex], [-1 0 1], nPix(1), nPix(1))';
             D1x = sp.coo_matrix.transpose(sp.coo_matrix(
@@ -88,7 +88,7 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
 
             Tmat = sp.kron(D1x, It)
 
-        elif reg_type is 'd2xt':
+        elif reg_type == 'd2xt':
             # D1t = spdiags([et - 2 * et et], [-1 0 1], nLags, nLags)';
             D1t = sp.coo_matrix.transpose(sp.coo_matrix(
                 sp.spdiags(np.concatenate((et, -2 * et, et), axis=0), [-1, 0, 1], nLags, nLags)))
@@ -106,9 +106,12 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
             It = sp.eye(nLags)
             Ix = sp.eye(stim_dims[1])
             Tmat = sp.kron(Ix, D1t) + sp.kron(D1x, It)
+        else:
+            print('Unsupported reg type (1):', reg_type)
+            Tmat = None
 
     else:  # for stimuli with 2-spatial dimensions
-        if reg_type is 'd2t':
+        if reg_type == 'd2t':
             assert nLags > 1, 'No d2t regularization possible with no lags.'
             # D1t = spdiags([et - 2 * et et], [-1 0 1], nLags, nLags)';
             D1t = sp.coo_matrix.transpose(sp.coo_matrix(
@@ -121,7 +124,7 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
             Iy = sp.eye(stim_dims[2])
             Tmat = sp.kron(Iy, sp.kron(Ix, D1t))
 
-        elif reg_type is 'd2x':
+        elif reg_type == 'd2x':
             It = sp.eye(nLags)
             Ix = sp.eye(stim_dims[1])
             Iy = sp.eye(stim_dims[2])
@@ -141,7 +144,7 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
 
             Tmat = sp.kron(Iy, sp.kron(D1x, It)) + sp.kron(D1y, sp.kron(Ix, It))
 
-        elif reg_type is 'd2xt':
+        elif reg_type == 'd2xt':
             It = sp.eye(nLags)
             Ix = sp.eye(stim_dims[1])
             Iy = sp.eye(stim_dims[2])
@@ -169,7 +172,7 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
             Tmat = sp.kron(D1y, sp.kron(Ix, It)) + sp.kron(Iy, sp.kron(D1x, It)) + sp.kron(Iy, sp.kron(Ix, D1t))
 
         else:
-            print('Unsupported reg type.')
+            print('Unsupported reg type (2):', reg_type)
             Tmat = None
 
     Tmat = Tmat.toarray()  # make dense matrix before sending home
@@ -210,19 +213,19 @@ def create_maxpenalty_matrix(input_dims, reg_type):
     dims_prod = num_filt * num_pix
 
     rmat = np.zeros([dims_prod, dims_prod], dtype=np.float32)
-    if reg_type is 'max':
+    if reg_type == 'max':
         # Simply subtract the diagonal from all-ones
         rmat = np.ones([dims_prod, dims_prod], dtype=np.float32) - np.eye(dims_prod, dtype=np.float32)
 
-    elif reg_type is 'max_filt':
+    elif reg_type == 'max_filt':
         ek = np.ones([num_filt, num_filt], dtype=np.float32) - np.eye(num_filt, dtype=np.float32)
         rmat = np.kron(np.eye(num_pix), ek)
 
-    elif reg_type is 'max_space':
+    elif reg_type == 'max_space':
         ex = np.ones([num_pix, num_pix]) - np.eye(num_pix)
         rmat = np.kron(ex, np.eye(num_filt, dtype=np.float32))
 
-    elif reg_type is 'center':
+    elif reg_type == 'center':
         for i in range(dims_prod):
             pos_x = (i % (input_dims[0] * input_dims[1])) // input_dims[0]
             pos_y = i // (input_dims[0] * input_dims[1])
