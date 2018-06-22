@@ -112,8 +112,8 @@ class Layer(object):
             num_outputs = output_dims
             output_dims = [1, output_dims, 1]
 
-        self.input_dims = input_dims
-        self.output_dims = output_dims
+        self.input_dims = input_dims[:]
+        self.output_dims = output_dims[:]
         # default to have N filts for N outputs in base layer class
         self.num_filters = num_outputs
         if filter_dims is None:
@@ -122,7 +122,7 @@ class Layer(object):
             num_inputs = my_num_inputs   # this is for convsep
         else:
             num_inputs = filter_dims[0] * filter_dims[1] * filter_dims[2]
-        self.filter_dims = filter_dims
+        self.filter_dims = filter_dims[:]
 
         # resolve activation function string
         if activation_func == 'relu':
@@ -431,7 +431,7 @@ class ConvLayer(Layer):
         self.num_shifts = num_shifts
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
-        self.output_dims = [num_filters] + num_shifts
+        self.output_dims = [num_filters] + num_shifts[:]
 
     # END ConvLayer.__init__
 
@@ -783,7 +783,7 @@ class ConvSepLayer(Layer):
         self.num_shifts = num_shifts
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
-        self.output_dims = [num_filters] + num_shifts
+        self.output_dims = [num_filters] + num_shifts[:]
     # END SepLayer.__init__
 
     def build_graph(self, inputs, params_dict=None):

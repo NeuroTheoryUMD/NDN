@@ -58,7 +58,7 @@ class Regularization(object):
         if isinstance(input_dims, list) is False:
             input_dims = [1, input_dims, 1]
 
-        self.input_dims = input_dims
+        self.input_dims = input_dims[:]
         self.num_outputs = num_outputs
 
         # set all default values to None
@@ -267,8 +267,8 @@ class Regularization(object):
         reg_target = Regularization(
             input_dims=self.input_dims,
             num_outputs=self.num_outputs)
-        reg_target.vals = self.vals
-        reg_target.mats = self.mats
+        reg_target.vals = self.vals.copy()
+        reg_target.mats = self.mats.copy()
 
         return reg_target
     # END Regularization.reg_copy
@@ -417,8 +417,8 @@ class SepRegularization(Regularization):
         reg_target = SepRegularization(
             input_dims=self.input_dims,
             num_outputs=self.num_outputs)
-        reg_target.vals = self.vals
-        reg_target.mats = self.mats
+        reg_target.vals = self.vals.copy()
+        reg_target.mats = self.mats.copy()
 
         return reg_target
     # END SepRegularization.reg_copy

@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 from __future__ import division
+from copy import deepcopy
 
 import numpy as np
 import tensorflow as tf
@@ -98,7 +99,7 @@ class NDN(Network):
         if not isinstance(network_list, list):
             network_list = [network_list]
         self.num_networks = len(network_list)
-        self.network_list = network_list
+        self.network_list = deepcopy(network_list)
 
         # Determine number of inputs
         measured_input_list = set()
@@ -120,8 +121,8 @@ class NDN(Network):
             if ffnet_out[nn] > self.num_networks:
                 ValueError('ffnet_out has values that are too big')
 
-        self.ffnet_out = ffnet_out
-        self.input_sizes = input_dim_list
+        self.ffnet_out = ffnet_out[:]
+        self.input_sizes = input_dim_list[:]
         # list of output sizes (for Robs placeholders)
         self.output_sizes = [0] * len(ffnet_out)
         self.noise_dist = noise_dist
@@ -778,9 +779,9 @@ class NDN(Network):
         for nn in range(self.num_networks):
             for ll in range(self.networks[nn].num_layers):
                 target.networks[nn].layers[ll].weights = \
-                    self.networks[nn].layers[ll].weights
+                    self.networks[nn].layers[ll].weights.copy()
                 target.networks[nn].layers[ll].biases = \
-                    self.networks[nn].layers[ll].biases
+                    self.networks[nn].layers[ll].biases.copy()
                 target.networks[nn].layers[ll].reg = \
                     self.networks[nn].layers[ll].reg.reg_copy()
 

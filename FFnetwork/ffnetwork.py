@@ -118,7 +118,7 @@ class FFNetwork(object):
         else:
             while len(input_dims) < 3:
                 input_dims.append(1)
-        self.input_dims = input_dims
+        self.input_dims = input_dims[:]
 
         # Check information in params_dict and set defaults
         if 'layer_sizes' not in params_dict:
