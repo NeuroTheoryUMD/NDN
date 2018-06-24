@@ -29,8 +29,8 @@ class Regularization(object):
     """
 
     _allowed_reg_types = ['l1', 'l2', 'norm2', 'norm2_space', 'norm2_filt',
-                          'd2t', 'd2x', 'd2xt',
-                          'max', 'max_filt', 'max_space', 'center']
+                          'd2t', 'd2x', 'd2xt', 'local', 'center',
+                          'max', 'max_filt', 'max_space']
 
     def __init__(self, input_dims=None, num_outputs=None, vals=None):
         """Constructor for Regularization class
@@ -75,7 +75,7 @@ class Regularization(object):
         if vals is not None:
             for reg_type, reg_val in vals.iteritems():
                 self.set_reg_val(reg_type, reg_val)
-    # END __init__
+    # END Regularization.__init__
 
     def set_reg_val(self, reg_type, reg_val):
         """Set regularization value in self.vals dict (doesn't affect a tf 
@@ -109,7 +109,7 @@ class Regularization(object):
         self.vals[reg_type] = reg_val
 
         return new_reg_type
-    # END set_reg_val
+    # END Regularization.set_reg_val
 
     def assign_reg_vals(self, sess):
         """Update regularization values in default tf Graph"""
@@ -120,7 +120,7 @@ class Regularization(object):
                 sess.run(
                     self.vals_var[reg_type].initializer,
                     feed_dict={self.vals_ph[reg_type]: self.vals[reg_type]})
-    # END assign_reg_vals
+    # END Regularization.assign_reg_vals
 
     def define_reg_loss(self, weights):
         """Define regularization loss in default tf Graph"""
@@ -153,7 +153,7 @@ class Regularization(object):
             reg_loss.append(tf.constant(0.0, tf.float32, name='zero'))
 
         return tf.add_n(reg_loss)
-    # END define_reg_loss
+    # END Regularization.define_reg_loss
 
     def _build_reg_mats(self, reg_type):
         """Build regularization matrices in default tf Graph
@@ -175,16 +175,21 @@ class Regularization(object):
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
+        elif reg_type is 'local':
+            reg_mat = makeRmats.create_localpenalty_matrix(
+                self.input_dims, reg_type)
+            name = reg_type + '_reg'
         else:
             reg_mat = 0.0
             name = 'lp_placeholder'
 
         return tf.constant(reg_mat, dtype=tf.float32, name=name)
-    # END _build_reg_mats
+    # END Regularization._build_reg_mats
 
     def _calc_reg_penalty(self, reg_type, weights):
         """Calculate regularization penalty for various reg types in default tf 
         Graph"""
+
         if reg_type == 'l1':
             reg_pen = tf.multiply(
                 self.vals_var['l1'],
@@ -233,7 +238,9 @@ class Regularization(object):
                 self.vals_var['d2xt'],
                 tf.reduce_sum(tf.square(
                     tf.matmul(self.mats['d2xt'], weights))))
-
+        elif reg_type == 'local':
+            reg_pen = tf.constant(0.0)
+            print('local currently does not work outside separable layers')
         elif reg_type == 'center':
             reg_pen = tf.multiply(
                 self.vals_var['center'],
@@ -244,7 +251,7 @@ class Regularization(object):
         else:
             reg_pen = tf.constant(0.0)
         return reg_pen
-    # END _calc_reg_penalty
+    # END Regularization._calc_reg_penalty
 
     def get_reg_penalty(self, sess):
         """Build dictionary that contains regularization penalty from each 
@@ -259,7 +266,7 @@ class Regularization(object):
             reg_dict[reg_type] = reg_pen
 
         return reg_dict
-    # END _calc_reg_penalty
+    # END Regularization.get_reg_penalty
 
     def reg_copy(self):
         """Copy regularization to new structure"""
@@ -293,7 +300,7 @@ class SepRegularization(Regularization):
             input_dims=input_dims,
             num_outputs=num_outputs,
             vals=vals)
-    # END Sep_Regularization.__init__
+    # END SepRegularization.__init__
 
     def _build_reg_mats(self, reg_type):
         """Build regularization matrices in default tf Graph
@@ -327,16 +334,21 @@ class SepRegularization(Regularization):
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 [1, self.input_dims[1], self.input_dims[2]], 'center')
             name = reg_type + '_reg'
+        elif reg_type is 'local':
+            reg_mat = makeRmats.create_localpenalty_matrix(
+                self.input_dims, reg_type)
+            name = reg_type + '_reg'
         else:
             reg_mat = 0.0
             name = 'lp_placeholder'
 
         return tf.constant(reg_mat, dtype=tf.float32, name=name)
-    # END Sep_Regularization._build_reg_mats
+    # END SepRegularization._build_reg_mats
 
     def _calc_reg_penalty(self, reg_type, weights):
         """Calculate regularization penalty for various reg types in default tf
         Graph"""
+
         if reg_type == 'l1':
             reg_pen = tf.multiply(
                 self.vals_var['l1'],
@@ -403,7 +415,15 @@ class SepRegularization(Regularization):
                 tf.trace(tf.matmul(wspace,
                                    tf.matmul(self.mats['center'], wspace),
                                    transpose_a=True)))
-
+        elif reg_type is 'local':
+            wspace2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
+                          [self.input_dims[1]*self.input_dims[2],
+                           self.num_outputs]))
+            reg_pen = tf.multiply(
+                self.vals_var['local'],
+                tf.trace(tf.matmul(wspace2,
+                                   tf.matmul(self.mats['local'], wspace2),
+                                   transpose_a=True)))
         elif reg_type == 'd2xt':
             raise TypeError('d2xt does not work with a separable layer.')
         else:

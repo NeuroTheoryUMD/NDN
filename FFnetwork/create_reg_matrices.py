@@ -241,3 +241,54 @@ def create_maxpenalty_matrix(input_dims, reg_type):
         print('Havent made this type of reg yet. What you are getting wont work.')
 
     return rmat
+
+
+def create_localpenalty_matrix(input_dims, reg_type):
+    """
+    Usage: Tmat = create_maxpenalty_matrix(input_dims, reg_type)
+
+    Creates a matrix specifying a an L2-regularization operator of the form
+    ||T*k||^2, where T is a matrix and k is a vector of parameters. Currently
+    only supports second derivative/Laplacian operations
+
+    Args:
+        input_dims (list of ints): dimensions associated with the target input,
+            in the form [num_lags, num_x_pix, num_y_pix]
+        reg_type (str): specify form of the regularization matrix
+            'max' | 'max_filt' | 'max_space'
+
+    Returns:
+        numpy array: matrix specifying the desired Tikhonov operator
+
+    Notes:
+        Adapted from create_Tikhonov_matrix function above.
+
+    """
+
+    # assert (ischar(reg_type) && ismember(reg_type, allowed_reg_types), 'not an allowed regularization type');
+
+    # first dimension is assumed to represent filters
+    #num_filt = input_dims[0]
+
+    # additional dimensions are spatial (Nx and Ny)
+    num_pix = input_dims[1] * input_dims[2]
+    #dims_prod = num_filt * num_pix
+    rmat = np.zeros([num_pix, num_pix], dtype=np.float32)
+
+    for ii in range(num_pix):
+        #pos1_x = (ii % (input_dims[0] * input_dims[1])) // input_dims[0]  # for non-separable
+        pos1_x = ii % input_dims[1]
+        pos1_y = ii // input_dims[1]
+        for jj in range(num_pix):
+            pos2_x = jj % input_dims[1]
+            pos2_y = jj // input_dims[1]
+
+            alpha = np.square(pos1_x - pos2_x) + np.square(pos1_y - pos2_y)
+
+            rmat[ii, jj] = alpha / (np.square(input_dims[1])+np.square(input_dims[2]))
+
+    #elif reg_type == 'max_space':
+    #    ex = np.ones([num_pix, num_pix]) - np.eye(num_pix)
+    #    rmat = np.kron(ex, np.eye(num_filt, dtype=np.float32))
+
+    return rmat
