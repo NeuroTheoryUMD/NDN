@@ -478,6 +478,9 @@ class Network(object):
             run_options = None
             run_metadata = None
 
+        # overwrite unit_cost_norm with opt_params value
+        self.poisson_unit_norm = opt_params['poisson_unit_norm']
+
         # build iterator handles if using that input pipeline type
         if self.data_pipe_type is 'iterator':
             # build iterator object to access elements from dataset
@@ -777,7 +780,6 @@ class Network(object):
             for i, temp_data in enumerate(output_data):
                 feed_dict[self.data_filter_batch[i]] = \
                     data_filters[i][batch_indxs, :]
-
         return feed_dict
     # END _get_feed_dict
 
@@ -1077,7 +1079,7 @@ class Network(object):
             if 'batch_size' not in opt_params:
                 opt_params['batch_size'] = 128
             if 'batch_size_test' not in opt_params:
-                opt_params['batch_size_test'] = None
+                opt_params['batch_size_test'] = opt_params['batch_size']
             if 'epochs_training' not in opt_params:
                 opt_params['epochs_training'] = 100
             if 'epochs_ckpt' not in opt_params:

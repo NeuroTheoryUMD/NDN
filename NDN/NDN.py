@@ -126,6 +126,7 @@ class NDN(Network):
         # list of output sizes (for Robs placeholders)
         self.output_sizes = [0] * len(ffnet_out)
         self.noise_dist = noise_dist
+        self.poisson_unit_norm = False
         self.tf_seed = tf_seed
 
         self._define_network(network_list)
@@ -280,7 +281,7 @@ class NDN(Network):
 
             # Define loss function
             with tf.variable_scope('loss'):
-                self._define_loss( poisson_unit_norm=opt_params['poisson_unit_norm'] )
+                self._define_loss()
 
             # Define optimization routine
             var_list = self._build_fit_variable_list(variable_list)
@@ -300,7 +301,7 @@ class NDN(Network):
             self.init = tf.global_variables_initializer()
     # END NDN._build_graph
 
-    def _define_loss(self, poisson_unit_norm=False):
+    def _define_loss(self):
         """Loss function that will be used to optimize model parameters"""
 
         cost = []
@@ -329,7 +330,7 @@ class NDN(Network):
             elif self.noise_dist == 'poisson':
                 with tf.name_scope('poisson_loss'):
 
-                    if poisson_unit_norm:
+                    if self.poisson_unit_norm:
                         # normalize with spike count on unit-by-unit basis
                         cost_norm = tf.maximum(tf.reduce_sum(data_out, axis=0), 1)
                     else:
@@ -544,7 +545,8 @@ class NDN(Network):
 
         self._build_graph()
 
-        with tf.Session(graph=self.graph, config=self.sess_config) as sess:
+        # Do not use GPU in case range of indices requires batching (which this doesn't implement)
+        with tf.Session(graph=self.graph, config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
 
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
