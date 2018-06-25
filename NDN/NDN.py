@@ -551,16 +551,16 @@ class NDN(Network):
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
 
-            if self.data_pipe_type is 'data_as_var':
+            if self.data_pipe_type == 'data_as_var':
                 # get the feed_dict for batch_indxs
                 feed_dict = {self.indices: data_indxs}
-            elif self.data_pipe_type is 'feed_dict':
+            elif self.data_pipe_type == 'feed_dict':
                 feed_dict = self._get_feed_dict(
                     input_data=input_data,
                     output_data=output_data,
                     data_filters=data_filters,
                     batch_indxs=data_indxs)
-            elif self.data_pipe_type is 'iterator':
+            elif self.data_pipe_type == 'iterator':
                 # get string handle of iterator
                 iter_handle = sess.run(iterator.string_handle())
                 feed_dict = {self.iterator_handle: iter_handle}
@@ -614,7 +614,7 @@ class NDN(Network):
             data_indxs = np.arange(self.num_examples)
 
         # build datasets if using 'iterator' pipeline
-        if self.data_pipe_type is 'iterator':
+        if self.data_pipe_type == 'iterator':
             dataset = self._build_dataset(
                 input_data=input_data,
                 output_data=output_data,
@@ -635,16 +635,16 @@ class NDN(Network):
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
 
-            if self.data_pipe_type is 'data_as_var':
+            if self.data_pipe_type == 'data_as_var':
                 # get the feed_dict for batch_indxs
                 feed_dict = {self.indices: data_indxs}
-            elif self.data_pipe_type is 'feed_dict':
+            elif self.data_pipe_type == 'feed_dict':
                 feed_dict = self._get_feed_dict(
                     input_data=input_data,
                     output_data=output_data,
                     data_filters=data_filters,
                     batch_indxs=data_indxs)
-            elif self.data_pipe_type is 'iterator':
+            elif self.data_pipe_type == 'iterator':
                 # get string handle of iterator
                 iter_handle = sess.run(iterator.string_handle())
                 feed_dict = {self.iterator_handle: iter_handle}
@@ -710,7 +710,7 @@ class NDN(Network):
                 dtype='float32')
 
         # build datasets if using 'iterator' pipeline
-        if self.data_pipe_type is 'iterator':
+        if self.data_pipe_type == 'iterator':
             dataset = self._build_dataset(
                 input_data=input_data,
                 output_data=output_data,
@@ -735,7 +735,7 @@ class NDN(Network):
                 feed_dict = self._get_feed_dict(
                     input_data=input_data,
                     batch_indxs=data_indxs)
-            elif self.data_pipe_type is 'iterator':
+            elif self.data_pipe_type == 'iterator':
                 # get string handle of iterator
                 iter_handle = sess.run(iterator.string_handle())
                 feed_dict = {self.iterator_handle: iter_handle}

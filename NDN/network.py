@@ -482,7 +482,7 @@ class Network(object):
         self.poisson_unit_norm = opt_params['poisson_unit_norm']
 
         # build iterator handles if using that input pipeline type
-        if self.data_pipe_type is 'iterator':
+        if self.data_pipe_type == 'iterator':
             # build iterator object to access elements from dataset
             iterator_tr = dataset_tr.make_one_shot_iterator()
             # get string handle of iterator
@@ -507,24 +507,24 @@ class Network(object):
 
             # pass through dataset once
             for batch in range(num_batches_tr):
-                if (self.data_pipe_type is 'data_as_var') or (
-                        self.data_pipe_type is 'feed_dict'):
+                if (self.data_pipe_type == 'data_as_var') or (
+                        self.data_pipe_type == 'feed_dict'):
                     # get training indices for this batch
                     batch_indxs = train_indxs_perm[
                         batch * opt_params['batch_size']:
                         (batch + 1) * opt_params['batch_size']]
 
                 # one step of optimization routine
-                if self.data_pipe_type is 'data_as_var':
+                if self.data_pipe_type == 'data_as_var':
                     # get the feed_dict for batch_indxs
                     feed_dict = {self.indices: batch_indxs}
-                elif self.data_pipe_type is 'feed_dict':
+                elif self.data_pipe_type == 'feed_dict':
                     feed_dict = self._get_feed_dict(
                         input_data=input_data,
                         output_data=output_data,
                         data_filters=data_filters,
                         batch_indxs=batch_indxs)
-                elif self.data_pipe_type is 'iterator':
+                elif self.data_pipe_type == 'iterator':
                     feed_dict = {self.iterator_handle: iter_handle_tr}
 
                 sess.run(self.train_step, feed_dict=feed_dict)
@@ -539,15 +539,15 @@ class Network(object):
                     batch_indxs_tr = train_indxs[
                                      batch_tr * opt_params['batch_size']:
                                      (batch_tr + 1) * opt_params['batch_size']]
-                    if self.data_pipe_type is 'data_as_var':
+                    if self.data_pipe_type == 'data_as_var':
                         feed_dict = {self.indices: batch_indxs_tr}
-                    elif self.data_pipe_type is 'feed_dict':
+                    elif self.data_pipe_type == 'feed_dict':
                         feed_dict = self._get_feed_dict(
                             input_data=input_data,
                             output_data=output_data,
                             data_filters=data_filters,
                             batch_indxs=batch_indxs_tr)
-                    elif self.data_pipe_type is 'iterator':
+                    elif self.data_pipe_type == 'iterator':
                         feed_dict = {self.iterator_handle: iter_handle_tr}
 
                     cost_tr += sess.run(self.cost, feed_dict=feed_dict)
@@ -556,8 +556,8 @@ class Network(object):
                 reg_pen /= num_batches_tr
 
                 if test_indxs is not None:
-                    if self.data_pipe_type is 'data_as_var' or \
-                            self.data_pipe_type is 'feed_dict':
+                    if self.data_pipe_type == 'data_as_var' or \
+                            self.data_pipe_type == 'feed_dict':
                         cost_test = self._get_test_cost(
                             sess=sess,
                             input_data=input_data,
@@ -565,7 +565,7 @@ class Network(object):
                             data_filters=data_filters,
                             test_indxs=test_indxs,
                             opt_params=opt_params)
-                    elif self.data_pipe_type is 'iterator':
+                    elif self.data_pipe_type == 'iterator':
                         cost_test = self._get_test_cost(
                             sess=sess,
                             input_data=input_data,
@@ -633,8 +633,8 @@ class Network(object):
                     warnings.simplefilter("ignore", category=RuntimeWarning)
                     mean_before = np.nanmean(prev_costs)
 
-                if self.data_pipe_type is 'data_as_var' or \
-                        self.data_pipe_type is 'feed_dict':
+                if self.data_pipe_type == 'data_as_var' or \
+                        self.data_pipe_type == 'feed_dict':
                     cost_test = self._get_test_cost(
                         sess=sess,
                         input_data=input_data,
@@ -642,7 +642,7 @@ class Network(object):
                         data_filters=data_filters,
                         test_indxs=test_indxs,
                         opt_params=opt_params)
-                elif self.data_pipe_type is 'iterator':
+                elif self.data_pipe_type == 'iterator':
                     cost_test = self._get_test_cost(
                         sess=sess,
                         input_data=input_data,
@@ -730,28 +730,28 @@ class Network(object):
                 batch_indxs_test = test_indxs[
                     batch_test * opt_params['batch_size_test']:
                     (batch_test + 1) * opt_params['batch_size_test']]
-                if self.data_pipe_type is 'data_as_var':
+                if self.data_pipe_type == 'data_as_var':
                     feed_dict = {self.indices: batch_indxs_test}
-                elif self.data_pipe_type is 'feed_dict':
+                elif self.data_pipe_type == 'feed_dict':
                     feed_dict = self._get_feed_dict(
                         input_data=input_data,
                         output_data=output_data,
                         data_filters=data_filters,
                         batch_indxs=batch_indxs_test)
-                elif self.data_pipe_type is 'iterator':
+                elif self.data_pipe_type == 'iterator':
                     feed_dict = {self.iterator_handle: test_indxs}
                 cost_test += sess.run(self.cost, feed_dict=feed_dict)
             cost_test /= num_batches_test
         else:
-            if self.data_pipe_type is 'data_as_var':
+            if self.data_pipe_type == 'data_as_var':
                 feed_dict = {self.indices: test_indxs}
-            elif self.data_pipe_type is 'feed_dict':
+            elif self.data_pipe_type == 'feed_dict':
                 feed_dict = self._get_feed_dict(
                     input_data=input_data,
                     output_data=output_data,
                     data_filters=data_filters,
                     batch_indxs=test_indxs)
-            elif self.data_pipe_type is 'iterator':
+            elif self.data_pipe_type == 'iterator':
                 feed_dict = {self.iterator_handle: test_indxs}
             cost_test = sess.run(self.cost, feed_dict=feed_dict)
         return cost_test

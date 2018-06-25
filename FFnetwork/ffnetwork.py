@@ -190,7 +190,7 @@ class FFNetwork(object):
 
         for nn in range(self.num_layers):
 
-            if self.layer_types[nn] is 'normal':
+            if self.layer_types[nn] == 'normal':
 
                 self.layers.append(Layer(
                     scope='layer_%i' % nn,
@@ -205,7 +205,7 @@ class FFNetwork(object):
                     pos_constraint=network_params['pos_constraints'][nn],
                     log_activations=network_params['log_activations']))
 
-            elif self.layer_types[nn] is 'sep':
+            elif self.layer_types[nn] == 'sep':
 
                 self.layers.append(SepLayer(
                     scope='sep_layer_%i' % nn,
@@ -220,7 +220,7 @@ class FFNetwork(object):
                     pos_constraint=network_params['pos_constraints'][nn],
                     log_activations=network_params['log_activations']))
 
-            elif self.layer_types[nn] is 'add':
+            elif self.layer_types[nn] == 'add':
 
                 self.layers.append(AddLayer(
                     scope='add_layer_%i' % nn,
@@ -233,7 +233,7 @@ class FFNetwork(object):
                     pos_constraint=network_params['pos_constraints'][nn],
                     log_activations=network_params['log_activations']))
 
-            elif self.layer_types[nn] is 'spike_history':
+            elif self.layer_types[nn] == 'spike_history':
 
                 self.layers.append(SpikeHistoryLayer(
                     scope='spike_history_layer_%i' % nn,
@@ -246,7 +246,7 @@ class FFNetwork(object):
                     pos_constraint=network_params['pos_constraints'][nn],
                     log_activations=network_params['log_activations']))
 
-            elif self.layer_types[nn] is 'conv':
+            elif self.layer_types[nn] == 'conv':
 
                 if network_params['conv_filter_widths'][nn] is None:
                     conv_filter_size = layer_sizes[nn]
@@ -277,7 +277,7 @@ class FFNetwork(object):
                 if nn < self.num_layers:
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
-            elif self.layer_types[nn] is 'convsep':
+            elif self.layer_types[nn] == 'convsep':
 
                 if network_params['conv_filter_widths'][nn] is None:
                     conv_filter_size = layer_sizes[nn]
@@ -308,7 +308,7 @@ class FFNetwork(object):
                 if nn < self.num_layers:
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
-            elif self.layer_types[nn] is 'biconv':
+            elif self.layer_types[nn] == 'biconv':
 
                 if network_params['conv_filter_widths'][nn] is None:
                     conv_filter_size = layer_sizes[nn]
