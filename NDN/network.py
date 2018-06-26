@@ -1088,7 +1088,7 @@ class Network(object):
             if 'early_stop_mode' not in opt_params:
                 opt_params['early_stop_mode'] = 0
             if 'epochs_summary' not in opt_params:
-                opt_params['epochs_s0.3504ummary'] = None
+                opt_params['epochs_summary'] = None
             if 'early_stop' not in opt_params:
                 opt_params['early_stop'] = 0
             if 'beta1' not in opt_params:
