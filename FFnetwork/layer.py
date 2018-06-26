@@ -1262,5 +1262,5 @@ class BiConvLayer(ConvLayer):
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END ConvLayer.build_graph
+    # END BiConvLayer.build_graph
 
