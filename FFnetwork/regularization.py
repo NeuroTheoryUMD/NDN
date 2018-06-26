@@ -13,7 +13,7 @@ class Regularization(object):
     Attributes:
         vals (dict): values for different types of regularization stored as
             floats
-        vals_ph (dict): placeholders for different types of regularization to 
+        vals_ph (dict): placeholders for different types of regularization to
             simplify the tf Graph when experimenting with different reg vals
         vals_var (dict): values for different types of regularization stored as
             (un-trainable) tf.Variables
@@ -163,19 +163,19 @@ class Regularization(object):
 
         """
 
-        if reg_type in ['d2t', 'd2x', 'd2xt']:
+        if (reg_type == 'd2t') or (reg_type == 'd2x') or (reg_type == 'd2xt'):
             reg_mat = makeRmats.create_tikhonov_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_laplacian'
-        elif reg_type in ['max', 'max_filt', 'max_space']:
+        elif (reg_type == 'max') or (reg_type == 'max_filt') or (reg_type == 'max_space'):
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
-        elif reg_type is 'center':
+        elif reg_type == 'center':
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
-        elif reg_type is 'local':
+        elif reg_type == 'local':
             reg_mat = makeRmats.create_localpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
@@ -310,31 +310,31 @@ class SepRegularization(Regularization):
             
         """
 
-        if reg_type is 'd2t':
+        if reg_type == 'd2t':
             reg_mat = makeRmats.create_tikhonov_matrix(
                 [self.input_dims[0], 1, 1], reg_type)
             name = reg_type + '_laplacian'
-        elif reg_type is 'd2x':
+        elif reg_type == 'd2x':
             reg_mat = makeRmats.create_tikhonov_matrix(
                 [1, self.input_dims[1], self.input_dims[2]], reg_type)
             name = reg_type + '_laplacian'
-        elif reg_type is 'd2xt':
+        elif reg_type == 'd2xt':
             raise TypeError('d2xt does not work with a separable layer.')
-        elif reg_type is 'max':
+        elif reg_type == 'max':
             raise ValueError('Cannot use max regularization with a separable layer.')
-        elif reg_type is 'max_filt':
+        elif reg_type == 'max_filt':
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 [self.input_dims[0], 1, 1], 'max')
             name = reg_type + '_reg'
-        elif reg_type is 'max_space':
+        elif reg_type == 'max_space':
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 [self.input_dims[1]*self.input_dims[2], 1, 1], 'max')
             name = reg_type + '_reg'
-        elif reg_type is 'center':
+        elif reg_type == 'center':
             reg_mat = makeRmats.create_maxpenalty_matrix(
                 [1, self.input_dims[1], self.input_dims[2]], 'center')
             name = reg_type + '_reg'
-        elif reg_type is 'local':
+        elif reg_type == 'local':
             reg_mat = makeRmats.create_localpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
