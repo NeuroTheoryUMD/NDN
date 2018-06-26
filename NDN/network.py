@@ -578,8 +578,9 @@ class Network(object):
                 print('Epoch %04d:  avg train cost = %10.4f,  '
                       'avg test cost = %10.4f,  '
                       'reg penalty = %10.4f'
-                      % (epoch, cost_tr / self.output_sizes[0],
-                         cost_test / self.output_sizes[0], reg_pen / self.output_sizes[0]))
+                      % (epoch, cost_tr / np.sum(self.output_sizes),
+                         cost_test / np.sum(self.output_sizes),
+                         reg_pen / np.sum(self.output_sizes)))
 
             # save model checkpoints
             if epochs_ckpt is not None and (
@@ -1087,7 +1088,7 @@ class Network(object):
             if 'early_stop_mode' not in opt_params:
                 opt_params['early_stop_mode'] = 0
             if 'epochs_summary' not in opt_params:
-                opt_params['epochs_summary'] = None
+                opt_params['epochs_s0.3504ummary'] = None
             if 'early_stop' not in opt_params:
                 opt_params['early_stop'] = 0
             if 'beta1' not in opt_params:
