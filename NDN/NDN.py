@@ -305,7 +305,7 @@ class NDN(Network):
         """Loss function that will be used to optimize model parameters"""
 
         cost = []
-        self.unit_cost = []
+        unit_cost = []
         for nn in range(len(self.ffnet_out)):
             data_out = self.data_out_batch[nn]
             if self.filter_data:
@@ -323,9 +323,7 @@ class NDN(Network):
                     cost_norm = tf.cast(tf.shape(pred)[0], tf.float32)
                     cost.append(
                         tf.nn.l2_loss(data_out - pred) / cost_norm)
-                    self.unit_cost = tf.concat(
-                        [self.unit_cost,
-                         tf.reduce_mean(tf.square(data_out-pred), axis=0)], 0)
+                    unit_cost.append(tf.reduce_mean(tf.square(data_out-pred), axis=0))
 
             elif self.noise_dist == 'poisson':
                 with tf.name_scope('poisson_loss'):
@@ -335,19 +333,19 @@ class NDN(Network):
                         cost_norm = tf.maximum(tf.reduce_sum(data_out, axis=0), 1)
                     else:
                         # normalize using the spike count
-                        cost_norm = tf.maximum(tf.reduce_mean(tf.reduce_sum(data_out, axis=0)), 1)
-                        #cost.append(-tf.divide(tf.reduce_sum(tf.nn.log_poisson_loss( data_out, pred)), cost_norm ))
+                        cost_norm = tf.maximum(tf.reduce_mean(tf.reduce_sum(data_out,
+                                                                            axis=0)), 1)
+                        # cost.append(-tf.divide(tf.reduce_sum(tf.nn.log_poisson_loss( data_out, pred)), cost_norm ))
 
                     cost.append(-tf.reduce_sum(tf.divide(
                         tf.multiply(data_out, tf.log(self._log_min + pred)) - pred,
                         cost_norm)))
 
-                    self.unit_cost = tf.concat(
-                        [self.unit_cost,
-                         -tf.divide(tf.reduce_sum(
-                             tf.multiply(data_out,
-                                         tf.log(self._log_min + pred)) - pred, axis=0),
-                             cost_norm)], 0)
+                    unit_cost.append(-tf.divide(
+                        tf.reduce_sum(
+                            tf.multiply(
+                                data_out, tf.log(self._log_min + pred)) - pred, axis=0),
+                        cost_norm))
 
             elif self.noise_dist == 'bernoulli':
                 with tf.name_scope('bernoulli_loss'):
@@ -357,15 +355,14 @@ class NDN(Network):
                     cost.append(tf.reduce_mean(
                         tf.nn.sigmoid_cross_entropy_with_logits(
                             labels=data_out, logits=pred)))
-                    self.unit_cost = tf.concat(
-                        [self.unit_cost, tf.reduce_mean(
+                    unit_cost.append(tf.reduce_mean(
                             tf.nn.sigmoid_cross_entropy_with_logits(
-                                labels=data_out, logits=pred), axis=0)], 0)
-                    # cost = tf.reduce_sum(self.unit_cost)
+                                labels=data_out, logits=pred), axis=0))
             else:
                 TypeError('Cost function not supported.')
 
         self.cost = tf.add_n(cost)
+        self.unit_cost = unit_cost
 
         # add regularization penalties
         self.cost_reg = 0
@@ -654,11 +651,14 @@ class NDN(Network):
             if nulladjusted:
                 # note that ll_neuron is negative of the true log-likelihood,
                 # but nullLL is not (so + is actually subtraction)
-                ll_neuron = -ll_neuron - \
-                            self.nullLL(output_data[0][data_indxs, :])
+                for i, temp_data in enumerate(output_data):
+                    ll_neuron[i] = -ll_neuron[i] - self.nullLL(temp_data[data_indxs, :])
                 # note that this will only be correct for single output indices
 
-        return ll_neuron
+        if len(ll_neuron) == 1:
+            return ll_neuron[0]
+        else:
+            return ll_neuron
     # END get_LL_neuron
 
     def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1,
