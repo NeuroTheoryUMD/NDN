@@ -1187,12 +1187,10 @@ class BiConvLayer(ConvLayer):
             log_activations=log_activations)
 
         # BiConvLayer-specific modifications
-        print('here', self.output_dims)
         self.num_shifts[0] = self.num_shifts[0]
         self.num_filters = self.num_filters
         self.output_dims[0] = self.num_filters*2
-        self.output_dims[1] = self.num_shifts[0]/2
-        print('here',self.output_dims)
+        self.output_dims[1] = int(self.num_shifts[0]/2)
     # END BiConvLayer.__init__
 
     def build_graph(self, inputs, params_dict=None):
@@ -1255,9 +1253,13 @@ class BiConvLayer(ConvLayer):
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            print(post)
-            self.outputs = tf.reshape(
-                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+            # cut into left and right processing and reattach
+            left_post = tf.slice(post, [0, 0, 0, 0], [-1, -1, self.output_dims[1], -1])
+            right_post = tf.slice(post, [0, 0, self.output_dims[1], 0],
+                             [-1, -1, self.output_dims[1], -1])
+
+            self.outputs = tf.reshape(tf.concat([left_post, right_post], axis=3),
+                                      [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
