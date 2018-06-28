@@ -534,7 +534,7 @@ def setup_no_gpu():
         print("Warning, GPU setup must happen before importing TensorFlow")
     os.environ["CUDA_VISIBLE_DEVICES"] = ''
 
-def set_me_up_with_a_gpu():
+def assign_gpu():
     print('*******************************************************************************************')
 
     print('---> getting list of available GPUs:')

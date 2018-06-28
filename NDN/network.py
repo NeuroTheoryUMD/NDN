@@ -947,13 +947,19 @@ class Network(object):
 
         import dill
 
+        tmp_ndn = self.copy_model()
+
+        for ii in range(len(tmp_ndn.network_list)):
+            for jj in range(len(tmp_ndn.network_list[ii]['layer_sizes'])):
+                tmp_ndn.networks[ii].layers[jj].reg.mats = None
+
         sys.setrecursionlimit(10000)  # for dill calls to pickle
 
         if not os.path.isdir(os.path.dirname(save_file)):
             os.makedirs(os.path.dirname(save_file))
 
         with file(save_file, 'wb') as f:
-            dill.dump(self, f)
+            dill.dump(tmp_ndn, f)
         print('Model pickled to %s' % save_file)
 
     # noinspection PyInterpreter
