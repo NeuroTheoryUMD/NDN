@@ -93,6 +93,9 @@ def filtered_eval_model(
     #XVindx_list = []
     #for cc in range(NU):
     inds = np.intersect1d(test_indxs, np.where(data_filters[:, int(unit_number)] > 0))
+    # need to make sure normalized by neuron's own firing rate
+    FRchoice = NDNmodel.poisson_unit_norm
+    NDNmodel.poisson_unit_norm = True
     all_LLs = NDNmodel.eval_models(
         input_data=input_data, output_data=output_data,
         data_indxs=inds, data_filters=data_filters, nulladjusted=False)
@@ -100,6 +103,8 @@ def filtered_eval_model(
         LLreturn = all_LLs[int(unit_number)]
     else:
         LLreturn = -all_LLs[int(unit_number)]-NDNmodel.nullLL(output_data[inds, int(unit_number)])
+    # turn back to original value
+    NDNmodel.poisson_unit_norm = FRchoice
 
     return LLreturn
 # END filtered_eval_model
