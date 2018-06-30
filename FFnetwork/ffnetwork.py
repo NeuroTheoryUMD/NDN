@@ -447,12 +447,17 @@ class side_network(FFNetwork):
         # Determine dimensions of input and pass into regular network
         # initializer
         input_layer_sizes = input_network_params['layer_sizes']
-        if input_network_params['layer_types'][0] == 'conv':
+        if (input_network_params['layer_types'][0] == 'conv') or \
+                (input_network_params['layer_types'][0] == 'biconv'):
             # then check that all are conv
             for nn in range(1, len(input_layer_sizes)):
                 if input_network_params['layer_types'][nn] != 'conv':
                     ValueError('All layers must be convolutional.')
             nx_ny = input_network_params['input_dims'][1:3]
+            if input_network_params['layer_types'][0] == 'biconv':
+                nx_ny[0] = int(nx_ny[0]/2)
+                input_layer_sizes[0] = input_layer_sizes[0]*2
+
             input_dims = [max(input_layer_sizes)*len(input_layer_sizes), nx_ny[0], nx_ny[1]]
         else:
             nx_ny = [1, 1]
