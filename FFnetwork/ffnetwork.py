@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import division
 
 import tensorflow as tf
+import numpy as np
 from .layer import Layer
 from .layer import ConvLayer
 from .layer import SepLayer
@@ -446,13 +447,25 @@ class side_network(FFNetwork):
         # Determine dimensions of input and pass into regular network
         # initializer
         input_layer_sizes = input_network_params['layer_sizes']
+        if input_network_params['layer_types'][0] == 'conv':
+            # then check that all are conv
+            for nn in range(1, len(input_layer_sizes)):
+                if input_network_params['layer_types'][nn] != 'conv':
+                    ValueError('All layers must be convolutional.')
+            nx_ny = input_network_params['input_dims'][1:3]
+            input_dims = [max(input_layer_sizes)*len(input_layer_sizes), nx_ny[0], nx_ny[1]]
+        else:
+            nx_ny = [1, 1]
+            input_dims = [len(input_layer_sizes), max(input_layer_sizes), 1]
 
         super(side_network, self).__init__(
             scope=scope,
-            input_dims=[len(input_layer_sizes), max(input_layer_sizes), 1],
+            input_dims=input_dims,
             params_dict=params_dict)
 
+        self.num_space = nx_ny[0]*nx_ny[1]
         self.num_units = input_layer_sizes
+
     # END side_network.__init__
 
     def build_graph(self, input_network, params_dict=None):
@@ -474,7 +487,7 @@ class side_network(FFNetwork):
                 if max_units-self.num_units[input_nn] > 0:
                     layer_padding = tf.constant([
                         [0, 0],
-                        [0, max_units-self.num_units[input_nn]]])
+                        [0, (max_units-self.num_units[input_nn])*self.num_space]])
                     inputs = tf.pad(inputs, layer_padding)
 
             # Now standard graph-build (could just call the parent with inputs)

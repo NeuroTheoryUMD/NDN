@@ -568,7 +568,7 @@ class NDN(Network):
     # END get_LL
 
     def eval_models(self, input_data=None, output_data=None, data_indxs=None,
-                    data_filters=None, nulladjusted=False):
+                    data_filters=None, nulladjusted=False, unit_norm=True):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -578,11 +578,18 @@ class NDN(Network):
             data_indxs (numpy array, optional): indexes of data to use in
                 calculating forward pass; if not supplied, all data is used
             data_filters (numpy array, optional):
-            nulladjusted (bool): to explain
+            nulladjusted (bool): subtracts the log-likelihood of a "null"
+                model that has constant [mean] firing rate
+            unit_norm (bool): if a Poisson noise-distribution, this will
+                specify whether each LL will be normalized by the mean
+                firing rate across all neurons (False) or by each neuron's
+                own firing rate (True: default).
 
         Returns:
-            numpy array: value of log-likelihood for each unit in model
-
+            numpy array: value of log-likelihood for each unit in model. For
+                Poisson noise distributions, if not null-adjusted, this will
+                return the *negative* log-likelihood. Null-adjusted will be
+                positive if better than the null-model.
         """
 
         # check input
@@ -625,6 +632,10 @@ class NDN(Network):
             # build iterator object to access elements from dataset
             iterator = dataset.make_one_shot_iterator()
 
+        # Set [Poisson] unit norm, if relevant
+        unit_norm_save = self.poisson_unit_norm
+        self.poisson_unit_norm = unit_norm
+
         self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
@@ -653,7 +664,10 @@ class NDN(Network):
                 # but nullLL is not (so + is actually subtraction)
                 for i, temp_data in enumerate(output_data):
                     ll_neuron[i] = -ll_neuron[i] - self.nullLL(temp_data[data_indxs, :])
-                # note that this will only be correct for single output indices
+            # note that this will only be correct for single output indices
+
+        # restore original poission-unit-norm
+        self.poisson_unit_norm = unit_norm_save
 
         if len(ll_neuron) == 1:
             return ll_neuron[0]
