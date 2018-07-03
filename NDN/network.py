@@ -949,9 +949,9 @@ class Network(object):
 
         tmp_ndn = self.copy_model()
 
-        for ii in range(len(tmp_ndn.network_list)):
-            for jj in range(len(tmp_ndn.network_list[ii]['layer_sizes'])):
-                tmp_ndn.networks[ii].layers[jj].reg.mats = {}
+        #for ii in range(len(tmp_ndn.network_list)):
+        #    for jj in range(len(tmp_ndn.network_list[ii]['layer_sizes'])):
+        #        tmp_ndn.networks[ii].layers[jj].reg.mats = {}
 
         sys.setrecursionlimit(10000)  # for dill calls to pickle
 

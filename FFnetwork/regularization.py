@@ -274,7 +274,8 @@ class Regularization(object):
             input_dims=self.input_dims,
             num_outputs=self.num_outputs)
         reg_target.vals = self.vals.copy()
-        reg_target.mats = self.mats.copy()
+        #reg_target.mats = self.mats.copy()
+        reg_target.mats = {}
 
         return reg_target
     # END Regularization.reg_copy

@@ -185,7 +185,7 @@ class NDN(Network):
                        list(input_dims_measured), 'Input_dims dont match.'
 
             # Build networks
-            if network_list[nn]['network_type'] is 'side':
+            if network_list[nn]['network_type'] == 'side':
                 assert len(network_list[nn]['ffnet_n']) == 1, \
                     'only one input to a side network'
                 network_input_params = \
@@ -526,7 +526,7 @@ class NDN(Network):
             data_indxs = np.arange(self.num_examples)
 
         # build datasets if using 'iterator' pipeline
-        if self.data_pipe_type is 'iterator':
+        if self.data_pipe_type == 'iterator':
             dataset = self._build_dataset(
                 input_data=input_data,
                 output_data=output_data,
