@@ -240,7 +240,7 @@ class NDN(Network):
             # Build network graph
             for nn in range(self.num_networks):
 
-                if self.network_list[nn]['network_type'] is 'side':
+                if self.network_list[nn]['network_type'] == 'side':
 
                     # Specialized inputs to side-network
                     assert self.network_list[nn]['xstim_n'] is None, \

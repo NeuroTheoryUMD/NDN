@@ -470,7 +470,6 @@ class side_network(FFNetwork):
 
         self.num_space = nx_ny[0]*nx_ny[1]
         self.num_units = input_layer_sizes
-
     # END side_network.__init__
 
     def build_graph(self, input_network, params_dict=None):
