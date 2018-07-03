@@ -160,7 +160,6 @@ class Regularization(object):
 
         Args:
             reg_type (str): see `_allowed_reg_types` for options
-
         """
 
         if (reg_type == 'd2t') or (reg_type == 'd2x') or (reg_type == 'd2xt'):
