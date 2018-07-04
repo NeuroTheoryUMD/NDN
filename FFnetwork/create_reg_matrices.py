@@ -243,7 +243,7 @@ def create_maxpenalty_matrix(input_dims, reg_type):
     return rmat
 
 
-def create_localpenalty_matrix(input_dims, reg_type):
+def create_localpenalty_matrix(input_dims, separable=True):
     """
     Usage: Tmat = create_maxpenalty_matrix(input_dims, reg_type)
 
@@ -268,12 +268,11 @@ def create_localpenalty_matrix(input_dims, reg_type):
     # assert (ischar(reg_type) && ismember(reg_type, allowed_reg_types), 'not an allowed regularization type');
 
     # first dimension is assumed to represent filters
-    #num_filt = input_dims[0]
+    num_filt = input_dims[0]
 
     # additional dimensions are spatial (Nx and Ny)
     num_pix = input_dims[1] * input_dims[2]
-    #dims_prod = num_filt * num_pix
-    rmat = np.zeros([num_pix, num_pix], dtype=np.float32)
+    mat_seed = np.zeros([num_pix, num_pix], dtype=np.float32)
 
     for ii in range(num_pix):
         #pos1_x = (ii % (input_dims[0] * input_dims[1])) // input_dims[0]  # for non-separable
@@ -285,10 +284,11 @@ def create_localpenalty_matrix(input_dims, reg_type):
 
             alpha = np.square(pos1_x - pos2_x) + np.square(pos1_y - pos2_y)
 
-            rmat[ii, jj] = alpha / (np.square(input_dims[1])+np.square(input_dims[2]))
+            mat_seed[ii, jj] = alpha / (np.square(input_dims[1])+np.square(input_dims[2]))
 
-    #elif reg_type == 'max_space':
-    #    ex = np.ones([num_pix, num_pix]) - np.eye(num_pix)
-    #    rmat = np.kron(ex, np.eye(num_filt, dtype=np.float32))
+    if separable:
+        rmat = mat_seed
+    else:
+        rmat = np.kron(mat_seed, np.eye(num_filt, dtype=np.float32))
 
     return rmat

@@ -176,7 +176,7 @@ class Regularization(object):
             name = reg_type + '_reg'
         elif reg_type == 'local':
             reg_mat = makeRmats.create_localpenalty_matrix(
-                self.input_dims, reg_type)
+                self.input_dims, separable=False)
             name = reg_type + '_reg'
         else:
             reg_mat = 0.0
@@ -238,8 +238,12 @@ class Regularization(object):
                 tf.reduce_sum(tf.square(
                     tf.matmul(self.mats['d2xt'], weights))))
         elif reg_type == 'local':
-            reg_pen = tf.constant(0.0)
-            print('local currently does not work outside separable layers')
+            w2 = tf.square(weights)
+            reg_pen = tf.multiply(
+                self.vals_var['local'],
+                tf.trace(tf.matmul(w2,
+                                   tf.matmul(self.mats['local'], w2),
+                                   transpose_a=True)))
         elif reg_type == 'center':
             reg_pen = tf.multiply(
                 self.vals_var['center'],
@@ -335,7 +339,7 @@ class SepRegularization(Regularization):
             name = reg_type + '_reg'
         elif reg_type == 'local':
             reg_mat = makeRmats.create_localpenalty_matrix(
-                self.input_dims, reg_type)
+                self.input_dims, separable=True)
             name = reg_type + '_reg'
         else:
             reg_mat = 0.0
