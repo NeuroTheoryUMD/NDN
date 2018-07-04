@@ -269,14 +269,13 @@ class Regularization(object):
 
     def reg_copy(self):
         """Copy regularization to new structure"""
-
         reg_target = Regularization(
             input_dims=self.input_dims,
             num_outputs=self.num_outputs)
         reg_target.vals = self.vals.copy()
         #reg_target.mats = self.mats.copy()
         reg_target.mats = {}
-        print('nulled')
+
         return reg_target
     # END Regularization.reg_copy
 # END Regularization
@@ -438,7 +437,8 @@ class SepRegularization(Regularization):
             input_dims=self.input_dims,
             num_outputs=self.num_outputs)
         reg_target.vals = self.vals.copy()
-        reg_target.mats = self.mats.copy()
+        #reg_target.mats = self.mats.copy()
+        reg_target.mats = {}
 
         return reg_target
     # END SepRegularization.reg_copy

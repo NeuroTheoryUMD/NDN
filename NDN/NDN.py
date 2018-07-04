@@ -798,7 +798,6 @@ class NDN(Network):
                     self.networks[nn].layers[ll].weights.copy()
                 target.networks[nn].layers[ll].biases = \
                     self.networks[nn].layers[ll].biases.copy()
-                print(nn,ll)
                 target.networks[nn].layers[ll].reg = \
                     self.networks[nn].layers[ll].reg.reg_copy()
 
