@@ -446,7 +446,7 @@ class side_network(FFNetwork):
 
         # Determine dimensions of input and pass into regular network
         # initializer
-        input_layer_sizes = input_network_params['layer_sizes']
+        input_layer_sizes = input_network_params['layer_sizes'][:]
         if (input_network_params['layer_types'][0] == 'conv') or \
                 (input_network_params['layer_types'][0] == 'biconv'):
             # then check that all are conv

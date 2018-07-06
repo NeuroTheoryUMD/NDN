@@ -129,7 +129,7 @@ class NDN(Network):
         self.poisson_unit_norm = False
         self.tf_seed = tf_seed
 
-        self._define_network(network_list)
+        self._define_network()
 
         # set parameters for graph (constructed for each train)
         self.graph = None
@@ -138,20 +138,19 @@ class NDN(Network):
         self.init = None
     # END NDN.__init__
 
-    def _define_network(self, network_list):
+    def _define_network(self):
         # Create the FFnetworks
 
         self.networks = []
 
         for nn in range(self.num_networks):
-
             # Tabulate network inputs. Note that multiple inputs assumed to be
             # combined along 2nd dim, and likewise 1-D outputs assumed to be
             # over 'space'
             input_dims_measured = None
 
-            if network_list[nn]['ffnet_n'] is not None:
-                ffnet_n = network_list[nn]['ffnet_n']
+            if self.network_list[nn]['ffnet_n'] is not None:
+                ffnet_n = self.network_list[nn]['ffnet_n']
                 for mm in ffnet_n:
                     assert mm <= self.num_networks, \
                         'Too many ffnetworks referenced.'
@@ -162,50 +161,51 @@ class NDN(Network):
                         self.networks[mm].layers[-1].output_dims)
 
             # Determine external inputs
-            if network_list[nn]['xstim_n'] is not None:
-                xstim_n = network_list[nn]['xstim_n']
+            if self.network_list[nn]['xstim_n'] is not None:
+                xstim_n = self.network_list[nn]['xstim_n']
                 for mm in xstim_n:
                     # First see if input is not specified at NDN level
                     if self.input_sizes[mm] is None:
                         # then try to scrape from network_params
-                        assert network_list[nn]['input_dims'] is not None, \
+                        assert self.network_list[nn]['input_dims'] is not None, \
                             'External input size not defined.'
-                        self.input_sizes[mm] = network_list[nn]['input_dims']
+                        self.input_sizes[mm] = self.network_list[nn]['input_dims']
                     input_dims_measured = concatenate_input_dims(
                         input_dims_measured, self.input_sizes[mm])
 
             # Now specific/check input to this network
-            if network_list[nn]['input_dims'] is None:
-                network_list[nn]['input_dims'] = input_dims_measured
+            if self.network_list[nn]['input_dims'] is None:
+                self.network_list[nn]['input_dims'] = input_dims_measured
                 # print('network %i:' % nn, input_dims_measured)
             else:
                 # print('network %i:' % nn, network_list[nn]['input_dims'],
                 # input_dims_measured )
-                assert network_list[nn]['input_dims'] == \
+                assert self.network_list[nn]['input_dims'] == \
                        list(input_dims_measured), 'Input_dims dont match.'
 
             # Build networks
-            if network_list[nn]['network_type'] == 'side':
-                assert len(network_list[nn]['ffnet_n']) == 1, \
+            if self.network_list[nn]['network_type'] == 'side':
+                assert len(self.network_list[nn]['ffnet_n']) == 1, \
                     'only one input to a side network'
                 network_input_params = \
-                    network_list[network_list[nn]['ffnet_n'][0]]
+                    self.network_list[self.network_list[nn]['ffnet_n'][0]]
                 self.networks.append(
                     side_network(
                         scope='side_network_%i' % nn,
                         input_network_params=network_input_params,
-                        params_dict=network_list[nn]))
+                        params_dict=self.network_list[nn]))
             else:
                 self.networks.append(
                     FFNetwork(
                         scope='network_%i' % nn,
-                        params_dict=network_list[nn]))
+                        params_dict=self.network_list[nn]))
 
         # Assemble outputs
         for nn in range(len(self.ffnet_out)):
             ffnet_n = self.ffnet_out[nn]
             self.output_sizes[nn] = \
                 self.networks[ffnet_n].layers[-1].weights.shape[1]
+
     # END NDN._define_network
 
     def _build_graph(

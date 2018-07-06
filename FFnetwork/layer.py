@@ -1188,7 +1188,7 @@ class BiConvLayer(ConvLayer):
 
         # BiConvLayer-specific modifications
         self.num_shifts[0] = self.num_shifts[0]
-        self.num_filters = self.num_filters
+        #self.num_filters = self.num_filters
         self.output_dims[0] = self.num_filters*2
         self.output_dims[1] = int(self.num_shifts[0]/2)
     # END BiConvLayer.__init__
