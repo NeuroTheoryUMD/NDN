@@ -125,3 +125,22 @@ def spatial_spread(filters, axis=0):
 
     return stdevs
 # END spatial_spread
+
+
+def plot_filters( NDNmod, nLags=10 ):
+
+    import matplotlib.pyplot as plt  # plotting
+
+    ks = NDNmod.networks[0].layers[0].weights
+    nfilters = ks.shape[1]
+    filter_width = ks.shape[0] // nLags
+    rows = nfilters // 10
+    cols = 10
+    fig, ax = plt.subplots(nrows=rows, ncols=cols)
+    fig.set_size_inches(18 / 6 * cols, 7 / 4 * rows)
+    for nn in range(nfilters):
+        plt.subplot(rows, cols, nn + 1)
+        plt.imshow(np.transpose(np.reshape(ks[:, nn], [filter_width, nLags])),
+                   cmap='Greys', interpolation='none',
+                   vmin=-max(abs(ks[:, nn])), vmax=max(abs(ks[:, nn])), aspect=2)
+    plt.show()
