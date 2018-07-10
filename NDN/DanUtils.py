@@ -163,10 +163,12 @@ def side_network_analyze(side_ndn, cell_to_plot=None):
         fig, ax = plt.subplots(nrows=1, ncols=num_layers)
         fig.set_size_inches(12, 2)
 
+    w_shaped = np.reshape(side_ndn.networks[1].layers[0].weights, [NX, max_filters, num_layers, NC])
     for ll in range(num_layers):
-        w = np.reshape(
-            side_ndn.networks[1].layers[0].weights[range(ll*max_filters, ll*max_filters + NX*filter_nums[ll]), :],
-            [NX, filter_nums[ll], NC])
+        #w = np.reshape(
+        #    side_ndn.networks[1].layers[0].weights[range(ll*max_filters, ll*max_filters + NX*filter_nums[ll]), :],
+        #    [NX, filter_nums[ll], NC])
+        w = np.squeeze(w_shaped[:, range(filter_nums[ll]), ll, :])
         ws.append(w)
 
         if cell_to_plot is not None:
