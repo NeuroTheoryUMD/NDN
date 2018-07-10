@@ -165,7 +165,7 @@ def side_network_analyze(side_ndn, cell_to_plot=None):
 
     for ll in range(num_layers):
         w = np.reshape(
-            side_ndn.networks[1].layers[0].weights[range(ll * max_filters, ll * max_filters + NX * filter_nums[ll]), :],
+            side_ndn.networks[1].layers[0].weights[range(ll*max_filters, ll*max_filters + NX*filter_nums[ll]), :],
             [NX, filter_nums[ll], NC])
         ws.append(w)
 

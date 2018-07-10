@@ -478,21 +478,29 @@ class side_network(FFNetwork):
         can be assembled here"""
 
         max_units = max(self.num_units)
+        num_layers = len(self.num_units)
         with tf.name_scope(self.scope):
 
             # Assemble network-inputs into the first layer
-            for input_nn in range(len(self.num_units)):
+            for input_nn in range(num_layers):
                 if input_nn == 0:
-                    inputs = input_network.layers[input_nn].outputs
+                    inputs_raw = input_network.layers[input_nn].outputs
                 else:
-                    inputs = tf.concat(
-                        (inputs, input_network.layers[input_nn].outputs), 1)
+                    inputs_raw = tf.concat(
+                        [inputs_raw, input_network.layers[input_nn].outputs], 1)
 
                 if max_units-self.num_units[input_nn] > 0:
                     layer_padding = tf.constant([
                         [0, 0],
                         [0, (max_units-self.num_units[input_nn])*self.num_space]])
-                    inputs = tf.pad(inputs, layer_padding)
+                    inputs_raw = tf.pad(inputs_raw, layer_padding)
+
+            # Need to put layer dimension with the filters as bottom dimension instead of top
+            inputs = tf.reshape(
+                tf.transpose(
+                    tf.reshape(inputs_raw, [-1, num_layers, max_units*self.num_space]),
+                    perm=[0, 2, 1]),
+                [-1, num_layers*max_units*self.num_space])
 
             # Now standard graph-build (could just call the parent with inputs)
             for layer in range(self.num_layers):
