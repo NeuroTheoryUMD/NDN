@@ -127,7 +127,7 @@ def spatial_spread(filters, axis=0):
 # END spatial_spread
 
 
-def plot_filters( NDNmod, nLags=10 ):
+def plot_filters(NDNmod, nLags=10):
 
     import matplotlib.pyplot as plt  # plotting
 
@@ -144,3 +144,40 @@ def plot_filters( NDNmod, nLags=10 ):
                    cmap='Greys', interpolation='none',
                    vmin=-max(abs(ks[:, nn])), vmax=max(abs(ks[:, nn])), aspect=2)
     plt.show()
+
+
+def side_network_analyze(side_ndn, cell_to_plot=None):
+    """"""
+    import matplotlib.pyplot as plt  # plotting
+
+    NX = side_ndn.network_list[0]['input_dims'][1]
+    NC = side_ndn.network_list[1]['layer_sizes'][-1]
+    filter_nums = side_ndn.network_list[0]['layer_sizes'][:]
+    num_layers = len(filter_nums)
+    if side_ndn.network_list[0]['layer_types'][0] == 'biconv':
+        NX = NX // 2
+        filter_nums[0] *= 2
+    max_filters = np.max(filter_nums)
+    ws = []
+    if cell_to_plot is not None:
+        fig, ax = plt.subplots(nrows=1, ncols=num_layers)
+        fig.set_size_inches(12, 2)
+
+    for ll in range(num_layers):
+        w = np.reshape(
+            side_ndn.networks[1].layers[0].weights[range(ll * max_filters, ll * max_filters + NX * filter_nums[ll]), :],
+            [NX, filter_nums[ll], NC])
+        ws.append(w)
+
+        if cell_to_plot is not None:
+            plt.subplot(1, num_layers, ll+1)
+            plt.imshow(np.squeeze(w[:, :, cell_to_plot]), aspect=0.5)
+            if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
+                plt.plot([filter_nums[0]/2, filter_nums[0]/2], [0, NX-1], 'r')
+    plt.show()
+
+    return ws
+
+
+
+
