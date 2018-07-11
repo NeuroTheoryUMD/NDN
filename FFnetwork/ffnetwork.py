@@ -483,19 +483,26 @@ class side_network(FFNetwork):
 
             # Assemble network-inputs into the first layer
             for input_nn in range(num_layers):
-                if input_nn == 0:
-                    inputs = input_network.layers[input_nn].outputs
-                else:
-                    inputs = tf.concat(
-                        [inputs, input_network.layers[input_nn].outputs], 1)
 
+                new_slice = input_network.layers[input_nn].outputs
                 if max_units-self.num_units[input_nn] > 0:
                     layer_padding = tf.constant([
                         [0, 0],
                         [0, (max_units-self.num_units[input_nn])*self.num_space]])
-                    inputs = tf.pad(inputs, layer_padding)
+                    new_slice = tf.pad(new_slice, layer_padding)
+
+                if input_nn == 0:
+                    inputs_raw = tf.expand_dims(new_slice, 2)
+                else:
+                    inputs_raw = tf.concat([inputs_raw, tf.expand_dims(new_slice, 2)], 2)
 
             # Need to put layer dimension with the filters as bottom dimension instead of top
+            inputs = tf.reshape(inputs_raw, [-1, num_layers*max_units*self.num_space])
+            # prev
+            #inputs = tf.reshape(
+            #    tf.transpose(inputs_raw, perm=[0, 2, 1]),
+            #    [-1, num_layers*max_units*self.num_space])
+
             #inputs = tf.reshape(
             #    tf.transpose(
             #        tf.reshape(inputs_raw, [-1, num_layers, self.num_space, max_units]),
