@@ -284,11 +284,12 @@ def create_localpenalty_matrix(input_dims, separable=True):
 
             alpha = np.square(pos1_x - pos2_x) + np.square(pos1_y - pos2_y)
 
-            mat_seed[ii, jj] = alpha / (np.square(input_dims[1])+np.square(input_dims[2]))
+            mat_seed[ii, jj] = alpha / (np.square(input_dims[1]/2)+np.square(input_dims[2]/2))
 
     if separable:
         rmat = mat_seed
     else:
-        rmat = np.kron(mat_seed, np.eye(num_filt, dtype=np.float32))
+        #rmat = np.kron(mat_seed, np.eye(num_filt, dtype=np.float32))
+        rmat = np.kron(np.eye(num_filt, dtype=np.float32), mat_seed)
 
     return rmat

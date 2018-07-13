@@ -637,7 +637,15 @@ class NDN(Network):
         unit_norm_save = self.poisson_unit_norm
         self.poisson_unit_norm = unit_norm
 
-        self._build_graph()
+        # Place graph operations on CPU
+        with tf.device('/cpu:0'):
+            self._build_graph()
+
+        # This way doesnt work
+        #sess_config = tf.ConfigProto(
+        #  device_count={'CPU': 1, 'GPU': 0},
+        #  allow_soft_placement=True,
+        #  log_device_placement=False)
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
@@ -740,7 +748,7 @@ class NDN(Network):
 
         self._build_graph()
 
-        with tf.Session(graph=self.graph, config=self.sess_config) as sess:
+        with tf.Session(graph=self.graph, config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
 
             self._restore_params(sess, input_data, output_data)
 

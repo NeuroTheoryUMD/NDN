@@ -424,8 +424,7 @@ class SepRegularization(Regularization):
                            self.num_outputs]))
             reg_pen = tf.multiply(
                 self.vals_var['local'],
-                tf.trace(tf.matmul(wspace2,
-                                   tf.matmul(self.mats['local'], wspace2),
+                tf.trace(tf.matmul(wspace2, tf.matmul(self.mats['local'], wspace2),
                                    transpose_a=True)))
         elif reg_type == 'd2xt':
             raise TypeError('d2xt does not work with a separable layer.')
