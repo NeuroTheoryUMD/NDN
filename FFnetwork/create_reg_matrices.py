@@ -243,7 +243,7 @@ def create_maxpenalty_matrix(input_dims, reg_type):
     return rmat
 
 
-def create_localpenalty_matrix(input_dims, separable=True):
+def create_localpenalty_matrix(input_dims, separable=True, spatial_global=False):
     """
     Usage: Tmat = create_maxpenalty_matrix(input_dims, reg_type)
 
@@ -290,6 +290,9 @@ def create_localpenalty_matrix(input_dims, separable=True):
         rmat = mat_seed
     else:
         #rmat = np.kron(mat_seed, np.eye(num_filt, dtype=np.float32))
-        rmat = np.kron(np.eye(num_filt, dtype=np.float32), mat_seed)
+        if spatial_global is False:
+            rmat = np.kron(np.eye(num_filt, dtype=np.float32), mat_seed)
+        else:
+            rmat = np.kron(np.ones(num_filt, dtype=np.float32), mat_seed)
 
     return rmat

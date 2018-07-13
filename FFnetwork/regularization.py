@@ -29,7 +29,7 @@ class Regularization(object):
     """
 
     _allowed_reg_types = ['l1', 'l2', 'norm2', 'norm2_space', 'norm2_filt',
-                          'd2t', 'd2x', 'd2xt', 'local', 'center',
+                          'd2t', 'd2x', 'd2xt', 'local', 'glocal', 'center',
                           'max', 'max_filt', 'max_space']
 
     def __init__(self, input_dims=None, num_outputs=None, vals=None):
@@ -178,6 +178,10 @@ class Regularization(object):
             reg_mat = makeRmats.create_localpenalty_matrix(
                 self.input_dims, separable=False)
             name = reg_type + '_reg'
+        elif reg_type == 'glocal':
+            reg_mat = makeRmats.create_localpenalty_matrix(
+                self.input_dims, separable=False, spatial_global=True)
+            name = reg_type + '_reg'
         else:
             reg_mat = 0.0
             name = 'lp_placeholder'
@@ -244,6 +248,14 @@ class Regularization(object):
                 tf.trace(tf.matmul(w2,
                                    tf.matmul(self.mats['local'], w2),
                                    transpose_a=True)))
+        elif reg_type is 'glocal':
+            wspace2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
+                          [self.input_dims[1]*self.input_dims[2],
+                           self.num_outputs]))
+            reg_pen = tf.multiply(
+                self.vals_var['glocal'],
+                tf.trace(tf.matmul(wspace2, tf.matmul(self.mats['glocal'], wspace2),
+                                   transpose_a=True)))
         elif reg_type == 'center':
             reg_pen = tf.multiply(
                 self.vals_var['center'],
@@ -277,7 +289,6 @@ class Regularization(object):
             input_dims=self.input_dims,
             num_outputs=self.num_outputs)
         reg_target.vals = self.vals.copy()
-        #reg_target.mats = self.mats.copy()
         reg_target.mats = {}
 
         return reg_target
@@ -341,6 +352,8 @@ class SepRegularization(Regularization):
             reg_mat = makeRmats.create_localpenalty_matrix(
                 self.input_dims, separable=True)
             name = reg_type + '_reg'
+        elif reg_type == 'glocal':
+            raise TypeError('glocal regularization not supported with a separable layer.')
         else:
             reg_mat = 0.0
             name = 'lp_placeholder'
@@ -418,7 +431,7 @@ class SepRegularization(Regularization):
                 tf.trace(tf.matmul(wspace,
                                    tf.matmul(self.mats['center'], wspace),
                                    transpose_a=True)))
-        elif reg_type is 'local':
+        elif reg_type == 'local':
             wspace2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
                           [self.input_dims[1]*self.input_dims[2],
                            self.num_outputs]))
