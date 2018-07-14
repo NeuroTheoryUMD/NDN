@@ -146,36 +146,54 @@ def plot_filters(NDNmod, nLags=10):
     plt.show()
 
 
-def side_network_analyze(side_ndn, cell_to_plot=None):
-    """"""
-    import matplotlib.pyplot as plt  # plotting
+def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
+    """
+    Applies only to NDN with a side network. It will divide up the weights of the side-network
+    into layer-specific pieces and resize to represent space and filter number as different inputs.
 
-    NX = side_ndn.network_list[0]['input_dims'][1]
-    NC = side_ndn.network_list[1]['layer_sizes'][-1]
+    Inputs:
+        side_ndn: the network model (required)
+        cell_to_plot: if plots desired, single out the cell to plot (default no plot)
+        plot_aspect: if plots, then whether to have aspect as 'auto' (default) or 'equal'
+    Output:
+        returns the weights as organized as descrived above
+    """
+    import matplotlib.pyplot as plt  # plotting
+    if plot_aspect != 'auto':
+        plot_aspect = 'equal'
+        
+    num_space = side_ndn.network_list[0]['input_dims'][1]
+    num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
     filter_nums = side_ndn.network_list[0]['layer_sizes'][:]
     num_layers = len(filter_nums)
+
+    # Adjust effective space/filter number if binocular model
     if side_ndn.network_list[0]['layer_types'][0] == 'biconv':
-        NX = NX // 2
+        num_space = num_space // 2
         filter_nums[0] *= 2
-    max_filters = np.max(filter_nums)
-    ws = []
+
     if cell_to_plot is not None:
         fig, ax = plt.subplots(nrows=1, ncols=num_layers)
-        fig.set_size_inches(16, 2)
+        fig.set_size_inches(16, 3)
 
-    #w_shaped = np.reshape(side_ndn.networks[1].layers[0].weights, [NX, max_filters, num_layers, NC])
+    wside = side_ndn.networks[1].layers[0].weights
+    num_inh = side_ndn.network_list[0]['num_inh']
+    ws = []
     for ll in range(num_layers):
-        w = np.reshape(
-            side_ndn.networks[1].layers[0].weights[range(ll*max_filters, ll*max_filters + NX*filter_nums[ll]), :],
-            [NX, filter_nums[ll], NC])
-        #w = np.squeeze(w_shaped[:, range(filter_nums[ll]), ll, :])
-        ws.append(w)
+        wtemp = wside[range(ll, len(wside), num_layers), :]
+        ws.append(np.reshape(wtemp[range(filter_nums[ll] * num_space), :],
+                             [num_space, filter_nums[ll], num_cells]))
 
         if cell_to_plot is not None:
             plt.subplot(1, num_layers, ll+1)
-            plt.imshow(np.squeeze(w[:, :, cell_to_plot]), aspect=max_filters/80)
+            plt.imshow(ws[ll][:, :, cell_to_plot], aspect=plot_aspect)
+            # Put line in for inhibitory units
+            if num_inh[ll] > 0:
+                plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_space-0.5], 'r')
+            # Put line in for binocular layer (if applicable)
             if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
-                plt.plot([filter_nums[0]/2, filter_nums[0]/2], [0, NX-1], 'r')
+                plt.plot([filter_nums[ll]/2, filter_nums[ll]/2], [-0.5, num_space-0.5], 'w')
+
     plt.show()
 
     return ws
