@@ -293,6 +293,6 @@ def create_localpenalty_matrix(input_dims, separable=True, spatial_global=False)
         if spatial_global is False:
             rmat = np.kron(np.eye(num_filt, dtype=np.float32), mat_seed)
         else:
-            rmat = np.kron(np.ones(num_filt, dtype=np.float32), mat_seed)
+            rmat = np.kron(np.ones([num_filt, num_filt], dtype=np.float32), mat_seed)
 
     return rmat

@@ -65,6 +65,44 @@ def reg_path(
 # END reg_path
 
 
+def safe_generate_predictions(
+        ndn_model=None,
+        input_data=None,
+        data_indxs=None,
+        output_units=None,
+        safe_blk_size=100000):
+
+    """This will return each neuron model evaluated on valid indices (given datafilter).
+    It will also return those valid indices for each unit"""
+
+    if ndn_model is None:
+        raise TypeError('Must specify NDN to regularize.')
+    if input_data is None:
+        raise TypeError('Must specify input_data.')
+    if data_indxs is None:
+        X = input_data
+    else:
+        assert np.max(data_indxs) < input_data.shape[0], 'data_indxs too large'
+        X = input_data[data_indxs, :]
+    NT = X.shape[0]
+    num_outputs = np.prod(ndn_model.networks[ndn_model.ffnet_out[0]].layers[-1].output_dims)
+    if output_units is None:
+        output_units = range(num_outputs)
+    else:
+        assert np.max(output_units) < num_outputs
+
+    preds = np.zeros([NT, num_outputs])
+
+    for nn in range(int(np.ceil(NT/safe_blk_size))):
+        indxs = range(safe_blk_size*nn, np.min([NT, safe_blk_size*(nn+1)]))
+        print('Generating prediction for', indxs[0], 'to', indxs[-1])
+        tmp = ndn_model.generate_prediction(input_data=X[indxs, :])
+        preds[indxs, :] = tmp[:, output_units]
+
+    return preds
+# END safe_generate_predictions
+
+
 def filtered_eval_model(
         unit_number,
         NDNmodel=None,
@@ -88,10 +126,6 @@ def filtered_eval_model(
     if test_indxs is None:
         raise TypeError('Must specify testing indices.')
 
-    #NT, NU = data_filters.shape
-    #LLx = np.zeros([NU], dtype='float32')
-    #XVindx_list = []
-    #for cc in range(NU):
     inds = np.intersect1d(test_indxs, np.where(data_filters[:, int(unit_number)] > 0))
     # need to make sure normalized by neuron's own firing rate
     FRchoice = NDNmodel.poisson_unit_norm
@@ -127,24 +161,34 @@ def spatial_spread(filters, axis=0):
 # END spatial_spread
 
 
-def plot_filters(NDNmod, nLags=10):
+def plot_filters(ndn_mod, num_lags=10):
 
     import matplotlib.pyplot as plt  # plotting
 
-    ks = NDNmod.networks[0].layers[0].weights
-    nfilters = ks.shape[1]
-    filter_width = ks.shape[0] // nLags
-    rows = nfilters // 10
-    cols = 10
+    ks = ndn_mod.networks[0].layers[0].weights
+    num_filters = ks.shape[1]
+    filter_width = ks.shape[0] // num_lags
+    if num_filters/10 == num_filters//10:
+        cols = 10
+    elif num_filters / 8 == num_filters // 8:
+        cols = 8
+    elif num_filters / 6 == num_filters // 6:
+        cols = 6
+    elif num_filters / 5 == num_filters // 5:
+        cols = 5
+    else:
+        cols = 8
+    rows = int(np.ceil(num_filters/cols))
+
     fig, ax = plt.subplots(nrows=rows, ncols=cols)
     fig.set_size_inches(18 / 6 * cols, 7 / 4 * rows)
-    for nn in range(nfilters):
+    for nn in range(num_filters):
         plt.subplot(rows, cols, nn + 1)
-        plt.imshow(np.transpose(np.reshape(ks[:, nn], [filter_width, nLags])),
+        plt.imshow(np.transpose(np.reshape(ks[:, nn], [filter_width, num_lags])),
                    cmap='Greys', interpolation='none',
                    vmin=-max(abs(ks[:, nn])), vmax=max(abs(ks[:, nn])), aspect=2)
     plt.show()
-
+# END plot_filters
 
 def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     """
@@ -161,7 +205,7 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     import matplotlib.pyplot as plt  # plotting
     if plot_aspect != 'auto':
         plot_aspect = 'equal'
-        
+
     num_space = side_ndn.network_list[0]['input_dims'][1]
     num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
     filter_nums = side_ndn.network_list[0]['layer_sizes'][:]

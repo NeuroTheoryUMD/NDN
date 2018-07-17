@@ -249,12 +249,10 @@ class Regularization(object):
                                    tf.matmul(self.mats['local'], w2),
                                    transpose_a=True)))
         elif reg_type is 'glocal':
-            wspace2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
-                          [self.input_dims[1]*self.input_dims[2],
-                           self.num_outputs]))
+            w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['glocal'],
-                tf.trace(tf.matmul(wspace2, tf.matmul(self.mats['glocal'], wspace2),
+                tf.trace(tf.matmul(w2, tf.matmul(self.mats['glocal'], w2),
                                    transpose_a=True)))
         elif reg_type == 'center':
             reg_pen = tf.multiply(
