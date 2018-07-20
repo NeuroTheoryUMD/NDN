@@ -7,7 +7,7 @@ import numpy as np
 
 
 def reg_path(
-        NDNmodel=None,
+        ndn_mod=None,
         input_data=None,
         output_data=None,
         train_indxs=None,
@@ -31,7 +31,7 @@ def reg_path(
             TypeError: If `layer_sizes` is not specified
     """
 
-    if NDNmodel is None:
+    if ndn_mod is None:
         raise TypeError('Must specify NDN to regularize.')
     if input_data is None:
         raise TypeError('Must specify input_data.')
@@ -49,7 +49,7 @@ def reg_path(
 
     for nn in range(num_regs):
         print( 'Regularization test:', reg_type,'=',reg_vals[nn] )
-        test_mod = NDNmodel.copy_model()
+        test_mod = ndn_mod.copy_model()
         test_mod.set_regularization( reg_type, reg_vals[nn], ffnet_n, layer_n )
         test_mod.train(input_data=input_data, output_data=output_data,
                        train_indxs=train_indxs, test_indxs=test_indxs,
@@ -105,7 +105,7 @@ def safe_generate_predictions(
 
 def filtered_eval_model(
         unit_number,
-        NDNmodel=None,
+        ndn_mod=None,
         input_data=None,
         output_data=None,
         test_indxs=None,
@@ -115,7 +115,7 @@ def filtered_eval_model(
     """This will return each neuron model evaluated on valid indices (given datafilter).
     It will also return those valid indices for each unit"""
 
-    if NDNmodel is None:
+    if ndn_mod is None:
         raise TypeError('Must specify NDN to regularize.')
     if input_data is None:
         raise TypeError('Must specify input_data.')
@@ -128,17 +128,17 @@ def filtered_eval_model(
 
     inds = np.intersect1d(test_indxs, np.where(data_filters[:, int(unit_number)] > 0))
     # need to make sure normalized by neuron's own firing rate
-    FRchoice = NDNmodel.poisson_unit_norm
-    NDNmodel.poisson_unit_norm = True
-    all_LLs = NDNmodel.eval_models(
+    FRchoice = ndn_mod.poisson_unit_norm
+    ndn_mod.poisson_unit_norm = True
+    all_LLs = ndn_mod.eval_models(
         input_data=input_data, output_data=output_data,
         data_indxs=inds, data_filters=data_filters, nulladjusted=False)
-    if nulladjusted == False:
+    if not nulladjusted:
         LLreturn = all_LLs[int(unit_number)]
     else:
-        LLreturn = -all_LLs[int(unit_number)]-NDNmodel.nullLL(output_data[inds, int(unit_number)])
+        LLreturn = -all_LLs[int(unit_number)]-ndn_mod.nullLL(output_data[inds, int(unit_number)])
     # turn back to original value
-    NDNmodel.poisson_unit_norm = FRchoice
+    ndn_mod.poisson_unit_norm = FRchoice
 
     return LLreturn
 # END filtered_eval_model
@@ -161,13 +161,15 @@ def spatial_spread(filters, axis=0):
 # END spatial_spread
 
 
-def plot_filters(ndn_mod, num_lags=10):
+def plot_filters(ndn_mod):
 
     import matplotlib.pyplot as plt  # plotting
 
     ks = ndn_mod.networks[0].layers[0].weights
     num_filters = ks.shape[1]
+    num_lags = ndn_mod.network_list[0]['input_dims'][0]
     filter_width = ks.shape[0] // num_lags
+    
     if num_filters/10 == num_filters//10:
         cols = 10
     elif num_filters / 8 == num_filters // 8:
@@ -186,9 +188,10 @@ def plot_filters(ndn_mod, num_lags=10):
         plt.subplot(rows, cols, nn + 1)
         plt.imshow(np.transpose(np.reshape(ks[:, nn], [filter_width, num_lags])),
                    cmap='Greys', interpolation='none',
-                   vmin=-max(abs(ks[:, nn])), vmax=max(abs(ks[:, nn])), aspect=2)
+                   vmin=-max(abs(ks[:, nn])), vmax=max(abs(ks[:, nn])), aspect='auto')
     plt.show()
 # END plot_filters
+
 
 def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     """
