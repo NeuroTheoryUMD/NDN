@@ -803,6 +803,7 @@ class NDN(Network):
         # Assemble network_list
         target = NDN(self.network_list, ffnet_out=self.ffnet_out,
                      noise_dist=self.noise_dist, tf_seed=tf_seed)
+        target.poisson_unit_norm = self.poisson_unit_norm
 
         # Copy all the parameters
         for nn in range(self.num_networks):
