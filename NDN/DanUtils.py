@@ -48,9 +48,9 @@ def reg_path(
     test_mods = []
 
     for nn in range(num_regs):
-        print( 'Regularization test:', reg_type,'=',reg_vals[nn] )
+        print('\nRegularization test:', reg_type, '=', reg_vals[nn])
         test_mod = ndn_mod.copy_model()
-        test_mod.set_regularization( reg_type, reg_vals[nn], ffnet_n, layer_n )
+        test_mod.set_regularization(reg_type, reg_vals[nn], ffnet_n, layer_n)
         test_mod.train(input_data=input_data, output_data=output_data,
                        train_indxs=train_indxs, test_indxs=test_indxs,
                        data_filters=data_filters, variable_list=variable_list,
@@ -195,12 +195,15 @@ def plot_filters(ndn_mod):
 
 def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     """
-    Applies only to NDN with a side network. It will divide up the weights of the side-network
-    into layer-specific pieces and resize to represent space and filter number as different inputs.
+    Applies to NDN with a side network (conv or non-conv. It will divide up the weights
+    of the side-network into layer-specific pieces and resize to represent space and
+    filter number as different inputs.
 
     Inputs:
         side_ndn: the network model (required)
-        cell_to_plot: if plots desired, single out the cell to plot (default no plot)
+        cell_to_plot: if plots desired, single out the cell to plot (default no plot). If
+            convolutional, then can only plot specified cell. If non-convolutonal, then
+            just set to something other than 'None', and will plot weights for all cells.
         plot_aspect: if plots, then whether to have aspect as 'auto' (default) or 'equal'
     Output:
         returns the weights as organized as descrived above
@@ -208,6 +211,13 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     import matplotlib.pyplot as plt  # plotting
     if plot_aspect != 'auto':
         plot_aspect = 'equal'
+
+    # Check to see if NSM is convolutional or normal
+    if (side_ndn.network_list[0]['layer_types'][0] == 'conv') or \
+            (side_ndn.network_list[0]['layer_types'][0] == 'biconv'):
+        is_conv = True
+    else:
+        is_conv = False
 
     num_space = side_ndn.network_list[0]['input_dims'][1]
     num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
@@ -228,18 +238,27 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     ws = []
     for ll in range(num_layers):
         wtemp = wside[range(ll, len(wside), num_layers), :]
-        ws.append(np.reshape(wtemp[range(filter_nums[ll] * num_space), :],
-                             [num_space, filter_nums[ll], num_cells]))
+        if is_conv:
+            ws.append(np.reshape(wtemp[range(filter_nums[ll] * num_space), :],
+                                 [num_space, filter_nums[ll], num_cells]))
+        else:
+            ws.append(np.reshape(wtemp[range(filter_nums[ll]), :], [filter_nums[ll], num_cells]))
 
         if cell_to_plot is not None:
             plt.subplot(1, num_layers, ll+1)
-            plt.imshow(ws[ll][:, :, cell_to_plot], aspect=plot_aspect)
-            # Put line in for inhibitory units
-            if num_inh[ll] > 0:
-                plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_space-0.5], 'r')
-            # Put line in for binocular layer (if applicable)
-            if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
-                plt.plot([filter_nums[ll]/2, filter_nums[ll]/2], [-0.5, num_space-0.5], 'w')
+            if is_conv:
+                plt.imshow(ws[ll][:, :, cell_to_plot], aspect=plot_aspect)
+                # Put line in for inhibitory units
+                if num_inh[ll] > 0:
+                    plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_space-0.5], 'r')
+                # Put line in for binocular layer (if applicable)
+                if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
+                    plt.plot([filter_nums[ll]/2, filter_nums[ll]/2], [-0.5, num_space-0.5], 'w')
+            else:
+                plt.imshow(np.transpose(ws[ll]), aspect='auto')  # will plot all cells
+                # Put line in for inhibitory units
+                if num_inh[ll] > 0:
+                    plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_cells-0.5], 'r')
 
     plt.show()
 

@@ -333,6 +333,10 @@ class Network(object):
             else:
                 dataset_test = None
 
+        # Set Poisson_unit_norm if specified
+        # overwrite unit_cost_norm with opt_params value
+        self.poisson_unit_norm = opt_params['poisson_unit_norm']
+
         # Build graph: self.build_graph must be defined in child of network
         self._build_graph(
             learning_alg=learning_alg,
@@ -477,9 +481,6 @@ class Network(object):
         else:
             run_options = None
             run_metadata = None
-
-        # overwrite unit_cost_norm with opt_params value
-        self.poisson_unit_norm = opt_params['poisson_unit_norm']
 
         # build iterator handles if using that input pipeline type
         if self.data_pipe_type == 'iterator':
@@ -1078,7 +1079,7 @@ class Network(object):
         if 'data_pipe_type' not in opt_params:
             opt_params['data_pipe_type'] = 'data_as_var'
         if 'poisson_unit_norm' not in opt_params:
-            opt_params['poisson_unit_norm'] = False
+            opt_params['poisson_unit_norm'] = None
 
         if learning_alg is 'adam':
             if 'learning_rate' not in opt_params:

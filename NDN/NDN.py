@@ -220,6 +220,10 @@ class NDN(Network):
         if opt_params is None:
             opt_params = self.optimizer_defaults({}, learning_alg)
 
+        # overwrite unit_cost_norm with opt_params value (if specified)
+        if opt_params['poisson_unit_norm'] is not None:
+            self.poisson_unit_norm = opt_params['poisson_unit_norm']
+
         self.graph = tf.Graph()  # must be initialized before graph creation
 
         # for specifying device
@@ -544,7 +548,7 @@ class NDN(Network):
         self._build_graph()
 
         # Do not use GPU in case range of indices requires batching (which this doesn't implement)
-        with tf.Session(graph=self.graph, config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
+        with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
@@ -804,7 +808,7 @@ class NDN(Network):
         for nn in range(self.num_networks):
             for ll in range(self.networks[nn].num_layers):
                 target.networks[nn].layers[ll].weights = \
-                    self.networks[nn].layers[ll].weights.copy()
+                    self.networks[nn].layers[ll ].weights.copy()
                 target.networks[nn].layers[ll].biases = \
                     self.networks[nn].layers[ll].biases.copy()
                 target.networks[nn].layers[ll].reg = \
