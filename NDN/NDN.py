@@ -642,6 +642,7 @@ class NDN(Network):
             if self.data_pipe_type == 'data_as_var':
                 # get the feed_dict for batch_indxs
                 feed_dict = {self.indices: data_indxs}
+                ll_neuron = sess.run(self.unit_cost, feed_dict=feed_dict)
             elif self.batch_size is None:
                 if self.data_pipe_type == 'feed_dict':
                     feed_dict = self._get_feed_dict(
@@ -675,9 +676,9 @@ class NDN(Network):
                     if batch_test == 0:
                         unit_cost = sess.run(self.unit_cost, feed_dict=feed_dict)
                     else:
-                        unit_cost += sess.run(self.unit_cost, feed_dict=feed_dict)
+                        unit_cost = np.add(unit_cost, sess.run(self.unit_cost, feed_dict=feed_dict))
 
-                ll_neuron = unit_cost/num_batches_test
+                ll_neuron = np.divide(unit_cost, num_batches_test)
 
             if nulladjusted:
                 # note that ll_neuron is negative of the true log-likelihood,
