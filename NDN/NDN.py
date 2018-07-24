@@ -545,29 +545,18 @@ class NDN(Network):
             # build iterator object to access elements from dataset
             iterator = dataset.make_one_shot_iterator()
 
-        self._build_graph()
+        # Place graph operations on CPU
+        with tf.device('/cpu:0'):
+            self._build_graph()
 
-        # Do not use GPU in case range of indices requires batching (which this doesn't implement)
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
 
-            if self.data_pipe_type == 'data_as_var':
-                # get the feed_dict for batch_indxs
-                feed_dict = {self.indices: data_indxs}
-            elif self.data_pipe_type == 'feed_dict':
-                feed_dict = self._get_feed_dict(
-                    input_data=input_data,
-                    output_data=output_data,
-                    data_filters=data_filters,
-                    batch_indxs=data_indxs)
-            elif self.data_pipe_type == 'iterator':
-                # get string handle of iterator
-                iter_handle = sess.run(iterator.string_handle())
-                feed_dict = {self.iterator_handle: iter_handle}
-
-            cost = sess.run(self.cost, feed_dict=feed_dict)
+            cost = self._get_test_cost(
+                sess, input_data=input_data, output_data=output_data,
+                data_filters=data_filters, test_indxs=data_indxs)
 
         return cost
     # END get_LL
@@ -645,12 +634,6 @@ class NDN(Network):
         with tf.device('/cpu:0'):
             self._build_graph()
 
-        # This way doesnt work
-        #sess_config = tf.ConfigProto(
-        #  device_count={'CPU': 1, 'GPU': 0},
-        #  allow_soft_placement=True,
-        #  log_device_placement=False)
-
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
             self._restore_params(
@@ -659,18 +642,42 @@ class NDN(Network):
             if self.data_pipe_type == 'data_as_var':
                 # get the feed_dict for batch_indxs
                 feed_dict = {self.indices: data_indxs}
-            elif self.data_pipe_type == 'feed_dict':
-                feed_dict = self._get_feed_dict(
-                    input_data=input_data,
-                    output_data=output_data,
-                    data_filters=data_filters,
-                    batch_indxs=data_indxs)
-            elif self.data_pipe_type == 'iterator':
-                # get string handle of iterator
-                iter_handle = sess.run(iterator.string_handle())
-                feed_dict = {self.iterator_handle: iter_handle}
+            elif self.batch_size is None:
+                if self.data_pipe_type == 'feed_dict':
+                    feed_dict = self._get_feed_dict(
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        batch_indxs=data_indxs)
+                elif self.data_pipe_type == 'iterator':
+                    # get string handle of iterator
+                    iter_handle = sess.run(iterator.string_handle())
+                    feed_dict = {self.iterator_handle: iter_handle}
 
-            ll_neuron = sess.run(self.unit_cost, feed_dict=feed_dict)
+                ll_neuron = sess.run(self.unit_cost, feed_dict=feed_dict)
+            else:
+                num_batches_test = data_indxs.shape[0] // self.batch_size
+                for batch_test in range(num_batches_test):
+                    batch_indxs_test = data_indxs[
+                        batch_test * self.batch_size:
+                        (batch_test + 1) * self.batch_size]
+                    if self.data_pipe_type == 'data_as_var':
+                        feed_dict = {self.indices: batch_indxs_test}
+                    elif self.data_pipe_type == 'feed_dict':
+                        feed_dict = self._get_feed_dict(
+                            input_data=input_data,
+                            output_data=output_data,
+                            data_filters=data_filters,
+                            batch_indxs=batch_indxs_test)
+                    elif self.data_pipe_type == 'iterator':
+                        feed_dict = {self.iterator_handle: data_indxs}
+
+                    if batch_test == 0:
+                        unit_cost = sess.run(self.unit_cost, feed_dict=feed_dict)
+                    else:
+                        unit_cost += sess.run(self.unit_cost, feed_dict=feed_dict)
+
+                ll_neuron = unit_cost/num_batches_test
 
             if nulladjusted:
                 # note that ll_neuron is negative of the true log-likelihood,
@@ -750,7 +757,9 @@ class NDN(Network):
             # build iterator object to access elements from dataset
             iterator = dataset.make_one_shot_iterator()
 
-        self._build_graph()
+        # Place graph operations on CPU
+        with tf.device('/cpu:0'):
+            self._build_graph()
 
         with tf.Session(graph=self.graph, config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
 

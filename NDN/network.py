@@ -29,6 +29,7 @@ class Network(object):
         self.filter_data = False
         # for tf.data API / 'iterator' pipeline
         self.data_pipe_type = 'data_as_var'
+        self.batch_size = None
         self.dataset_types = None
         self.dataset_shapes = None
 
@@ -468,10 +469,13 @@ class Network(object):
         epochs_training = opt_params['epochs_training']
         epochs_ckpt = opt_params['epochs_ckpt']
         epochs_summary = opt_params['epochs_summary']
+        # Inherit batch size if relevant
+        self.batch_size = opt_params['batch_size']
+        if self.data_pipe_type != 'data_as_var':
+            assert self.batch_size is not None, 'Need to assign batch_size to train.'
 
         if opt_params['early_stop'] > 0:
-            prev_costs = np.multiply(np.ones(opt_params['early_stop']),
-                                     float('NaN'))
+            prev_costs = np.multiply(np.ones(opt_params['early_stop']), float('NaN'))
 
         num_batches_tr = train_indxs.shape[0] // opt_params['batch_size']
 
@@ -565,7 +569,7 @@ class Network(object):
                             output_data=output_data,
                             data_filters=data_filters,
                             test_indxs=test_indxs,
-                            opt_params=opt_params)
+                            test_batch_size=opt_params['batch_size_test'])
                     elif self.data_pipe_type == 'iterator':
                         cost_test = self._get_test_cost(
                             sess=sess,
@@ -573,7 +577,7 @@ class Network(object):
                             output_data=output_data,
                             data_filters=data_filters,
                             test_indxs=iter_handle_test,
-                            opt_params=opt_params)
+                            test_batch_size=opt_params['batch_size_test'])
 
                 # print additional testing info
                 print('Epoch %04d:  avg train cost = %10.4f,  '
@@ -643,7 +647,7 @@ class Network(object):
                         output_data=output_data,
                         data_filters=data_filters,
                         test_indxs=test_indxs,
-                        opt_params=opt_params)
+                        test_batch_size=opt_params['batch_size_test'])
                 elif self.data_pipe_type == 'iterator':
                     cost_test = self._get_test_cost(
                         sess=sess,
@@ -651,7 +655,7 @@ class Network(object):
                         output_data=output_data,
                         data_filters=data_filters,
                         test_indxs=iter_handle_test,
-                        opt_params=opt_params)
+                        test_batch_size=opt_params['batch_size_test'])
 
                 prev_costs = np.roll(prev_costs, 1)
                 prev_costs[0] = cost_test
@@ -721,17 +725,16 @@ class Network(object):
         # END _train_adam
 
     def _get_test_cost(self, sess, input_data, output_data, data_filters,
-                       test_indxs, opt_params):
+                       test_indxs, test_batch_size=None):
         """Utility function to clean up code in `_train_adam` method"""
 
-        if opt_params['batch_size_test'] is not None:
-            num_batches_test = test_indxs.shape[0] // \
-                               opt_params['batch_size_test']
+        if test_batch_size is not None:
+            num_batches_test = test_indxs.shape[0] // test_batch_size
             cost_test = 0
             for batch_test in range(num_batches_test):
                 batch_indxs_test = test_indxs[
-                    batch_test * opt_params['batch_size_test']:
-                    (batch_test + 1) * opt_params['batch_size_test']]
+                    batch_test * test_batch_size:
+                    (batch_test + 1) * test_batch_size]
                 if self.data_pipe_type == 'data_as_var':
                     feed_dict = {self.indices: batch_indxs_test}
                 elif self.data_pipe_type == 'feed_dict':
@@ -1085,9 +1088,9 @@ class Network(object):
             if 'learning_rate' not in opt_params:
                 opt_params['learning_rate'] = 1e-3
             if 'batch_size' not in opt_params:
-                opt_params['batch_size'] = 128
+                opt_params['batch_size'] = None
             if 'batch_size_test' not in opt_params:
-                opt_params['batch_size_test'] = opt_params['batch_size']
+                opt_params['batch_size_test'] = None
             if 'epochs_training' not in opt_params:
                 opt_params['epochs_training'] = 100
             if 'epochs_ckpt' not in opt_params:
