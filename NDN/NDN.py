@@ -335,7 +335,7 @@ class NDN(Network):
 
                     if self.poisson_unit_norm is not None:
                         # normalize based on rate * time (number of spikes)
-                        cost_norm = tf.multiply(tf.maximum(self.poisson_unit_norm, 1), NT)
+                        cost_norm = np.multiply(self.poisson_unit_norm, NT)
                     else:
                         cost_norm = NT
 
@@ -559,7 +559,7 @@ class NDN(Network):
     # END get_LL
 
     def eval_models(self, input_data=None, output_data=None, data_indxs=None,
-                    data_filters=None, nulladjusted=False, unit_norm=True):
+                    data_filters=None, nulladjusted=False):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -623,10 +623,6 @@ class NDN(Network):
             # build iterator object to access elements from dataset
             iterator = dataset.make_one_shot_iterator()
 
-        # Set [Poisson] unit norm, if relevant
-        unit_norm_save = self.poisson_unit_norm
-        self.poisson_unit_norm = unit_norm
-
         # Place graph operations on CPU
         with tf.device('/cpu:0'):
             self._build_graph()
@@ -683,9 +679,6 @@ class NDN(Network):
                 for i, temp_data in enumerate(output_data):
                     ll_neuron[i] = -ll_neuron[i] - self.nullLL(temp_data[data_indxs, :])
             # note that this will only be correct for single output indices
-
-        # restore original poission-unit-norm
-        self.poisson_unit_norm = unit_norm_save
 
         if len(ll_neuron) == 1:
             return ll_neuron[0]
@@ -863,5 +856,6 @@ class NDN(Network):
         NC = self.network_list[self.ffnet_out[0]]['layer_sizes'][-1]
         assert NC == Robs.shape[1], 'Output of network must match Robs'
 
-        self.poisson_unit_norm = np.mean(Robs, axis=0)
+        self.poisson_unit_norm = np.maximum(np.mean(Robs, axis=0), 1e-8)
+
     # END NDN.set_poisson_norm
