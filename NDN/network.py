@@ -1068,9 +1068,9 @@ class Network(object):
                 compute time and memory usage of tensorflow ops during training
                 and testing. `epochs_summary` must not be `None`.
                 DEFAULT: `False`
-            opt_params['poisson_unit_norm'] (bool, optional): 'True' will normalize
-                each units likelihood by its own Robs. Otherwise ('False') will
-                normalize by the sum across units
+            opt_params['poisson_unit_norm'] (None, or list of numbers, optional):
+                'None' will not normalize, but list of length NC will. This can
+                be set using NDN function set_poisson_norm
             learning_alg (str): 'adam' and 'lbfgs' currently supported
         """
 

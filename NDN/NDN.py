@@ -126,7 +126,7 @@ class NDN(Network):
         # list of output sizes (for Robs placeholders)
         self.output_sizes = [0] * len(ffnet_out)
         self.noise_dist = noise_dist
-        self.poisson_unit_norm = False
+        self.poisson_unit_norm = None
         self.tf_seed = tf_seed
 
         self._define_network()
@@ -322,25 +322,22 @@ class NDN(Network):
             else:
                 pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
 
+            NT = tf.cast(tf.shape(pred)[0], tf.float32)
             # define cost function
             if self.noise_dist == 'gaussian':
                 with tf.name_scope('gaussian_loss'):
-                    cost_norm = tf.cast(tf.shape(pred)[0], tf.float32)
                     cost.append(
-                        tf.nn.l2_loss(data_out - pred) / cost_norm)
+                        tf.nn.l2_loss(data_out - pred) / NT)
                     unit_cost.append(tf.reduce_mean(tf.square(data_out-pred), axis=0))
 
             elif self.noise_dist == 'poisson':
                 with tf.name_scope('poisson_loss'):
 
-                    if self.poisson_unit_norm:
-                        # normalize with spike count on unit-by-unit basis
-                        cost_norm = tf.maximum(tf.reduce_sum(data_out, axis=0), 1)
+                    if self.poisson_unit_norm is not None:
+                        # normalize based on rate * time (number of spikes)
+                        cost_norm = tf.multiply(tf.maximum(self.poisson_unit_norm, 1), NT)
                     else:
-                        # normalize using the spike count
-                        cost_norm = tf.maximum(tf.reduce_mean(tf.reduce_sum(data_out,
-                                                                            axis=0)), 1)
-                        # cost.append(-tf.divide(tf.reduce_sum(tf.nn.log_poisson_loss( data_out, pred)), cost_norm ))
+                        cost_norm = NT
 
                     cost.append(-tf.reduce_sum(tf.divide(
                         tf.multiply(data_out, tf.log(self._log_min + pred)) - pred,
@@ -859,3 +856,12 @@ class NDN(Network):
 
         return LLnulls
     # END NDN.nullLL
+
+    def set_poisson_norm(self, Robs):
+        """Calculates the average probability per bin to normalize the Poisson likelihood"""
+
+        NC = self.network_list[self.ffnet_out[0]]['layer_sizes'][-1]
+        assert NC == Robs.shape[1], 'Output of network must match Robs'
+
+        self.poisson_unit_norm = np.mean(Robs, axis=0)
+    # END NDN.set_poisson_norm
