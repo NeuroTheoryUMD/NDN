@@ -58,7 +58,7 @@ def reg_path(
         LLxs[nn] = np.mean(
             test_mod.eval_models(input_data=input_data, output_data=output_data,
                                  data_indxs=test_indxs, data_filters=data_filters))
-        test_mods.append( test_mod.copy_model() )
+        test_mods.append(test_mod.copy_model())
         print('%s (%s = %s): %s' % (nn, reg_type, reg_vals[nn], LLxs[nn]))
 
     return LLxs, test_mods
@@ -261,9 +261,12 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
                     plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_cells-0.5], 'r')
 
     plt.show()
-
     return ws
 
 
+def subplot_setup(num_rows, num_cols, row_height=2):
+    import matplotlib.pyplot as plt  # plotting
+    fig, ax = plt.subplots(nrows=num_rows, ncols=num_cols)
+    fig.set_size_inches(16, row_height*num_rows)
 
 

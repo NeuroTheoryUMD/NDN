@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import division
 from copy import deepcopy
 
+import os
 import numpy as np
 import tensorflow as tf
 
@@ -30,6 +31,7 @@ class tNDN(NDN):
             ffnet_out=-1,
             input_dim_list=None,
             batch_size=None,
+            time_spread=None,
             tf_seed=0):
         """Constructor for temporal-NDN class
 
@@ -62,8 +64,11 @@ class tNDN(NDN):
 
         if batch_size is None:
             raise TypeError('Must specify batch size.')
-        # Call __init__() method of super class
 
+        if time_spread is None:
+            raise TypeError('Must specify batch size.')
+
+        # Call __init__() method of super class
         super(tNDN, self).__init__(
             network_list=network_list,
             noise_dist=noise_dist,
@@ -72,6 +77,7 @@ class tNDN(NDN):
             tf_seed=tf_seed)
 
         self.batch_size = batch_size
+        self.time_spread = time_spread
     # END tNDN.__init
 
     def _define_network(self):
@@ -135,7 +141,9 @@ class tNDN(NDN):
                 self.networks.append(
                     tFFNetwork(
                         scope='temporal network_%i' % nn,
-                        params_dict=self.network_list[nn]))
+                        params_dict=self.network_list[nn]),
+                        batch_size=self.batch_size,
+                        time_spread=self.time_spread)
             else:
                 self.networks.append(
                     FFNetwork(
@@ -150,6 +158,80 @@ class tNDN(NDN):
 
     # END tNDN._define_network
 
+    def _define_loss(self):
+        """Loss function that will be used to optimize model parameters"""
+
+        cost = []
+        unit_cost = []
+        for nn in range(len(self.ffnet_out)):
+            data_out = self.data_out_batch[nn]
+            if self.filter_data:
+                # this will zero out predictions where there is no data,
+                # matching Robs here
+                pred = tf.multiply(
+                    self.networks[self.ffnet_out[nn]].layers[-1].outputs,
+                    self.data_filter_batch[nn])
+            else:
+                pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
+
+            NT = tf.cast(tf.shape(pred)[0], tf.float32)
+            # define cost function
+            if self.noise_dist == 'gaussian':
+                with tf.name_scope('gaussian_loss'):
+                    cost.append(
+                        tf.nn.l2_loss(data_out - pred) / NT)
+                    unit_cost.append(tf.reduce_mean(tf.square(data_out-pred), axis=0))
+
+            elif self.noise_dist == 'poisson':
+                with tf.name_scope('poisson_loss'):
+
+                    if self.poisson_unit_norm is not None:
+                        # normalize based on rate * time (number of spikes)
+                        cost_norm = tf.multiply(self.poisson_unit_norm, NT)
+                    else:
+                        cost_norm = NT
+
+                    cost.append(-tf.reduce_sum(tf.divide(
+                        tf.multiply(data_out, tf.log(self._log_min + pred)) - pred,
+                        cost_norm)))
+
+                    unit_cost.append(-tf.divide(
+                        tf.reduce_sum(
+                            tf.multiply(
+                                data_out, tf.log(self._log_min + pred)) - pred, axis=0),
+                        cost_norm))
+
+            elif self.noise_dist == 'bernoulli':
+                with tf.name_scope('bernoulli_loss'):
+                    # Check per-cell normalization with cross-entropy
+                    # cost_norm = tf.maximum(
+                    #   tf.reduce_sum(data_out, axis=0), 1)
+                    cost.append(tf.reduce_mean(
+                        tf.nn.sigmoid_cross_entropy_with_logits(
+                            labels=data_out, logits=pred)))
+                    unit_cost.append(tf.reduce_mean(
+                            tf.nn.sigmoid_cross_entropy_with_logits(
+                                labels=data_out, logits=pred), axis=0))
+            else:
+                TypeError('Cost function not supported.')
+
+        self.cost = tf.add_n(cost)
+        self.unit_cost = unit_cost
+
+        # add regularization penalties
+        self.cost_reg = 0
+        with tf.name_scope('regularization'):
+            for nn in range(self.num_networks):
+                self.cost_reg += self.networks[nn].define_regularization_loss()
+
+        self.cost_penalized = tf.add(self.cost, self.cost_reg)
+
+        # save summary of cost
+        # with tf.variable_scope('summaries'):
+        tf.summary.scalar('cost', self.cost)
+        tf.summary.scalar('cost_penalized', self.cost_penalized)
+        tf.summary.scalar('reg_pen', self.cost_reg)
+    # END NDN._define_loss
 
     def train(
             self,
@@ -692,7 +774,9 @@ class tFFNetwork(FFnetwork):
     def __init__(self,
                  scope=None,
                  input_dims=None,
-                 params_dict=None):
+                 params_dict=None,
+                 batch_size=None,
+                 time_spread=None):
         """Constructor for tFFNetwork class"""
 
         super(tFFNetwork, self).__init__(
@@ -700,6 +784,8 @@ class tFFNetwork(FFnetwork):
             input_dims=None,
             params_dict=None)
 
+        self.batch_size = batch_size
+        self.time_spread = time_spread
     # END tFFNetwork.__init
 
     def _define_network(self, network_params):
@@ -859,14 +945,27 @@ class tFFNetwork(FFnetwork):
                 if nn < self.num_layers:
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
+            elif self.layer_types[nn] == 'temporal_layer':
+                self.layers.append(temporal_layer(
+                    scope='temporal_layer_%i' % nn,
+                    input_dims=layer_sizes[nn],
+                    output_dims=layer_sizes[nn+1],
+                    batch_size=self.batch_size,
+                    normalize_weights=network_params['normalize_weights'][nn],
+                    weights_initializer=network_params['weights_initializers'][nn],
+                    biases_initializer=network_params['biases_initializers'][nn],
+                    reg_initializer=network_params['reg_initializers'][nn],
+                    num_inh=network_params['num_inh'][nn],
+                    pos_constraint=network_params['pos_constraints'][nn],
+                    log_activations=network_params['log_activations']))
+
             else:
                 raise TypeError('Layer type %i not defined.' % nn)
 
     # END tFFNetwork._define_network
 
 
-
-class temporal_Layer(object):
+class temporal_layer(object):
     """Implementation of fully connected neural network layer
 
     Attributes:
@@ -904,7 +1003,8 @@ class temporal_Layer(object):
             filter_dims=None,
             output_dims=None,
             my_num_inputs=None,  # this is for convsep
-            activation_func='relu',
+            #activation_func='relu',
+            batch_size=None,
             normalize_weights=0,
             weights_initializer='trunc_normal',
             biases_initializer='zeros',
@@ -950,10 +1050,25 @@ class temporal_Layer(object):
         # check for required inputs
         if scope is None:
             raise TypeError('Must specify layer scope')
+        if scope is None:
+            raise TypeError('Must specify batch size')
         if input_dims is None or output_dims is None:
             raise TypeError('Must specify both input and output dimensions')
 
-        self.scope = scope
+        super(temporal_layer, self).__init__(
+                scope=scope,
+                input_dims=input_dims,
+                filter_dims=filter_dims,
+                output_dims=num_filters,   # Note difference from layer
+                activation_func='lin',
+                normalize_weights=normalize_weights,
+                weights_initializer=weights_initializer,
+                biases_initializer=biases_initializer,
+                reg_initializer=reg_initializer,
+                num_inh=num_inh,
+                pos_constraint=pos_constraint,  # note difference from layer (not anymore)
+                log_activations=log_activations)
+
 
         # Make input, output, and filter sizes explicit
         if isinstance(input_dims, list):
@@ -981,29 +1096,6 @@ class temporal_Layer(object):
             num_inputs = filter_dims[0] * filter_dims[1] * filter_dims[2]
         self.filter_dims = filter_dims[:]
 
-        # resolve activation function string
-        if activation_func == 'relu':
-            self.activation_func = tf.nn.relu
-        elif activation_func == 'sigmoid':
-            self.activation_func = tf.sigmoid
-        elif activation_func == 'tanh':
-            self.activation_func = tf.tanh
-        elif activation_func == 'lin':
-            self.activation_func = tf.identity
-        elif activation_func == 'linear':
-            self.activation_func = tf.identity
-        elif activation_func == 'softplus':
-            self.activation_func = tf.nn.softplus
-        elif activation_func == 'quad':
-            self.activation_func = tf.square
-        elif activation_func == 'elu':
-            self.activation_func = tf.nn.elu
-        elif activation_func == 'exp':
-            self.activation_func = tf.exp
-        else:
-            raise ValueError('Invalid activation function ''%s''' %
-                             activation_func)
-
         # create excitatory/inhibitory mask
         if num_inh > num_outputs:
             raise ValueError('Too many inhibitory units designated')
@@ -1012,12 +1104,6 @@ class temporal_Layer(object):
         # save positivity constraint on weights
         self.pos_constraint = pos_constraint
         self.normalize_weights = normalize_weights
-
-        # use tf's summary writer to save layer activation histograms
-        if log_activations:
-            self.log = True
-        else:
-            self.log = False
 
         # Set up layer regularization
         self.reg = Regularization(
