@@ -335,7 +335,7 @@ class NDN(Network):
 
                     if self.poisson_unit_norm is not None:
                         # normalize based on rate * time (number of spikes)
-                        cost_norm = np.multiply(self.poisson_unit_norm, NT)
+                        cost_norm = tf.multiply(self.poisson_unit_norm, NT)
                     else:
                         cost_norm = NT
 
