@@ -322,11 +322,12 @@ class NDN(Network):
             else:
                 pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
 
+            NT = tf.cast(tf.shape(pred)[0], tf.float32)
             # define cost function
             if self.noise_dist == 'gaussian':
                 with tf.name_scope('gaussian_loss'):
                     cost.append(
-                        tf.nn.l2_loss(data_out - pred) / tf.cast(tf.shape(pred)[0], tf.float32))
+                        tf.nn.l2_loss(data_out - pred) / NT)
                     unit_cost.append(tf.reduce_mean(tf.square(data_out-pred), axis=0))
 
             elif self.noise_dist == 'poisson':
@@ -334,9 +335,9 @@ class NDN(Network):
 
                     if self.poisson_unit_norm is not None:
                         # normalize based on rate * time (number of spikes)
-                        cost_norm = tf.maximum(self.poisson_unit_norm, 1)
+                        cost_norm = tf.multiply(tf.maximum(self.poisson_unit_norm, 1), NT)
                     else:
-                        cost_norm = 1
+                        cost_norm = NT
 
                     cost.append(-tf.reduce_sum(tf.divide(
                         tf.multiply(data_out, tf.log(self._log_min + pred)) - pred,

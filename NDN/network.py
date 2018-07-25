@@ -336,7 +336,10 @@ class Network(object):
 
         # Set Poisson_unit_norm if specified
         # overwrite unit_cost_norm with opt_params value
-        self.poisson_unit_norm = opt_params['poisson_unit_norm']
+        if opt_params['poisson_unit_norm'] is not None:
+            self.poisson_unit_norm = opt_params['poisson_unit_norm']
+        elif (self.noise_dist == 'poisson') and (self.poisson_unit_norm is None):
+            self.set_poisson_norm(output_data[0])
 
         # Build graph: self.build_graph must be defined in child of network
         self._build_graph(
