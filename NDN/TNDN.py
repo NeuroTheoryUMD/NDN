@@ -22,7 +22,7 @@ from FFnetwork.layer import BiConvLayer
 from FFnetwork.regularization import Regularization
 
 
-class tNDN(NDN):
+class TNDN(NDN):
 
     def __init__(
             self,
@@ -69,7 +69,7 @@ class tNDN(NDN):
             raise TypeError('Must specify batch size.')
 
         # Call __init__() method of super class
-        super(tNDN, self).__init__(
+        super(TNDN, self).__init__(
             network_list=network_list,
             noise_dist=noise_dist,
             ffnet_out=ffnet_out,
@@ -78,10 +78,10 @@ class tNDN(NDN):
 
         self.batch_size = batch_size
         self.time_spread = time_spread
-    # END tNDN.__init
+    # END TNDN.__init
 
     def _define_network(self):
-        # This code clipped from NDN, where tFFnetworks has to be added
+        # This code clipped from NDN, where TFFnetworks has to be added
 
         self.networks = []
 
@@ -139,7 +139,7 @@ class tNDN(NDN):
                         params_dict=self.network_list[nn]))
             elif self.network_list[nn]['network_type'] == 'temporalFF':
                 self.networks.append(
-                    tFFNetwork(
+                    TFFnetwork(
                         scope='temporal network_%i' % nn,
                         params_dict=self.network_list[nn]),
                         batch_size=self.batch_size,
@@ -156,7 +156,7 @@ class tNDN(NDN):
             self.output_sizes[nn] = \
                 self.networks[ffnet_n].layers[-1].weights.shape[1]
 
-    # END tNDN._define_network
+    # END TNDN._define_network
 
     def _define_loss(self):
         """Loss function that will be used to optimize model parameters"""
@@ -475,7 +475,7 @@ class tNDN(NDN):
             self._write_model_params(sess)
 
         return epoch
-    # END tNDN.train
+    # END TNDN.train
 
     def _train_adam(
             self,
@@ -748,10 +748,10 @@ class tNDN(NDN):
                                           ignore_errors=True)
                         break
         return epoch
-        # END tNDN._train_adam
+        # END TNDN._train_adam
 
 
-class tFFNetwork(FFnetwork):
+class TFFnetwork(FFnetwork):
     """Implementation of simple fully-connected feed-forward neural network.
     These networks can be composed to create much more complex network
     architectures using the NDN class.
@@ -775,18 +775,16 @@ class tFFNetwork(FFnetwork):
                  scope=None,
                  input_dims=None,
                  params_dict=None,
-                 batch_size=None,
-                 time_spread=None):
-        """Constructor for tFFNetwork class"""
+                 batch_size=None):
+        """Constructor for TFFnetwork class"""
 
-        super(tFFNetwork, self).__init__(
+        super(TFFnetwork, self).__init__(
             scope=scope,
             input_dims=None,
             params_dict=None)
 
         self.batch_size = batch_size
-        self.time_spread = time_spread
-    # END tFFNetwork.__init
+    # END TFFnetwork.__init
 
     def _define_network(self, network_params):
 
@@ -946,7 +944,7 @@ class tFFNetwork(FFnetwork):
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
             elif self.layer_types[nn] == 'temporal_layer':
-                self.layers.append(temporal_layer(
+                self.layers.append(Tlayer(
                     scope='temporal_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
@@ -962,10 +960,10 @@ class tFFNetwork(FFnetwork):
             else:
                 raise TypeError('Layer type %i not defined.' % nn)
 
-    # END tFFNetwork._define_network
+    # END TFFnetwork._define_network
 
 
-class temporal_layer(object):
+class Tlayer(Layer):
     """Implementation of fully connected neural network layer
 
     Attributes:
@@ -1055,7 +1053,7 @@ class temporal_layer(object):
         if input_dims is None or output_dims is None:
             raise TypeError('Must specify both input and output dimensions')
 
-        super(temporal_layer, self).__init__(
+        super(Tlayer, self).__init__(
                 scope=scope,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
