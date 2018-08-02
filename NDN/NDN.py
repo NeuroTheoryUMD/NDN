@@ -850,12 +850,12 @@ class NDN(Network):
         return LLnulls
     # END NDN.nullLL
 
-    def set_poisson_norm(self, robses):
+    def set_poisson_norm(self, data_out):
         """Calculates the average probability per bin to normalize the Poisson likelihood"""
 
         self.poisson_unit_norm = []
 
-        for i, temp_data in enumerate(robses):
+        for i, temp_data in enumerate(data_out):
             nc = self.network_list[self.ffnet_out[i]]['layer_sizes'][-1]
             assert nc == temp_data.shape[1], 'Output of network must match robs'
 
