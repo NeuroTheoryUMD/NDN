@@ -2,7 +2,7 @@
 
 from __future__ import division
 import numpy as np
-#import NDN as NDN
+import NDN as NDN
 #import NDN.NDNutils as NDNutils
 
 
@@ -127,9 +127,7 @@ def filtered_eval_model(
         raise TypeError('Must specify testing indices.')
 
     inds = np.intersect1d(test_indxs, np.where(data_filters[:, int(unit_number)] > 0))
-    # need to make sure normalized by neuron's own firing rate
-    FRchoice = ndn_mod.poisson_unit_norm
-    ndn_mod.poisson_unit_norm = True
+
     all_LLs = ndn_mod.eval_models(
         input_data=input_data, output_data=output_data,
         data_indxs=inds, data_filters=data_filters, nulladjusted=False)
@@ -137,9 +135,7 @@ def filtered_eval_model(
         LLreturn = all_LLs[int(unit_number)]
     else:
         LLreturn = -all_LLs[int(unit_number)]-ndn_mod.nullLL(output_data[inds, int(unit_number)])
-    # turn back to original value
-    ndn_mod.poisson_unit_norm = FRchoice
-
+ 
     return LLreturn
 # END filtered_eval_model
 
@@ -262,6 +258,137 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
 
     plt.show()
     return ws
+
+
+def evaluate_ffnetwork(ffnet, end_weighting=None, to_plot=False, thresh_list=None):
+    """Analyze FFnetwork nodes to determine their contribution in the big picture"""
+
+    import matplotlib.pyplot as plt  # plotting
+
+    num_layers = len(ffnet.layers)
+    num_unit_bot = ffnet.layers[-1].weights.shape[1]
+    if end_weighting is None:
+        prev_ws = np.ones(num_unit_bot, dtype='float32')
+    else:
+        assert len(end_weighting) == num_unit_bot, 'end_weighting has wrong dimensionality'
+        prev_ws = end_weighting
+    # Process prev_ws: nothing less than zeros, and sum to 1
+    prev_ws = np.maximum(prev_ws, 0)
+    prev_ws = np.divide(prev_ws, np.mean(prev_ws))
+
+    node_eval = [[]]*num_layers
+    node_eval[-1] = prev_ws.copy()
+    for nn in range(num_layers-1):
+        ws = ffnet.layers[num_layers-1-nn].weights.copy()
+        next_ws = np.matmul(np.square(ws), prev_ws)
+        node_eval[num_layers-nn-2] = np.divide(next_ws.copy(), np.mean(next_ws))
+        prev_ws = next_ws.copy()
+
+    if to_plot:
+        subplot_setup( num_rows=1, num_cols=num_layers)
+        for nn in range(num_layers):
+            plt.subplot(1, num_layers, nn+1)
+            plt.plot(node_eval[nn], 'b')
+            plt.plot(node_eval[nn], 'b.')
+            if thresh_list is None:
+                thresh = 0.2*np.max(node_eval[nn])
+            else:
+                thresh = thresh_list[nn]
+            NF = node_eval[nn].shape[0]
+            plt.plot([0, NF-1], [thresh, thresh], 'r')
+            plt.xlim([0, NF-1])
+        plt.show()
+
+    return node_eval
+
+
+def tunnel_fit(ndn_mod, end_weighting=None, thresholds=None):
+    """Set up model with weights reset and coupled"""
+
+    assert end_weighting is not None, 'Must supply end_weighting for this to work.'
+
+    node_eval = evaluate_ffnetwork(ndn_mod.networks[0], end_weighting=end_weighting)
+    num_layers = len(node_eval)
+
+    if thresholds is None:
+        thresholds = [None]*num_layers
+    else:
+        assert len(thresholds) == num_layers, 'Threshold list not right length.'
+    tunnel_units = [[]]*num_layers
+
+    for nn in range(num_layers):
+        if thresholds[nn] is None:
+            thresholds[nn] = 0.2*np.max(node_eval[nn])
+        tunnel_units[nn] = np.where(node_eval[nn] < thresholds[nn])[0]
+        assert len(tunnel_units[nn]) > 0, 'No units below threshold, layer' + str(nn)
+
+    ndn_copy = ndn_mod.copy_model()
+    # First randomize below-threshold filters in first level
+    num_stix = ndn_copy.networks[0].layers[0].weights.shape[0]
+    ndn_copy.networks[0].layers[0].weights[:, tunnel_units[0]] = np.random.normal(size=[num_stix, len(tunnel_units[0])], scale=1/np.sqrt(num_stix))
+    # Connect with rest of tunnel (and dissociate from rest of network
+    for nn in range(1, num_layers):
+        # Detach ok_units from previous-layer bad units
+        ok_units = list(set(range(len(node_eval[nn])))-set(tunnel_units[nn]))
+        for mm in ok_units:
+            ndn_copy.networks[0].layers[nn].weights[tunnel_units[nn-1],mm] = 0
+        for mm in tunnel_units[nn]:
+            ndn_copy.networks[0].layers[nn].weights[:,mm] = np.zeros([len(node_eval[nn-1])], dtype='float32')
+            ndn_copy.networks[0].layers[nn].weights[tunnel_units[nn-1],mm] = np.random.normal(size=[len(tunnel_units[nn-1])], scale=1/np.sqrt(len(tunnel_units[nn-1])))
+
+    return ndn_copy
+
+
+def prune_ndn(ndn_mod, threshold_list=None):
+    """Remove below-threshold nodes of network. Set thresholds to 0 if don't want to touch layer
+        Also should not prune last layer (Robs), but can for multi-networks
+        BUT CURRENTLY ONLY WORKS WITH SINGLE-NETWORK NDNs"""
+
+    from copy import deepcopy
+
+    node_eval = evaluate_ffnetwork(ndn_mod.networks[0])
+    num_layers = len(node_eval)
+
+    if threshold_list is None:
+        threshold_list = [None]*(num_layers-1)
+    else:
+        assert len(threshold_list) >= num_layers-1, 'Threshold list not right length.'
+
+    net_lists = deepcopy(ndn_mod.network_list)
+    layer_sizes = net_lists[0]['layer_sizes']
+    remaining_units = [[]] * num_layers
+    for nn in range(len(threshold_list)):
+        if threshold_list[nn] is None:
+            threshold_list[nn] = 0.2*np.max(node_eval[nn])
+        remaining_units[nn] = np.where(node_eval[nn] > threshold_list[nn])[0]
+        assert len(remaining_units[nn]) > 0, 'No units above threshold, layer' + str(nn)
+        layer_sizes[nn] = len(remaining_units[nn])
+    net_lists[0]['layer_sizes'] = layer_sizes
+
+    # Make new NDN
+    pruned_ndn = NDN.NDN(net_lists, noise_dist=ndn_mod.noise_dist, ffnet_out=ndn_mod.ffnet_out, tf_seed=ndn_mod.tf_seed)
+    # Copy all the relevant weights and stuff
+    for net_n in range(len(net_lists)):
+        if net_n == 0:
+            pruned_ndn.networks[0].layers[0].weights = ndn_mod.networks[0].layers[0].weights[:, remaining_units[0]].copy()
+            pruned_ndn.networks[0].layers[0].biases[0, :] = ndn_mod.networks[0].layers[0].biases[0, remaining_units[0]].copy()
+        else:
+            pruned_ndn.networks[0].layers[0].weights = ndn_mod.networks[0].layers[0].weights.copy()
+            pruned_ndn.networks[0].layers[0].biases = ndn_mod.networks[0].layers[0].biases.copy()
+
+        for nn in range(1, len(pruned_ndn.networks[0].layers)):
+            if net_n == 0:
+                for mm in range(len(remaining_units[nn])):
+                    cc = remaining_units[nn][mm]
+                    pruned_ndn.networks[net_n].layers[nn].weights[:, mm] = \
+                        ndn_mod.networks[net_n].layers[nn].weights[remaining_units[nn-1], cc].copy()
+                    pruned_ndn.networks[net_n].layers[nn].biases[mm] = \
+                        ndn_mod.networks[net_n].layers[nn].weights[cc]
+            else:
+                pruned_ndn.networks[net_n].layers[nn].weights = ndn_mod.networks[net_n].layers[nn].weights.copy()
+                pruned_ndn.networks[net_n].layers[nn].biases = ndn_mod.networks[net_n].layers[nn].biases.copy()
+
+    return pruned_ndn
 
 
 def subplot_setup(num_rows, num_cols, row_height=2):
