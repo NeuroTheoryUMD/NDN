@@ -1,4 +1,4 @@
-"""Temporal Neural deep network"""
+"""Temporal Neural Deep Network"""
 
 from __future__ import print_function
 from __future__ import division
@@ -27,7 +27,7 @@ class TNDN(NDN):
     def __init__(
             self,
             network_list=None,
-            noise_dist='poisson',
+            noise_dist='gaussian',
             ffnet_out=-1,
             input_dim_list=None,
             batch_size=None,
@@ -137,10 +137,10 @@ class TNDN(NDN):
                         scope='side_network_%i' % nn,
                         input_network_params=network_input_params,
                         params_dict=self.network_list[nn]))
-            elif self.network_list[nn]['network_type'] == 'temporalFF':
+            elif self.network_list[nn]['network_type'] == 'temporal':
                 self.networks.append(
                     TFFnetwork(
-                        scope='temporal network_%i' % nn,
+                        scope='temporal_network_%i' % nn,
                         params_dict=self.network_list[nn]),
                         batch_size=self.batch_size,
                         time_spread=self.time_spread)
@@ -174,12 +174,12 @@ class TNDN(NDN):
             else:
                 pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
 
-            NT = tf.cast(tf.shape(pred)[0], tf.float32)
+            nt = tf.cast(tf.shape(pred)[0], tf.float32)
             # define cost function
             if self.noise_dist == 'gaussian':
                 with tf.name_scope('gaussian_loss'):
                     cost.append(
-                        tf.nn.l2_loss(data_out - pred) / NT)
+                        tf.nn.l2_loss(data_out - pred) / nt)
                     unit_cost.append(tf.reduce_mean(tf.square(data_out-pred), axis=0))
 
             elif self.noise_dist == 'poisson':
@@ -187,9 +187,9 @@ class TNDN(NDN):
 
                     if self.poisson_unit_norm is not None:
                         # normalize based on rate * time (number of spikes)
-                        cost_norm = tf.multiply(self.poisson_unit_norm, NT)
+                        cost_norm = tf.multiply(self.poisson_unit_norm, nt)
                     else:
-                        cost_norm = NT
+                        cost_norm = nt
 
                     cost.append(-tf.reduce_sum(tf.divide(
                         tf.multiply(data_out, tf.log(self._log_min + pred)) - pred,
