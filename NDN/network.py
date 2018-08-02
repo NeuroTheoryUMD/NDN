@@ -29,7 +29,7 @@ class Network(object):
         self.filter_data = False
         # for tf.data API / 'iterator' pipeline
         self.data_pipe_type = 'data_as_var'
-        self.batch_size = None
+        # self.batch_size = None    # only relevant to temporal NDNs
         self.dataset_types = None
         self.dataset_shapes = None
 
@@ -339,7 +339,7 @@ class Network(object):
         if opt_params['poisson_unit_norm'] is not None:
             self.poisson_unit_norm = opt_params['poisson_unit_norm']
         elif (self.noise_dist == 'poisson') and (self.poisson_unit_norm is None):
-            self.set_poisson_norm(output_data[0])
+            self.set_poisson_norm(output_data)
 
         # Build graph: self.build_graph must be defined in child of network
         self._build_graph(

@@ -335,7 +335,7 @@ class NDN(Network):
 
                     if self.poisson_unit_norm is not None:
                         # normalize based on rate * time (number of spikes)
-                        cost_norm = tf.multiply(self.poisson_unit_norm, nt)
+                        cost_norm = tf.multiply(self.poisson_unit_norm[nn], nt)
                     else:
                         cost_norm = nt
 
@@ -850,12 +850,16 @@ class NDN(Network):
         return LLnulls
     # END NDN.nullLL
 
-    def set_poisson_norm(self, Robs):
+    def set_poisson_norm(self, robses):
         """Calculates the average probability per bin to normalize the Poisson likelihood"""
 
-        NC = self.network_list[self.ffnet_out[0]]['layer_sizes'][-1]
-        assert NC == Robs.shape[1], 'Output of network must match Robs'
+        self.poisson_unit_norm = []
 
-        self.poisson_unit_norm = np.maximum(np.mean(Robs, axis=0), 1e-8)
+        for i, temp_data in enumerate(robses):
+            nc = self.network_list[self.ffnet_out[i]]['layer_sizes'][-1]
+            assert nc == temp_data.shape[1], 'Output of network must match robs'
+
+            self.poisson_unit_norm.append(np.maximum(np.mean(
+                temp_data.astype('float32'), axis=0), 1e-8))
 
     # END NDN.set_poisson_norm
