@@ -163,8 +163,10 @@ class TNDN(NDN):
 
         cost = []
         unit_cost = []
+        # interval used to calculate costs: range(self.time_spread//2, self.batch_size - self.time_spread//2)
         for nn in range(len(self.ffnet_out)):
-            data_out = self.data_out_batch[nn]
+            data_out = tf.slice(self.data_out_batch[nn],
+                                [self.time_spread//2, 0], [self.batch_size-self.time_spread, -1])
             if self.filter_data:
                 # this will zero out predictions where there is no data,
                 # matching Robs here
@@ -174,6 +176,10 @@ class TNDN(NDN):
             else:
                 pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
 
+            pred = tf.slice(pred,
+                            [self.time_spread//2, 0], [self.batch_size-self.time_spread, -1])
+
+            # nt is basically self.batch_size - self.time_spread
             nt = tf.cast(tf.shape(pred)[0], tf.float32)
             # define cost function
             if self.noise_dist == 'gaussian':
