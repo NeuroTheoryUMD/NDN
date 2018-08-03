@@ -70,7 +70,7 @@ class Layer(object):
                 [0] | 1
             weights_initializer (str, optional): initializer for the weights
                 ['trunc_normal'] | 'normal' | 'zeros'
-            biases_initializer (str, optional): initializer for the biases
+            biases_initializer (str, optional)bias_init: initializer for the biases
                 'trunc_normal' | 'normal' | ['zeros']
             reg_initializer (dict, optional): see Regularizer docs for info
             num_inh (int, optional): number of inhibitory units in layer

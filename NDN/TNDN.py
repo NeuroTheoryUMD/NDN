@@ -786,8 +786,8 @@ class TFFnetwork(FFnetwork):
 
         super(TFFnetwork, self).__init__(
             scope=scope,
-            input_dims=None,
-            params_dict=None)
+            input_dims=input_dims,
+            params_dict=params_dict)
 
         self.batch_size = batch_size
     # END TFFnetwork.__init
@@ -949,11 +949,11 @@ class TFFnetwork(FFnetwork):
                 if nn < self.num_layers:
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
-            elif self.layer_types[nn] == 'temporal_layer':
-                self.layers.append(Tlayer(
-                    scope='temporal_layer_%i' % nn,
+            elif self.layer_types[nn] == 'ca_tent':
+                self.layers.append(CaTentLayer(
+                    scope='ca_tent_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
-                    output_dims=layer_sizes[nn+1],
+                    filter_width=network_params['ca_tent_width'][nn],
                     batch_size=self.batch_size,
                     normalize_weights=network_params['normalize_weights'][nn],
                     weights_initializer=network_params['weights_initializers'][nn],
@@ -969,34 +969,12 @@ class TFFnetwork(FFnetwork):
     # END TFFnetwork._define_network
 
 
-class Tlayer(Layer):
-    """Implementation of fully connected neural network layer
+class CaTentLayer(Layer):
+    """Implementation of calcium tent layer
 
     Attributes:
-        scope (str): name scope for variables and operations in layer
-        input_dims (list): inputs to layer
-        output_dims (list): outputs of layer
-        outputs (tf Tensor): output of layer
-        weights_ph (tf placeholder): placeholder for weights in layer
-        biases_ph (tf placeholder): placeholder for biases in layer
-        weights_var (tf Tensor): weights in layer
-        biases_var (tf Tensor): biases in layer
-        weights (numpy array): shadow variable of `weights_var` that allows for
-            easier manipulation outside of tf sessions
-        biases (numpy array): shadow variable of `biases_var` that allows for
-            easier manipulation outside of tf sessions
-        activation_func (tf activation function): activation function in layer
-        reg (Regularization object): holds regularizations values and matrices
-            (as tf constants) for layer
-        ei_mask_var (tf constant): mask of +/-1s to multiply output of layer
-        ei_mask (list): mask of +/-1s to multiply output of layer; shadows
-            `ei_mask_tf` for easier manipulation outside of tf sessions
-        pos_constraint (bool): positivity constraint on weights in layer
-        num_filters (int): equal to output_dims
-        filter_dims (list of ints): equal to input_dims
-        normalize_weights (int): defines normalization type for weights in
-            layer
-        log (bool): use tf summary writers on layer output
+        filter_width (int): time spread
+        batch_size (int): the batch size is explicitly needed for this computation
 
     """
 
@@ -1004,25 +982,25 @@ class Tlayer(Layer):
             self,
             scope=None,
             input_dims=None,  # this can be a list up to 3-dimensions
-            filter_dims=None,
-            output_dims=None,
-            my_num_inputs=None,  # this is for convsep
-            #activation_func='relu',
+            num_filters=None,
+            filter_width=None,  # this can be a list up to 3-dimensions
             batch_size=None,
+            activation_func='lin',
             normalize_weights=0,
             weights_initializer='trunc_normal',
             biases_initializer='zeros',
             reg_initializer=None,
             num_inh=0,
-            pos_constraint=False,
+            pos_constraint=True,
             log_activations=False):
-        """Constructor for Layer class
+        """Constructor for convLayer class
 
         Args:
             scope (str): name scope for variables and operations in layer
             input_dims (int or list of ints): dimensions of input data
+            num_filters (int): number of convolutional filters in layer
             filter_dims (int or list of ints): dimensions of input data
-            output_dims (int or list of ints): dimensions of output data
+            shift_spacing (int): stride of convolution operation
             activation_func (str, optional): pointwise function applied to
                 output of affine transformation
                 ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
@@ -1041,235 +1019,106 @@ class Tlayer(Layer):
                 activations
 
         Raises:
-            TypeError: If `variable_scope` is not specified
-            TypeError: If `input_dims` is not specified
-            TypeError: If `output_dims` is not specified
-            ValueError: If `activation_func` is not a valid string
-            ValueError: If `num_inh` is greater than total number of units
-            ValueError: If `weights_initializer` is not a valid string
-            ValueError: If `biases_initializer` is not a valid string
+            ValueError: If `pos_constraint` is `True`
 
         """
 
-        # check for required inputs
-        if scope is None:
-            raise TypeError('Must specify layer scope')
-        if scope is None:
-            raise TypeError('Must specify batch size')
-        if input_dims is None or output_dims is None:
-            raise TypeError('Must specify both input and output dimensions')
-
-        super(Tlayer, self).__init__(
-                scope=scope,
-                input_dims=input_dims,
-                filter_dims=filter_dims,
-                output_dims=num_filters,   # Note difference from layer
-                activation_func='lin',
-                normalize_weights=normalize_weights,
-                weights_initializer=weights_initializer,
-                biases_initializer=biases_initializer,
-                reg_initializer=reg_initializer,
-                num_inh=num_inh,
-                pos_constraint=pos_constraint,  # note difference from layer (not anymore)
-                log_activations=log_activations)
-
-
-        # Make input, output, and filter sizes explicit
+        # Process stim and filter dimensions
+        # (potentially both passed in as num_inputs list)
         if isinstance(input_dims, list):
             while len(input_dims) < 3:
                 input_dims.append(1)
         else:
+            # assume 1-dimensional (space)
             input_dims = [1, input_dims, 1]
-        if isinstance(output_dims, list):
-            while len(output_dims) < 3:
-                output_dims.append(1)
-            num_outputs = np.prod(output_dims)
-        else:
-            num_outputs = output_dims
-            output_dims = [1, output_dims, 1]
 
-        self.input_dims = input_dims[:]
-        self.output_dims = output_dims[:]
-        # default to have N filts for N outputs in base layer class
-        self.num_filters = num_outputs
-        if filter_dims is None:
-            filter_dims = input_dims
-        if my_num_inputs is not None:
-            num_inputs = my_num_inputs   # this is for convsep
-        else:
-            num_inputs = filter_dims[0] * filter_dims[1] * filter_dims[2]
-        self.filter_dims = filter_dims[:]
+        # If output dimensions already established, just strip out num_filters
+        if isinstance(num_filters, list):
+            num_filters = num_filters[0]
 
-        # create excitatory/inhibitory mask
-        if num_inh > num_outputs:
-            raise ValueError('Too many inhibitory units designated')
-        self.ei_mask = [1] * (num_outputs - num_inh) + [-1] * num_inh
+        super(CaTentLayer, self).__init__(
+            scope=scope,
+            input_dims=input_dims,
+            output_dims=num_filters,  # Note difference from layer
+            my_num_inputs=filter_width,
+            activation_func=activation_func,
+            normalize_weights=normalize_weights,
+            weights_initializer=weights_initializer,
+            biases_initializer=biases_initializer,
+            reg_initializer=reg_initializer,
+            num_inh=num_inh,
+            pos_constraint=pos_constraint,  # note difference from layer (not anymore)
+            log_activations=log_activations)
 
-        # save positivity constraint on weights
-        self.pos_constraint = pos_constraint
-        self.normalize_weights = normalize_weights
+        self.output_dims = input_dims
 
-        # Set up layer regularization
-        self.reg = Regularization(
-            input_dims=filter_dims,
-            num_outputs=num_outputs,
-            vals=reg_initializer)
+    # END CaTentLayer.__init__
 
-        # Initialize weight values
-        weight_dims = (num_inputs, num_outputs)
-        if weights_initializer == 'trunc_normal':
-            init_weights = np.random.normal(size=weight_dims, scale=0.1)
-        elif weights_initializer == 'normal':
-            init_weights = np.random.normal(size=weight_dims, scale=0.1)
-        elif weights_initializer == 'zeros':
-            init_weights = np.zeros(shape=weight_dims, dtype='float32')
-        else:
-            raise ValueError('Invalid weights_initializer ''%s''' %
-                             weights_initializer)
-        if pos_constraint:
-            init_weights = np.maximum(init_weights, 0)
-        if normalize_weights > 0:
-            init_weights_norm = np.linalg.norm(init_weights, axis=0)
-            nonzero_indxs = np.where(init_weights_norm > 0)[0]
-            init_weights[:, nonzero_indxs] /= init_weights_norm[nonzero_indxs]
-
-        # Initialize numpy array that will feed placeholder
-        self.weights = init_weights.astype('float32')
-
-        # Initialize bias values
-        bias_dims = (1, num_outputs)
-        if biases_initializer == 'trunc_normal':
-            init_biases = np.random.normal(size=bias_dims, scale=0.1)
-        elif biases_initializer == 'normal':
-            init_biases = np.random.normal(size=bias_dims, scale=0.1)
-        elif biases_initializer == 'zeros':
-            init_biases = np.zeros(shape=bias_dims, dtype='float32')
-        else:
-            raise ValueError('Invalid biases_initializer ''%s''' %
-                             biases_initializer)
-        # Initialize numpy array that will feed placeholder
-        self.biases = init_biases.astype('float32')
-
-        # Define tensorflow variables as placeholders
-        self.weights_ph = None
-        self.weights_var = None
-        self.biases_ph = None
-        self.biases_var = None
-        self.outputs = None
-
-    # END Layer.__init__
-
-    def _define_layer_variables(self):
-        # Define tensor-flow versions of variables (placeholder and variables)
-
-        with tf.name_scope('weights_init'):
-            self.weights_ph = tf.placeholder_with_default(
-                self.weights,
-                shape=self.weights.shape,
-                name='weights_ph')
-            self.weights_var = tf.Variable(
-                self.weights_ph,
-                dtype=tf.float32,
-                name='weights_var')
-
-        # Initialize biases placeholder/variable
-        with tf.name_scope('biases_init'):
-            self.biases_ph = tf.placeholder_with_default(
-                self.biases,
-                shape=self.biases.shape,
-                name='biases_ph')
-            self.biases_var = tf.Variable(
-                self.biases_ph,
-                dtype=tf.float32,
-                name='biases_var')
-
-        # Check for need of ei_mask
-        if np.sum(self.ei_mask) < len(self.ei_mask):
-            self.ei_mask_var = tf.constant(
-                self.ei_mask, dtype=tf.float32, name='ei_mask')
-        else:
-            self.ei_mask_var = None
-
-    # END Layer._define_layer_variables
-
-    def _normalize_weights(self, ws):
-        """"Normalize weights as dictated by normalize_variable"""
-        if self.normalize_weights > 0:
-            wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(ws), axis=0)), 1e-8)
-            ws_norm = tf.divide(ws, wnorms)
-            # another way of doing this: find the norm along axis=0, then find aaa = np.where(ws_norm > 0) and
-            # only divide ws with ws_norm in those indices (because the rest of the indices are zero vectors)
-        else:
-            # ws = tf.identity(self.weights_var)
-            ws_norm = ws
-        return ws_norm
-    # END Layer._normalize_weights
-
+    # TODO: make graph then reconcile with TFFnetwork see if it works
     def build_graph(self, inputs, params_dict=None):
+
+        assert params_dict is not None, 'Incorrect siLayer initialization.'
+        # Unfold siLayer-specific parameters for building graph
+        filter_size = self.filter_dims
+        num_shifts = self.num_shifts
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
-            # Define computation
-            ws = self._normalize_weights(self.weights_var)
+            # Computation performed in the layer
+            # Reshape of inputs (4-D):
+            input_dims = [-1, self.input_dims[2], self.input_dims[1],
+                          self.input_dims[0]]
+            # this is reverse-order from Matlab:
+            # [space-2, space-1, lags, and num_examples]
+            shaped_input = tf.reshape(inputs, input_dims)
+
+            # Reshape weights (4:D:
+            conv_filter_dims = [filter_size[2], filter_size[1], filter_size[0],
+                                self.num_filters]
+
+            if self.normalize_weights > 0:
+                # ws_conv = tf.reshape(tf.nn.l2_normalize(self.weights_var, axis=0),
+                #                     conv_filter_dims) # this is in tf 1.8
+                wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
+                ws_conv = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filter_dims)
+            else:
+                ws_conv = tf.reshape(self.weights_var, conv_filter_dims)
+                # this is reverse-order from Matlab:
+                # [space-2, space-1, lags] and num_filters is explicitly last dim
+
+            # Make strides list
+            # check back later (this seems to not match with conv_filter_dims)
+            strides = [1, 1, 1, 1]
+            if conv_filter_dims[1] > 1:
+                strides[1] = self.shift_spacing
+            if conv_filter_dims[2] > 1:
+                strides[2] = self.shift_spacing
+
+            # yaeh this should be the case:
+            # strides = [1, 1, 1, 1]
+            # if conv_filter_dims[0] > 1:
+                # strides[1] = self.shift_spacing
+            # if conv_filter_dims[1] > 1:
+                # strides[2] = self.shift_spacing
+            # possibly different strides for x,y
 
             if self.pos_constraint:
-                pre = tf.add(tf.matmul(
-                    inputs,
-                    tf.maximum(0.0, ws)), self.biases_var)
+                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
             else:
-                pre = tf.add(
-                    tf.matmul(inputs, ws), self.biases_var)
+                pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
 
             if self.ei_mask_var is not None:
-                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+                post = tf.multiply(
+                    self.activation_func(tf.add(pre, self.biases_var)),
+                    self.ei_mask_var)
             else:
-                post = self.activation_func(pre)
+                post = self.activation_func(tf.add(pre, self.biases_var))
 
-            self.outputs = post
+            self.outputs = tf.reshape(
+                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END Layer.build_graph
-
-    def assign_layer_params(self, sess):
-        """Read weights/biases in numpy arrays into tf Variables"""
-        sess.run(
-            [self.weights_var.initializer, self.biases_var.initializer],
-            feed_dict={self.weights_ph: self.weights,
-                       self.biases_ph: self.biases})
-    # END Layer.assign_layer_params
-
-    def write_layer_params(self, sess):
-        """Write weights/biases in tf Variables to numpy arrays"""
-
-        self.weights = sess.run(self.weights_var)
-        if self.pos_constraint:
-            self.weights = np.maximum(self.weights, 0)
-        if self.normalize_weights > 0:
-            wnorm = np.sqrt(np.sum(np.square(self.weights), axis=0))
-            # wnorm[np.where(wnorm == 0)] = 1
-            # self.weights = np.divide(self.weights, wnorm)
-            self.weights = np.divide(self.weights, np.maximum(wnorm, 1e-8))
-        self.biases = sess.run(self.biases_var)
-
-    # END Layer.write_layer_params
-
-    def define_regularization_loss(self):
-        """Wrapper function for building regularization portion of graph"""
-        with tf.name_scope(self.scope):
-            ws = self._normalize_weights(self.weights_var)
-            return self.reg.define_reg_loss(ws)
-
-    def set_regularization(self, reg_type, reg_val):
-        """Wrapper function for setting regularization"""
-        return self.reg.set_reg_val(reg_type, reg_val)
-
-    def assign_reg_vals(self, sess):
-        """Wrapper function for assigning regularization values"""
-        self.reg.assign_reg_vals(sess)
-
-    def get_reg_pen(self, sess):
-        """Wrapper function for returning regularization penalty dict"""
-        return self.reg.get_reg_penalty(sess)
+    # END ConvLayer.build_graph
