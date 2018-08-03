@@ -804,6 +804,8 @@ class NDN(Network):
         target = NDN(self.network_list, ffnet_out=self.ffnet_out,
                      noise_dist=self.noise_dist, tf_seed=tf_seed)
         target.poisson_unit_norm = self.poisson_unit_norm
+        target.data_pipe_type = self.data_pipe_type
+        target.batch_size = self.batch_size
 
         # Copy all the parameters
         for nn in range(self.num_networks):
@@ -853,8 +855,10 @@ class NDN(Network):
     def set_poisson_norm(self, robses):
         """Calculates the average probability per bin to normalize the Poisson likelihood"""
 
-        self.poisson_unit_norm = []
+        if robses is not list:
+            robses = [robses]
 
+        self.poisson_unit_norm = []
         for i, temp_data in enumerate(robses):
             nc = self.network_list[self.ffnet_out[i]]['layer_sizes'][-1]
             assert nc == temp_data.shape[1], 'Output of network must match robs'
