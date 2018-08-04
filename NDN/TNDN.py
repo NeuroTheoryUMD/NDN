@@ -1023,6 +1023,9 @@ class CaTentLayer(Layer):
 
         """
 
+        self.batch_sz = batch_size
+        self.filter_width = filter_width
+
         # Process stim and filter dimensions
         # (potentially both passed in as num_inputs list)
         if isinstance(input_dims, list):
@@ -1057,57 +1060,27 @@ class CaTentLayer(Layer):
     # TODO: make graph then reconcile with TFFnetwork see if it works
     def build_graph(self, inputs, params_dict=None):
 
-        assert params_dict is not None, 'Incorrect siLayer initialization.'
-        # Unfold siLayer-specific parameters for building graph
-        filter_size = self.filter_dims
-        num_shifts = self.num_shifts
-
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
-            # Computation performed in the layer
-            # Reshape of inputs (4-D):
-            input_dims = [-1, self.input_dims[2], self.input_dims[1],
-                          self.input_dims[0]]
-            # this is reverse-order from Matlab:
-            # [space-2, space-1, lags, and num_examples]
-            shaped_input = tf.reshape(inputs, input_dims)
+            # make shaped input
+            shaped_input = tf.reshape(tf.transpose(inputs), [self.input_dims[1], self.batch_sz, 1, 1])
 
-            # Reshape weights (4:D:
-            conv_filter_dims = [filter_size[2], filter_size[1], filter_size[0],
-                                self.num_filters]
-
+            # make shaped filt
+            conv_filt_shape = [self.filter_width, 1, 1, self.num_filters]
             if self.normalize_weights > 0:
-                # ws_conv = tf.reshape(tf.nn.l2_normalize(self.weights_var, axis=0),
-                #                     conv_filter_dims) # this is in tf 1.8
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
-                ws_conv = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filter_dims)
+                shaped_filt = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filt_shape)
             else:
-                ws_conv = tf.reshape(self.weights_var, conv_filter_dims)
-                # this is reverse-order from Matlab:
-                # [space-2, space-1, lags] and num_filters is explicitly last dim
+                shaped_filt = tf.reshape(self.weights_var, conv_filt_shape)
 
-            # Make strides list
-            # check back later (this seems to not match with conv_filter_dims)
-            strides = [1, 1, 1, 1]
-            if conv_filter_dims[1] > 1:
-                strides[1] = self.shift_spacing
-            if conv_filter_dims[2] > 1:
-                strides[2] = self.shift_spacing
-
-            # yaeh this should be the case:
-            # strides = [1, 1, 1, 1]
-            # if conv_filter_dims[0] > 1:
-                # strides[1] = self.shift_spacing
-            # if conv_filter_dims[1] > 1:
-                # strides[2] = self.shift_spacing
-            # possibly different strides for x,y
-
+            # convolve
             if self.pos_constraint:
-                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
+                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, shaped_filt), strides, padding='SAME')
             else:
-                pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+                pre = tf.nn.conv2d(shaped_input, shaped_filt, strides, padding='SAME')
 
+            # from pre to post
             if self.ei_mask_var is not None:
                 post = tf.multiply(
                     self.activation_func(tf.add(pre, self.biases_var)),
@@ -1115,8 +1088,13 @@ class CaTentLayer(Layer):
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            self.outputs = tf.reshape(
-                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+            # this produces shape (batch_sz, nc, num_filts)
+            #self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
+            #    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)
+
+            # imagine single filter for now...
+            self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
+                post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)[..., 0]
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
