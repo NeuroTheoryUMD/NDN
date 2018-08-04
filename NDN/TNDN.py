@@ -59,6 +59,9 @@ class TNDN(NDN):
 
         """
 
+        self.batch_size = batch_size
+        self.time_spread = time_spread
+
         if network_list is None:
             raise TypeError('Must specify network list.')
 
@@ -76,8 +79,6 @@ class TNDN(NDN):
             input_dim_list=input_dim_list,
             tf_seed=tf_seed)
 
-        self.batch_size = batch_size
-        self.time_spread = time_spread
     # END TNDN.__init
 
     def _define_network(self):
@@ -141,9 +142,8 @@ class TNDN(NDN):
                 self.networks.append(
                     TFFnetwork(
                         scope='temporal_network_%i' % nn,
-                        params_dict=self.network_list[nn]),
-                        batch_size=self.batch_size,
-                        time_spread=self.time_spread)
+                        params_dict=self.network_list[nn],
+                        batch_size=self.batch_size))
             else:
                 self.networks.append(
                     FFNetwork(
@@ -757,7 +757,7 @@ class TNDN(NDN):
         # END TNDN._train_adam
 
 
-class TFFnetwork(FFnetwork):
+class TFFnetwork(FFNetwork):
     """Implementation of simple fully-connected feed-forward neural network.
     These networks can be composed to create much more complex network
     architectures using the NDN class.
@@ -784,15 +784,23 @@ class TFFnetwork(FFnetwork):
                  batch_size=None):
         """Constructor for TFFnetwork class"""
 
+        self.batch_size = batch_size
+
         super(TFFnetwork, self).__init__(
             scope=scope,
             input_dims=input_dims,
             params_dict=params_dict)
 
-        self.batch_size = batch_size
     # END TFFnetwork.__init
 
     def _define_network(self, network_params):
+
+        print('inside here: ', self.batch_size)
+
+        print('\n\n\n\nnetwork_params: \n', network_params)
+        print('\n\n\n\nself.layer_types: \n', self.layer_types)
+        print('\n\n\n\nlen: \n', len(self.layer_types))
+        print('\n\n\n\nself.layer_types[0]: \n', self.layer_types[0])
 
         layer_sizes = [self.input_dims] + network_params['layer_sizes']
         self.layers = []
@@ -953,6 +961,8 @@ class TFFnetwork(FFnetwork):
                 self.layers.append(CaTentLayer(
                     scope='ca_tent_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
+                    output_dims=layer_sizes[nn],
+                    num_filters=layer_sizes[nn + 1],
                     filter_width=network_params['ca_tent_width'][nn],
                     batch_size=self.batch_size,
                     normalize_weights=network_params['normalize_weights'][nn],
@@ -982,6 +992,7 @@ class CaTentLayer(Layer):
             self,
             scope=None,
             input_dims=None,  # this can be a list up to 3-dimensions
+            output_dims=None,
             num_filters=None,
             filter_width=None,  # this can be a list up to 3-dimensions
             batch_size=None,
@@ -1042,8 +1053,9 @@ class CaTentLayer(Layer):
         super(CaTentLayer, self).__init__(
             scope=scope,
             input_dims=input_dims,
-            output_dims=num_filters,  # Note difference from layer
+            output_dims=output_dims,  # Note difference from layer
             my_num_inputs=filter_width,
+            my_num_outputs=num_filters,
             activation_func=activation_func,
             normalize_weights=normalize_weights,
             weights_initializer=weights_initializer,
@@ -1053,6 +1065,7 @@ class CaTentLayer(Layer):
             pos_constraint=pos_constraint,  # note difference from layer (not anymore)
             log_activations=log_activations)
 
+        self.num_filters = num_filters
         self.output_dims = input_dims
 
     # END CaTentLayer.__init__
@@ -1068,6 +1081,7 @@ class CaTentLayer(Layer):
 
             # make shaped filt
             conv_filt_shape = [self.filter_width, 1, 1, self.num_filters]
+            print(conv_filt_shape)
             if self.normalize_weights > 0:
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
                 shaped_filt = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filt_shape)
@@ -1075,6 +1089,7 @@ class CaTentLayer(Layer):
                 shaped_filt = tf.reshape(self.weights_var, conv_filt_shape)
 
             # convolve
+            strides = [1, 1, 1, 1]
             if self.pos_constraint:
                 pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, shaped_filt), strides, padding='SAME')
             else:
