@@ -153,8 +153,13 @@ class TNDN(NDN):
         # Assemble outputs
         for nn in range(len(self.ffnet_out)):
             ffnet_n = self.ffnet_out[nn]
-            self.output_sizes[nn] = \
-                self.networks[ffnet_n].layers[-1].weights.shape[1]
+
+            if type(self.networks[ffnet_n].layers[-1]) is CaTentLayer:
+                self.output_sizes[nn] = \
+                    self.networks[ffnet_n].layers[-1].output_dims[1]
+            else:
+                self.output_sizes[nn] = \
+                    self.networks[ffnet_n].layers[-1].weights.shape[1]
 
     # END TNDN._define_network
 
@@ -503,14 +508,18 @@ class TNDN(NDN):
         epochs_ckpt = opt_params['epochs_ckpt']
         epochs_summary = opt_params['epochs_summary']
         # Inherit batch size if relevant
-        self.batch_size = opt_params['batch_size']
+        if opt_params['batch_size'] is not None:
+            self.batch_size = opt_params['batch_size']
+
         if self.data_pipe_type != 'data_as_var':
             assert self.batch_size is not None, 'Need to assign batch_size to train.'
 
         if opt_params['early_stop'] > 0:
             prev_costs = np.multiply(np.ones(opt_params['early_stop']), float('NaN'))
 
-        num_batches_tr = train_indxs.shape[0] // opt_params['batch_size']
+        # get number of batches and their order for train indxs
+        num_batches_tr = train_indxs.shape[0] // self.batch_size
+        batch_order = np.arange(num_batches_tr)
 
         if opt_params['run_diagnostics']:
             run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -540,17 +549,19 @@ class TNDN(NDN):
         # start training loop
         for epoch in range(epochs_training):
 
-            # shuffle data before each pass
-            train_indxs_perm = np.random.permutation(train_indxs)
+            # a random permutation of batch order
+            batch_order_perm = np.random.permutation(batch_order)
+
+            print(batch_order_perm)
 
             # pass through dataset once
-            for batch in range(num_batches_tr):
+            for ii in range(num_batches_tr):
                 if (self.data_pipe_type == 'data_as_var') or (
                         self.data_pipe_type == 'feed_dict'):
                     # get training indices for this batch
-                    batch_indxs = train_indxs_perm[
-                        batch * opt_params['batch_size']:
-                        (batch + 1) * opt_params['batch_size']]
+                    batch_indxs = train_indxs[
+                                  batch_order_perm[ii] * self.batch_size:
+                                  (batch_order_perm[ii] + 1) * self.batch_size]
 
                 # one step of optimization routine
                 if self.data_pipe_type == 'data_as_var':
@@ -575,8 +586,8 @@ class TNDN(NDN):
                 cost_tr, cost_test, reg_pen = 0, 0, 0
                 for batch_tr in range(num_batches_tr):
                     batch_indxs_tr = train_indxs[
-                                     batch_tr * opt_params['batch_size']:
-                                     (batch_tr + 1) * opt_params['batch_size']]
+                                     batch_tr * self.batch_size:
+                                     (batch_tr + 1) * self.batch_size]
                     if self.data_pipe_type == 'data_as_var':
                         feed_dict = {self.indices: batch_indxs_tr}
                     elif self.data_pipe_type == 'feed_dict':
