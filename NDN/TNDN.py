@@ -767,6 +767,9 @@ class TNDN(NDN):
         return epoch
         # END TNDN._train_adam
 
+    # todo: copy generate prediction here and modify it in such a way that's compatible with TNDNs
+    # or maybe just edit that... yeah just edit the generate_prediction function so that it checks if it is NDN or TNDN
+    # in case of TNDN it edits the self.batch_size to be equal to data_indxs so that it can generate what we want.
 
 class TFFnetwork(FFNetwork):
     """Implementation of simple fully-connected feed-forward neural network.
@@ -1081,7 +1084,6 @@ class CaTentLayer(Layer):
 
     # END CaTentLayer.__init__
 
-    # TODO: make graph then reconcile with TFFnetwork see if it works
     def build_graph(self, inputs, params_dict=None):
 
         with tf.name_scope(self.scope):

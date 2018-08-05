@@ -675,9 +675,9 @@ class NDN(Network):
 
             if nulladjusted:
                 # note that ll_neuron is negative of the true log-likelihood,
-                # but nullLL is not (so + is actually subtraction)
+                # but get_null_ll is not (so + is actually subtraction)
                 for i, temp_data in enumerate(output_data):
-                    ll_neuron[i] = -ll_neuron[i] - self.nullLL(temp_data[data_indxs, :])
+                    ll_neuron[i] = -ll_neuron[i] - self.get_null_ll(temp_data[data_indxs, :])
             # note that this will only be correct for single output indices
 
         if len(ll_neuron) == 1:
@@ -686,8 +686,8 @@ class NDN(Network):
             return ll_neuron
     # END get_LL_neuron
 
-    def generate_prediction(self, input_data, data_indxs=None, ffnet_n=-1,
-                            layer=-1):
+    def generate_prediction(self, input_data, data_indxs=None, use_gpu=False,
+                            ffnet_n=-1, layer=-1):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -749,10 +749,15 @@ class NDN(Network):
             iterator = dataset.make_one_shot_iterator()
 
         # Place graph operations on CPU
-        with tf.device('/cpu:0'):
+        if not use_gpu:
+            temp_config = tf.ConfigProto(device_count={'GPU': 0})
+            with tf.device('/cpu:0'):
+                self._build_graph()
+        else:
+            temp_config = tf.ConfigProto(device_count={'GPU': 1})
             self._build_graph()
 
-        with tf.Session(graph=self.graph, config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
+        with tf.Session(graph=self.graph, config=temp_config) as sess:
 
             self._restore_params(sess, input_data, output_data)
 
@@ -801,11 +806,16 @@ class NDN(Network):
         """Makes an exact copy of model without further elaboration."""
 
         # Assemble network_list
-        target = NDN(self.network_list, ffnet_out=self.ffnet_out,
-                     noise_dist=self.noise_dist, tf_seed=tf_seed)
+        if type(self) is NDN:
+            target = NDN(self.network_list, ffnet_out=self.ffnet_out,
+                         noise_dist=self.noise_dist, tf_seed=tf_seed)
+        elif type(self) is TNDN:
+            target = TNDN(self.network_list, ffnet_out=self.ffnet_out,
+                         noise_dist=self.noise_dist, tf_seed=tf_seed,
+                         batch_size=self.batch_size)
+
         target.poisson_unit_norm = self.poisson_unit_norm
         target.data_pipe_type = self.data_pipe_type
-        target.batch_size = self.batch_size
 
         # Copy all the parameters
         for nn in range(self.num_networks):
@@ -833,30 +843,27 @@ class NDN(Network):
             self.networks[self.ffnet_out[nn]].layers[-1].biases = frs
     # END NDN.initialize_output_layer_bias
 
-    def nullLL(self, robs):
+    def get_null_ll(self, robs):
         """Calculates null-model (constant firing rate) likelihood, given Robs 
         (which determines what firing rate for each cell)"""
 
         if self.noise_dist == 'gaussian':
             # In this case, LLnull is just var of data
-            LLnulls = np.var(robs, axis=0)
+            null_lls = np.var(robs, axis=0)
 
         elif self.noise_dist == 'poisson':
             rbars = np.mean(robs, axis=0)
-            LLnulls = np.log(rbars) - 1.0
+            null_lls = np.log(rbars) - 1.0
         # elif self.noise_dist == 'bernoulli':
         else:
-            LLnulls = [0] * robs.shape[1]
+            null_lls = [0] * robs.shape[1]
             print('Not worked out yet')
 
-        return LLnulls
-    # END NDN.nullLL
+        return null_lls
+    # END NDN.get_null_ll
 
     def set_poisson_norm(self, data_out):
         """Calculates the average probability per bin to normalize the Poisson likelihood"""
-
-        if data_out is not list:
-            data_out = [data_out]
 
         self.poisson_unit_norm = []
         for i, temp_data in enumerate(data_out):
