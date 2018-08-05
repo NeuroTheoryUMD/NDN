@@ -543,10 +543,15 @@ class NDN(Network):
             iterator = dataset.make_one_shot_iterator()
 
         # Place graph operations on CPU
-        with tf.device('/cpu:0'):
+        if not use_gpu:
+            temp_config = tf.ConfigProto(device_count={'GPU': 0})
+            with tf.device('/cpu:0'):
+                self._build_graph()
+        else:
+            temp_config = tf.ConfigProto(device_count={'GPU': 1})
             self._build_graph()
 
-        with tf.Session(graph=self.graph, config=self.sess_config) as sess:
+        with tf.Session(graph=self.graph, config=temp_config) as sess:
 
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
@@ -559,7 +564,7 @@ class NDN(Network):
     # END get_LL
 
     def eval_models(self, input_data=None, output_data=None, data_indxs=None,
-                    data_filters=None, nulladjusted=False):
+                    data_filters=None, nulladjusted=False, use_gpu=False):
         """Get cost for each output neuron without regularization terms
 
         Args:
