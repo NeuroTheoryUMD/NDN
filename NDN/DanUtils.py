@@ -4,6 +4,7 @@ from __future__ import division
 import numpy as np
 import NDN as NDN
 #import NDN.NDNutils as NDNutils
+from copy import deepcopy
 
 
 def reg_path(
@@ -376,8 +377,6 @@ def prune_ndn(ndn_mod, end_weighting=None, thresh_list=None, percent_drop=None):
         Also should not prune last layer (Robs), but can for multi-networks
         BUT CURRENTLY ONLY WORKS WITH SINGLE-NETWORK NDNs"""
 
-    from copy import deepcopy
-
     node_eval, remaining_units, _ = \
         evaluate_ffnetwork(ndn_mod.networks[0], end_weighting=end_weighting,
                            thresh_list=thresh_list, percent_drop=percent_drop)
@@ -415,6 +414,123 @@ def prune_ndn(ndn_mod, end_weighting=None, thresh_list=None, percent_drop=None):
                 pruned_ndn.networks[net_n].layers[nn].biases = ndn_mod.networks[net_n].layers[nn].biases.copy()
 
     return pruned_ndn
+
+
+def train_bottom_units( ndn_mod=None, unit_eval=None, num_units=None,
+                        input_data=None, output_data=None, train_indxs=None, test_indxs=None,
+                        data_filters=None, opt_params=None):
+
+    MIN_UNITS = 10
+
+    if ndn_mod is None:
+        TypeError('Must define ndn_mod')
+    if unit_eval is None:
+        TypeError('Must input unit_eval')
+    if input_data is None:
+        TypeError('Forgot input_data')
+    if output_data is None:
+        TypeError('Forgot output_data')
+    if train_indxs is None:
+        TypeError('Forgot train_indxs')
+
+    # Make new NDN
+    netlist = deepcopy(ndn_mod.network_list)
+    layer_sizes = netlist[0]['layer_sizes']
+    num_units_full = layer_sizes[-1]
+
+    # Default train bottom 20% of units
+    if num_units is None:
+        num_units = int(np.floor(num_units_full*0.2))
+    size_ratio = num_units/num_units_full
+    for nn in range(len(layer_sizes)-1):
+        layer_sizes[nn] = int(np.maximum(size_ratio*layer_sizes[nn], MIN_UNITS))
+        netlist[0]['num_inh'][nn] = int(np.floor(size_ratio*netlist[0]['num_inh'][nn]))
+    layer_sizes[-1] = num_units
+    netlist[0]['layer_sizes'] = layer_sizes # might not be necessary because python is dumb
+
+    small_ndn = NDN.NDN(netlist, noise_dist=ndn_mod.noise_dist)
+    sorted_units = np.argsort(unit_eval)
+    selected_units = sorted_units[range(num_units)]
+
+    # Adjust Robs
+    robs_small = output_data[:, selected_units]
+    if data_filters is not None:
+        data_filters_small = data_filters[:, selected_units]
+    else:
+        data_filters_small = None
+
+    # Train
+    _= small_ndn.train(input_data=input_data, output_data=robs_small, data_filters=data_filters_small,
+                       learning_alg='adam', train_indxs=train_indxs, test_indxs=test_indxs, opt_params=opt_params)
+    LLs = small_ndn.eval_models(input_data=input_data, output_data=robs_small,
+                                data_indxs=test_indxs, data_filters=data_filters_small)
+
+    return small_ndn, LLs, selected_units
+
+
+def join_ndns(ndn1, ndn2, units2=None):
+    """Puts all layers from both ndns into 1, except the last [output] layer, which is inherited
+    from ndn1 only. However, new units of ndn2 (earlier layers will be connected """
+    num_net = len(ndn1.networks)
+    num_net2 = len(ndn2.networks)
+    assert num_net == num_net2, 'Network number does not match'
+
+    new_netlist = deepcopy(ndn1.network_list)
+    num_units = [[]]*num_net
+    for nn in range(num_net):
+        num_layers = len(ndn1.networks[nn].layers)
+        num_layers2 = len(ndn2.networks[nn].layers)
+        assert num_layers == num_layers2, 'Layer number does not match'
+        layer_sizes = [0]*num_layers
+        num_units[nn] = [[]]*num_layers
+        for ll in range(num_layers):
+            if (nn != ndn1.ffnet_out[0]) or (ll < num_layers-1):
+                num_units[nn][ll] = [ndn1.networks[nn].layers[ll].weights.shape[1],
+                                     ndn2.networks[nn].layers[ll].weights.shape[1]]
+            else:
+                num_units[nn][ll] = [ndn1.networks[nn].layers[ll].weights.shape[1], 0]
+            layer_sizes[ll] = np.sum(num_units[nn][ll])
+            num_units[nn][ll][1] = layer_sizes[ll]  # need the sum anyway (see below)
+            new_netlist[nn]['weights_initializers'][ll] = 'zeros'
+
+        new_netlist[nn]['layer_sizes'] = layer_sizes
+
+    joint_ndn = NDN.NDN(new_netlist, noise_dist=ndn1.noise_dist)
+    # Assign weights and biases
+    for nn in range(num_net):
+        # First layer simple since input has not changed
+        ll = 0
+        joint_ndn.networks[nn].layers[ll].weights[:, range(num_units[nn][ll][0])] = \
+            ndn1.networks[nn].layers[ll].weights
+        joint_ndn.networks[nn].layers[ll].weights[:, range(num_units[nn][ll][0], num_units[nn][ll][1])] = \
+            ndn2.networks[nn].layers[ll].weights
+        joint_ndn.networks[nn].layers[ll].biases[:, range(num_units[nn][ll][0])] = \
+            ndn1.networks[nn].layers[ll].biases
+        joint_ndn.networks[nn].layers[ll].biases[:, range(num_units[nn][ll][0], num_units[nn][ll][1])] = \
+            ndn2.networks[nn].layers[ll].biases
+
+        for ll in range(1, len(num_units[nn])):
+            joint_ndn.networks[nn].layers[ll].biases[:, range(num_units[nn][ll][0])] =\
+                ndn1.networks[nn].layers[ll].biases.copy()
+            weight_strip = np.zeros([num_units[nn][ll-1][1], num_units[nn][ll][0]], dtype='float32')
+            weight_strip[range(num_units[nn][ll-1][0]), :] = ndn1.networks[nn].layers[ll].weights.copy()
+            joint_ndn.networks[nn].layers[ll].weights[:, range(num_units[nn][ll][0])] = weight_strip
+            if (nn != ndn1.ffnet_out[0]) or (ll < num_layers-1):
+                weight_strip = np.zeros([num_units[nn][ll - 1][1],
+                                         num_units[nn][ll][1] - num_units[nn][ll][0]], dtype='float32')
+                weight_strip[range(num_units[nn][ll - 1][0], num_units[nn][ll - 1][1]), :] = \
+                    ndn2.networks[nn].layers[ll].weights.copy()
+                joint_ndn.networks[nn].layers[ll].weights[:, range(num_units[nn][ll][0], num_units[nn][ll][1])] =\
+                    weight_strip
+                joint_ndn.networks[nn].layers[ll].biases[:, range(num_units[nn][ll][0], num_units[nn][ll][1])] =\
+                    ndn2.networks[nn].layers[ll].biases.copy()
+            elif units2 is not None:
+                weight_strip = np.zeros([num_units[nn][ll - 1][1], len(units2)], dtype='float32')
+                weight_strip[range(num_units[nn][ll - 1][0], num_units[nn][ll - 1][1]), :] = \
+                    ndn2.networks[nn].layers[ll].weights.copy()
+                joint_ndn.networks[nn].layers[ll].weights[:, units2] = weight_strip
+
+    return joint_ndn
 
 
 def subplot_setup(num_rows, num_cols, row_height=2):
