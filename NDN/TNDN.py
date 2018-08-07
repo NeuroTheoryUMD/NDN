@@ -571,8 +571,6 @@ class TNDN(NDN):
             # a random permutation of batch order
             batch_order_perm = np.random.permutation(batch_order)
 
-            print(batch_order_perm)
-
             # pass through dataset once
             for ii in range(num_batches_tr):
                 if (self.data_pipe_type == 'data_as_var') or (
