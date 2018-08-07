@@ -445,13 +445,13 @@ def train_bottom_units( ndn_mod=None, unit_eval=None, num_units=None,
     for nn in range(len(layer_sizes)-1):
         layer_sizes[nn] = int(np.maximum(size_ratio*layer_sizes[nn], MIN_UNITS))
         netlist[0]['num_inh'][nn] = int(np.floor(size_ratio*netlist[0]['num_inh'][nn]))
+        netlist[0]['weights_initializers'][nn] = 'trunc_normal'
     layer_sizes[-1] = num_units
-    netlist[0]['layer_sizes'] = layer_sizes # might not be necessary because python is dumb
-
+    netlist[0]['layer_sizes'] = layer_sizes  # might not be necessary because python is dumb
+    netlist[0]['weights_initializers'][-1] = 'trunc_normal'
     small_ndn = NDN.NDN(netlist, noise_dist=ndn_mod.noise_dist)
     sorted_units = np.argsort(unit_eval)
     selected_units = sorted_units[range(num_units)]
-
     # Adjust Robs
     robs_small = output_data[:, selected_units]
     if data_filters is not None:

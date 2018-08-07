@@ -174,11 +174,6 @@ class Layer(object):
         # Initialize weight values
         weight_dims = (num_inputs, num_outputs)
 
-
-        print(my_num_inputs, my_num_outputs)
-        print(weight_dims)
-
-
         if weights_initializer == 'trunc_normal':
             init_weights = np.random.normal(size=weight_dims, scale=0.1)
         elif weights_initializer == 'normal':

@@ -865,7 +865,7 @@ class NDN(Network):
     def set_poisson_norm(self, data_out):
         """Calculates the average probability per bin to normalize the Poisson likelihood"""
 
-        if data_out is not list:
+        if type(data_out) is not list:
             data_out = [data_out]
 
         self.poisson_unit_norm = []
