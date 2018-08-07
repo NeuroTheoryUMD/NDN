@@ -81,6 +81,25 @@ class TNDN(NDN):
 
     # END TNDN.__init
 
+    def _set_batch_size(self, new_batch_size):
+        """
+        :param new_size:
+        :return:
+        """
+
+        # TNDN
+        if hasattr(self, 'batch_size'):
+            self.batch_size = new_batch_size
+
+        # TFFNetworks, layers
+        for nn in range(self.num_networks):
+            if hasattr(self.networks[nn], 'batch_size'):
+                self.networks[nn].batch_size = new_batch_size
+            for mm in range(len(self.networks[nn].layers)):
+                if hasattr(self.networks[nn].layers[mm], 'batch_size'):
+                    self.networks[nn].layers[mm].batch_size = new_batch_size
+    # END TNDN._set_batch_size
+
     def _define_network(self):
         # This code clipped from NDN, where TFFnetworks has to be added
 
@@ -771,6 +790,108 @@ class TNDN(NDN):
     # or maybe just edit that... yeah just edit the generate_prediction function so that it checks if it is NDN or TNDN
     # in case of TNDN it edits the self.batch_size to be equal to data_indxs so that it can generate what we want.
 
+    def generate_prediction(self, input_data, data_indxs=None, use_gpu=False,
+                            ffnet_n=-1, layer=-1):
+        """Get cost for each output neuron without regularization terms
+
+        Args:
+            input_data (time x input_dim numpy array): input to model
+            data_indxs (numpy array, optional): indexes of data to use in
+                calculating forward pass; if not supplied, all data is used
+            use_gpu (True or False): Obvious
+            ffnet_n (int, optional): index into `network_list` that specifies
+                which FFNetwork to generate the prediction from
+            layer (int, optional): index into layers of network_list[ffnet_n]
+                that specifies which layer to generate prediction from
+
+        Returns:
+            numpy array: pred values from network_list[ffnet_n].layers[layer]
+
+        Raises:
+            ValueError: If `layer` index is larger than number of layers in
+                network_list[ffnet_n]
+
+        """
+
+        # check input
+        if type(input_data) is not list:
+            input_data = [input_data]
+        self.num_examples = input_data[0].shape[0]
+        for temp_data in input_data:
+            if temp_data.shape[0] != self.num_examples:
+                raise ValueError(
+                    'Input data dims must match across input_data.')
+        if data_indxs is None:
+            data_indxs = np.arange(self.num_examples)
+        if layer >= len(self.networks[ffnet_n].layers):
+            ValueError('This layer does not exist.')
+        if data_indxs is None:
+            data_indxs = np.arange(self.num_examples)
+
+        # change batch_size to be compatible with computations in CaTentLayer graph
+        original_batch_sz = deepcopy(self.batch_size)
+        new_batch_sz = data_indxs.shape[0]
+        self._set_batch_size(new_batch_sz)
+
+        # Generate fake_output data and take care of data-filtering, in case
+        # necessary
+        self.filter_data = False
+        num_outputs = len(self.ffnet_out)
+        output_data = [None] * num_outputs
+        for nn in range(num_outputs):
+            output_data[nn] = np.zeros(
+                [self.num_examples,
+                 self.networks[ffnet_n].layers[-1].weights.shape[1]],
+                dtype='float32')
+
+        # build datasets if using 'iterator' pipeline
+        if self.data_pipe_type == 'iterator':
+            dataset = self._build_dataset(
+                input_data=input_data,
+                output_data=output_data,
+                indxs=data_indxs,
+                training_dataset=False,
+                batch_size=self.num_examples)
+            # store info on dataset for buiding data pipeline
+            self.dataset_types = dataset.output_types
+            self.dataset_shapes = dataset.output_shapes
+            # build iterator object to access elements from dataset
+            iterator = dataset.make_one_shot_iterator()
+
+        # Place graph operations on CPU
+        if not use_gpu:
+            temp_config = tf.ConfigProto(device_count={'GPU': 0})
+            with tf.device('/cpu:0'):
+                self._build_graph()
+        else:
+            temp_config = tf.ConfigProto(device_count={'GPU': 1})
+            self._build_graph()
+
+        with tf.Session(graph=self.graph, config=temp_config) as sess:
+
+            self._restore_params(sess, input_data, output_data)
+
+            if self.data_pipe_type == 'data_as_var':
+                feed_dict = {self.indices: data_indxs}
+            elif self.data_pipe_type == 'feed_dict':
+                feed_dict = self._get_feed_dict(
+                    input_data=input_data,
+                    batch_indxs=data_indxs)
+            elif self.data_pipe_type == 'iterator':
+                # get string handle of iterator
+                iter_handle = sess.run(iterator.string_handle())
+                feed_dict = {self.iterator_handle: iter_handle}
+
+            pred = sess.run(
+                self.networks[ffnet_n].layers[layer].outputs,
+                feed_dict=feed_dict)
+
+        # change the batch_size back to its original value
+        self._set_batch_size(original_batch_sz)
+
+        return pred
+    # END generate_prediction
+
 class TFFnetwork(FFNetwork):
     """Implementation of simple fully-connected feed-forward neural network.
     These networks can be composed to create much more complex network
@@ -1048,7 +1169,7 @@ class CaTentLayer(Layer):
 
         """
 
-        self.batch_sz = batch_size
+        self.batch_size = batch_size
         self.filter_width = filter_width
 
         # Process stim and filter dimensions
@@ -1090,7 +1211,7 @@ class CaTentLayer(Layer):
             self._define_layer_variables()
 
             # make shaped input
-            shaped_input = tf.reshape(tf.transpose(inputs), [self.input_dims[1], self.batch_sz, 1, 1])
+            shaped_input = tf.reshape(tf.transpose(inputs), [self.input_dims[1], self.batch_size, 1, 1])
 
             # make shaped filt
             conv_filt_shape = [self.filter_width, 1, 1, self.num_filters]
@@ -1116,7 +1237,7 @@ class CaTentLayer(Layer):
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            # this produces shape (batch_sz, nc, num_filts)
+            # this produces shape (batch_size, nc, num_filts)
             #self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
             #    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)
 

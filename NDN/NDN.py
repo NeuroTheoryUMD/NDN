@@ -211,7 +211,7 @@ class NDN(Network):
 
     def _build_graph(
             self,
-            learning_alg='lbfgs',
+            learning_alg='adam',
             opt_params=None,
             variable_list=None):
         """NDN._build_graph"""
@@ -699,6 +699,7 @@ class NDN(Network):
             input_data (time x input_dim numpy array): input to model
             data_indxs (numpy array, optional): indexes of data to use in
                 calculating forward pass; if not supplied, all data is used
+            use_gpu (True or False): Obvious
             ffnet_n (int, optional): index into `network_list` that specifies 
                 which FFNetwork to generate the prediction from
             layer (int, optional): index into layers of network_list[ffnet_n]
