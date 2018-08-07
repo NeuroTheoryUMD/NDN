@@ -930,21 +930,12 @@ class TFFnetwork(FFNetwork):
 
     def _define_network(self, network_params):
 
-        print('inside here: ', self.batch_size)
-
-        print('\n\n\n\nnetwork_params: \n', network_params)
-        print('\n\n\n\nself.layer_types: \n', self.layer_types)
-        print('\n\n\n\nlen: \n', len(self.layer_types))
-        print('\n\n\n\nself.layer_types[0]: \n', self.layer_types[0])
-
         layer_sizes = [self.input_dims] + network_params['layer_sizes']
         self.layers = []
         #print(self.scope, layer_sizes)
 
         for nn in range(self.num_layers):
-
             if self.layer_types[nn] == 'normal':
-
                 self.layers.append(Layer(
                     scope='layer_%i' % nn,
                     input_dims=layer_sizes[nn],
@@ -959,7 +950,6 @@ class TFFnetwork(FFNetwork):
                     log_activations=network_params['log_activations']))
 
             elif self.layer_types[nn] == 'sep':
-
                 self.layers.append(SepLayer(
                     scope='sep_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
@@ -974,7 +964,6 @@ class TFFnetwork(FFNetwork):
                     log_activations=network_params['log_activations']))
 
             elif self.layer_types[nn] == 'add':
-
                 self.layers.append(AddLayer(
                     scope='add_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
@@ -987,7 +976,6 @@ class TFFnetwork(FFNetwork):
                     log_activations=network_params['log_activations']))
 
             elif self.layer_types[nn] == 'spike_history':
-
                 self.layers.append(SpikeHistoryLayer(
                     scope='spike_history_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
@@ -1000,7 +988,6 @@ class TFFnetwork(FFNetwork):
                     log_activations=network_params['log_activations']))
 
             elif self.layer_types[nn] == 'conv':
-
                 if network_params['conv_filter_widths'][nn] is None:
                     conv_filter_size = layer_sizes[nn]
                 else:
@@ -1031,7 +1018,6 @@ class TFFnetwork(FFNetwork):
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
             elif self.layer_types[nn] == 'convsep':
-
                 if network_params['conv_filter_widths'][nn] is None:
                     conv_filter_size = layer_sizes[nn]
                 else:
@@ -1062,7 +1048,6 @@ class TFFnetwork(FFNetwork):
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
             elif self.layer_types[nn] == 'biconv':
-
                 if network_params['conv_filter_widths'][nn] is None:
                     conv_filter_size = layer_sizes[nn]
                 else:
@@ -1215,7 +1200,7 @@ class CaTentLayer(Layer):
 
             # make shaped filt
             conv_filt_shape = [self.filter_width, 1, 1, self.num_filters]
-            print(conv_filt_shape)
+
             if self.normalize_weights > 0:
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
                 shaped_filt = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filt_shape)
