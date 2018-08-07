@@ -871,6 +871,9 @@ class NDN(Network):
     def set_poisson_norm(self, data_out):
         """Calculates the average probability per bin to normalize the Poisson likelihood"""
 
+        if type(data_out) is not list:
+            data_out = [data_out]
+
         self.poisson_unit_norm = []
         for i, temp_data in enumerate(data_out):
             nc = self.network_list[self.ffnet_out[i]]['layer_sizes'][-1]
