@@ -143,7 +143,7 @@ def filtered_eval_model(
     if not nulladjusted:
         LLreturn = all_LLs[int(unit_number)]
     else:
-        LLreturn = -all_LLs[int(unit_number)]-ndn_mod.nullLL(output_data[inds, int(unit_number)])
+        LLreturn = -all_LLs[int(unit_number)]-ndn_mod.get_null_ll(output_data[inds, int(unit_number)])
  
     return LLreturn
 # END filtered_eval_model
@@ -483,6 +483,8 @@ def join_ndns(ndn1, ndn2, units2=None):
         assert num_layers == num_layers2, 'Layer number does not match'
         layer_sizes = [0]*num_layers
         num_units[nn] = [[]]*num_layers
+        if ndn1.ffnet_out[0] == -1:
+            ndn1.ffnet_out[0] = len(ndn1.networks)
         for ll in range(num_layers):
             if (nn != ndn1.ffnet_out[0]) or (ll < num_layers-1):
                 num_units[nn][ll] = [ndn1.networks[nn].layers[ll].weights.shape[1],
