@@ -812,16 +812,12 @@ class NDN(Network):
         """Makes an exact copy of model without further elaboration."""
 
         # Assemble network_list
-        if type(self) is NDN:
-            target = NDN(self.network_list, ffnet_out=self.ffnet_out,
-                         noise_dist=self.noise_dist, tf_seed=tf_seed)
-        elif type(self) is TNDN:
-            target = TNDN(self.network_list, ffnet_out=self.ffnet_out,
-                         noise_dist=self.noise_dist, tf_seed=tf_seed,
-                         batch_size=self.batch_size)
+        target = NDN(self.network_list, ffnet_out=self.ffnet_out,
+                     noise_dist=self.noise_dist, tf_seed=tf_seed)
 
         target.poisson_unit_norm = self.poisson_unit_norm
         target.data_pipe_type = self.data_pipe_type
+        target.batch_size = self.batch_size
 
         # Copy all the parameters
         for nn in range(self.num_networks):
