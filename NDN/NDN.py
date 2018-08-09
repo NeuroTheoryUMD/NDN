@@ -486,7 +486,7 @@ class NDN(Network):
     # END set_regularization
 
     def get_LL(self, input_data, output_data, data_indxs=None,
-               data_filters=None):
+               data_filters=None, use_gpu=False):
         """Get cost from loss function and regularization terms
 
         Args:
@@ -496,7 +496,8 @@ class NDN(Network):
             data_indxs (numpy array, optional): indexes of data to use in
                 calculating forward pass; if not supplied, all data is used
             data_filters (numpy array, optional):
-            
+            use_gpu (boolean, optional): whether or not to use GPU for
+                computation (default=False)
         Returns:
             float: cost function evaluated on `input_data`
 
@@ -629,7 +630,12 @@ class NDN(Network):
             iterator = dataset.make_one_shot_iterator()
 
         # Place graph operations on CPU
-        with tf.device('/cpu:0'):
+        if not use_gpu:
+            #temp_config = tf.ConfigProto(device_count={'GPU': 0})
+            with tf.device('/cpu:0'):
+                self._build_graph()
+        else:
+            #temp_config = tf.ConfigProto(device_count={'GPU': 1})
             self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:

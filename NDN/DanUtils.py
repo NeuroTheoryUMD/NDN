@@ -122,12 +122,13 @@ def filtered_eval_model(
         raise TypeError('Must specify input_data.')
     if output_data is None:
         raise TypeError('Must specify output_data.')
-    if data_filters is None:
-        raise TypeError('Must specify data_filters.')
     if test_indxs is None:
         raise TypeError('Must specify testing indices.')
 
-    inds = np.intersect1d(test_indxs, np.where(data_filters[:, int(unit_number)] > 0))
+    if data_filters is None:
+        inds = test_indxs
+    else:
+        inds = np.intersect1d(test_indxs, np.where(data_filters[:, int(unit_number)] > 0))
 
     all_LLs = ndn_mod.eval_models(
         input_data=input_data, output_data=output_data,
@@ -138,12 +139,13 @@ def filtered_eval_model(
     if (ndn_mod.noise_dist == 'poisson') and (ndn_mod.poisson_unit_norm is not None):
         real_norm = np.mean(output_data[inds, int(unit_number)])
         all_LLs = np.divide(
-            np.multiply(all_LLs, ndn_mod.poisson_unit_norm), real_norm)
+            np.multiply(all_LLs, ndn_mod.poisson_unit_norm[0]), real_norm)
+        # note the zero indexing poisson norm is necessary because its now a list
 
     if not nulladjusted:
         LLreturn = all_LLs[int(unit_number)]
     else:
-        LLreturn = -all_LLs[int(unit_number)]-ndn_mod.nullLL(output_data[inds, int(unit_number)])
+        LLreturn = -all_LLs[int(unit_number)]-ndn_mod.get_null_ll(output_data[inds, int(unit_number)])
  
     return LLreturn
 # END filtered_eval_model
@@ -483,6 +485,8 @@ def join_ndns(ndn1, ndn2, units2=None):
         assert num_layers == num_layers2, 'Layer number does not match'
         layer_sizes = [0]*num_layers
         num_units[nn] = [[]]*num_layers
+        if ndn1.ffnet_out[0] == -1:
+            ndn1.ffnet_out[0] = len(ndn1.networks)
         for ll in range(num_layers):
             if (nn != ndn1.ffnet_out[0]) or (ll < num_layers-1):
                 num_units[nn][ll] = [ndn1.networks[nn].layers[ll].weights.shape[1],
