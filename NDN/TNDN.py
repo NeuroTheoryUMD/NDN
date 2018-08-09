@@ -530,6 +530,9 @@ class TNDN(NDN):
         if opt_params['batch_size'] is not None:
             self.batch_size = opt_params['batch_size']
 
+        # print batch size
+        print('\n*** Train initiated, batch size =  %s ***\n\n' % self.batch_size)
+
         if self.data_pipe_type != 'data_as_var':
             assert self.batch_size is not None, 'Need to assign batch_size to train.'
 
@@ -641,9 +644,9 @@ class TNDN(NDN):
                             test_batch_size=opt_params['batch_size_test'])
 
                 # print additional testing info
-                print('Epoch %04d:  avg train cost = %10.4f,  '
-                      'avg test cost = %10.4f,  '
-                      'reg penalty = %10.4f'
+                print('Epoch %04d:   train cost  =  %.2e ,   '
+                      'test cost  =  %.2e ,   '
+                      'reg pen  =  %.2e'
                       % (epoch, cost_tr / np.sum(self.output_sizes),
                          cost_test / np.sum(self.output_sizes),
                          reg_pen / np.sum(self.output_sizes)))
@@ -1165,8 +1168,11 @@ class CaTentLayer(Layer):
             input_dims = [1, input_dims, 1]
 
         # If output dimensions already established, just strip out num_filters
-        if isinstance(num_filters, list):
-            num_filters = num_filters[0]
+      #  if isinstance(num_filters, list):
+      #      num_filters = num_filters[0]
+
+        # TODO: how to specify num filters...
+        num_filters = input_dims[1]
 
         super(CaTentLayer, self).__init__(
             scope=scope,
@@ -1180,10 +1186,9 @@ class CaTentLayer(Layer):
             biases_initializer=biases_initializer,
             reg_initializer=reg_initializer,
             num_inh=num_inh,
-            pos_constraint=pos_constraint,  # note difference from layer (not anymore)
+            pos_constraint=pos_constraint,
             log_activations=log_activations)
 
-        self.num_filters = num_filters
         self.output_dims = input_dims
 
     # END CaTentLayer.__init__
@@ -1221,12 +1226,12 @@ class CaTentLayer(Layer):
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
             # this produces shape (batch_size, nc, num_filts)
-            #self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
-            #    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)
+            self.outputs = tf.matrix_diag_part(tf.manip.roll(tf.transpose(tf.squeeze(
+                post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0))
 
             # imagine single filter for now...
-            self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
-                post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)[..., 0]
+            #self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
+            #    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)[..., 0]
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
