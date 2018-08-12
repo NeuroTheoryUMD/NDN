@@ -541,27 +541,48 @@ class NDN(Network):
             self.dataset_types = dataset.output_types
             self.dataset_shapes = dataset.output_shapes
             # build iterator object to access elements from dataset
-            iterator = dataset.make_one_shot_iterator()
+            iterator_tr = dataset.make_one_shot_iterator()
 
         # Place graph operations on CPU
         if not use_gpu:
-            temp_config = tf.ConfigProto(device_count={'GPU': 0})
+            #temp_config = tf.ConfigProto(device_count={'GPU': 0})
             with tf.device('/cpu:0'):
                 self._build_graph()
         else:
-            temp_config = tf.ConfigProto(device_count={'GPU': 1})
+            #temp_config = tf.ConfigProto(device_count={'GPU': 1})
             self._build_graph()
 
-        with tf.Session(graph=self.graph, config=temp_config) as sess:
+        with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
 
-            cost = self._get_test_cost(
-                sess, input_data=input_data, output_data=output_data,
-                data_filters=data_filters, test_indxs=data_indxs)
+            #cost = self._get_test_cost(
+            #    sess, input_data=input_data, output_data=output_data,
+            #    data_filters=data_filters, test_indxs=data_indxs)
+            num_batches_tr = data_indxs.shape[0] // self.batch_size
+            cost_tr = 0
+            for batch_tr in range(num_batches_tr):
+                batch_indxs_tr = data_indxs[
+                                 batch_tr * self.batch_size:(batch_tr + 1) * self.batch_size]
+                if self.data_pipe_type == 'data_as_var':
+                    feed_dict = {self.indices: batch_indxs_tr}
+                elif self.data_pipe_type == 'feed_dict':
+                    feed_dict = self._get_feed_dict(
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        batch_indxs=batch_indxs_tr)
+                elif self.data_pipe_type == 'iterator':
+                    # get string handle of iterator
+                    iter_handle_tr = sess.run(iterator_tr.string_handle())
+                    feed_dict = {self.iterator_handle: iter_handle_tr}
 
-        return cost
+                cost_tr += sess.run(self.cost, feed_dict=feed_dict)
+
+            cost_tr /= num_batches_tr
+
+        return cost_tr
     # END get_LL
 
     def eval_models(self, input_data=None, output_data=None, data_indxs=None,
