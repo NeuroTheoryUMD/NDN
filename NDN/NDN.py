@@ -63,6 +63,7 @@ class NDN(Network):
             noise_dist='poisson',
             ffnet_out=-1,
             input_dim_list=None,
+            batch_size=None,
             tf_seed=0):
         """Constructor for network-NIM class
 
@@ -94,6 +95,8 @@ class NDN(Network):
 
         # Call __init__() method of super class
         super(NDN, self).__init__()
+
+        self.batch_size = batch_size
 
         # Set network_list
         if not isinstance(network_list, list):

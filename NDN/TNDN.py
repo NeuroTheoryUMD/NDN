@@ -59,7 +59,7 @@ class TNDN(NDN):
 
         """
 
-        self.batch_size = batch_size
+      #  self.batch_size = batch_size
         self.time_spread = time_spread
 
         if network_list is None:
@@ -77,6 +77,7 @@ class TNDN(NDN):
             noise_dist=noise_dist,
             ffnet_out=ffnet_out,
             input_dim_list=input_dim_list,
+            batch_size=batch_size,
             tf_seed=tf_seed)
 
     # END TNDN.__init
@@ -99,6 +100,26 @@ class TNDN(NDN):
                 if hasattr(self.networks[nn].layers[mm], 'batch_size'):
                     self.networks[nn].layers[mm].batch_size = new_batch_size
     # END TNDN._set_batch_size
+
+    def _set_time_spread(self, new_time_spread):
+        """
+        :param new_size:
+        :return:
+        """
+
+        # TNDN
+        if hasattr(self, 'time_spread'):
+            self.time_spread = new_time_spread
+
+        # TFFNetworks, layers
+        for nn in range(self.num_networks):
+            if hasattr(self.networks[nn], 'time_spread'):
+                self.networks[nn].time_spread = new_time_spread
+            for mm in range(len(self.networks[nn].layers)):
+                if hasattr(self.networks[nn].layers[mm], 'time_spread'):
+                    self.networks[nn].layers[mm].time_spread = new_time_spread
+    # END TNDN._set_time_spread
+
 
     def _define_network(self):
         # This code clipped from NDN, where TFFnetworks has to be added
@@ -162,7 +183,8 @@ class TNDN(NDN):
                     TFFnetwork(
                         scope='temporal_network_%i' % nn,
                         params_dict=self.network_list[nn],
-                        batch_size=self.batch_size))
+                        batch_size=self.batch_size,
+                        time_spread=self.time_spread))
             else:
                 self.networks.append(
                     FFNetwork(
@@ -531,7 +553,7 @@ class TNDN(NDN):
             self.batch_size = opt_params['batch_size']
 
         # print batch size
-        print('\n*** Train initiated, batch size =  %s ***\n\n' % self.batch_size)
+        print('\n*** Train initiated, batch size = %s ***\n\n' % self.batch_size)
 
         if self.data_pipe_type != 'data_as_var':
             assert self.batch_size is not None, 'Need to assign batch_size to train.'
@@ -917,10 +939,12 @@ class TFFnetwork(FFNetwork):
                  scope=None,
                  input_dims=None,
                  params_dict=None,
-                 batch_size=None):
+                 batch_size=None,
+                 time_spread=None):
         """Constructor for TFFnetwork class"""
 
         self.batch_size = batch_size
+        self.time_spread = time_spread
 
         super(TFFnetwork, self).__init__(
             scope=scope,
@@ -1078,6 +1102,26 @@ class TFFnetwork(FFNetwork):
                 if nn < self.num_layers:
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
+            elif self.layer_types[nn] == 'temporal':
+                self.layers.append(TLayer(
+                    scope='temporal_layer_%i' % nn,
+                    input_dims=layer_sizes[nn],
+                    output_dims=self.batch_size,
+                    num_filters=layer_sizes[nn + 1],
+                    batch_size=self.batch_size,
+                    time_spread=self.time_spread,
+                    normalize_weights=network_params['normalize_weights'][nn],
+                    weights_initializer=network_params['weights_initializers'][nn],
+                    biases_initializer=network_params['biases_initializers'][nn],
+                    reg_initializer=network_params['reg_initializers'][nn],
+                    num_inh=network_params['num_inh'][nn],
+                    pos_constraint=network_params['pos_constraints'][nn],
+                    log_activations=network_params['log_activations']))
+
+                # Modify output size to take into account shifts
+                if nn < self.num_layers:
+                    layer_sizes[nn + 1] = self.layers[nn].output_dims
+
             elif self.layer_types[nn] == 'ca_tent':
                 self.layers.append(CaTentLayer(
                     scope='ca_tent_layer_%i' % nn,
@@ -1098,6 +1142,127 @@ class TFFnetwork(FFNetwork):
                 raise TypeError('Layer type %i not defined.' % nn)
 
     # END TFFnetwork._define_network
+
+
+class TLayer(Layer):
+    """Implementation of calcium tent layer
+
+    Attributes:
+        filter_width (int): time spread
+        batch_size (int): the batch size is explicitly needed for this computation
+
+    """
+
+    def __init__(
+            self,
+            scope=None,
+            input_dims=None,  # this can be a list up to 3-dimensions
+            output_dims=None,
+            num_filters=None,
+            batch_size=None,
+            time_spread=None,
+            activation_func='relu',
+            normalize_weights=0,
+            weights_initializer='trunc_normal',
+            biases_initializer='zeros',
+            reg_initializer=None,
+            num_inh=0,
+            pos_constraint=True,
+            log_activations=False):
+        """Constructor for convLayer class
+
+        Args:
+            scope (str): name scope for variables and operations in layer
+            input_dims (int or list of ints): dimensions of input data
+            num_filters (int): number of convolutional filters in layer
+            filter_dims (int or list of ints): dimensions of input data
+            shift_spacing (int): stride of convolution operation
+            activation_func (str, optional): pointwise function applied to
+                output of affine transformation
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+                'elu' | 'quad'
+            normalize_weights (int): 1 to normalize weights 0 otherwise
+                [0] | 1
+            weights_initializer (str, optional): initializer for the weights
+                ['trunc_normal'] | 'normal' | 'zeros'
+            biases_initializer (str, optional): initializer for the biases
+                'trunc_normal' | 'normal' | ['zeros']
+            reg_initializer (dict, optional): see Regularizer docs for info
+            num_inh (int, optional): number of inhibitory units in layer
+            pos_constraint (bool, optional): True to constrain layer weights to
+                be positive
+            log_activations (bool, optional): True to use tf.summary on layer
+                activations
+
+        Raises:
+            ValueError: If `pos_constraint` is `True`
+
+        """
+        self.batch_size = batch_size
+        self.time_spread = time_spread
+
+        print('TNDN.py, line 1178, output_dims: ', output_dims)
+
+        # TODO: maybe you will need to fix num_filters later
+        num_filters = 1
+
+        # Process stim and filter dimensions
+        # (potentially both passed in as num_inputs list)
+        if isinstance(input_dims, list):
+            while len(input_dims) < 3:
+                input_dims.append(1)
+        else:
+            # assume 1-dimensional (space)
+            input_dims = [1, input_dims, 1]
+
+        super(TLayer, self).__init__(
+            scope=scope,
+            input_dims=input_dims,
+            output_dims=output_dims,  # Note difference from layer
+            filter_dims=None, #TODO: fix this for reg
+            my_num_inputs=batch_size,
+            my_num_outputs=2*time_spread,  # effectively
+            activation_func=activation_func,
+            normalize_weights=normalize_weights,
+            weights_initializer=weights_initializer,
+            biases_initializer=biases_initializer,
+            num_inh=num_inh,
+            pos_constraint=pos_constraint,
+            log_activations=log_activations)
+
+        # TODO: remember, you can use this part to overwrite anything
+       # self.output_dims = input_dims
+      #  self.num_filters = input_dims[0]
+
+    # END CaTentLayer.__init__
+
+    def build_graph(self, inputs, params_dict=None):
+
+        with tf.name_scope(self.scope):
+            self._define_layer_variables()
+
+            # only upper triangular part is needed
+            weights_tri = tf.matrix_band_part(self.weights_var, 0, -1)
+
+            # if normalization... (maybe change layer, this is highly inefficient)
+            ws = tf.transpose(self._normalize_weights(tf.transpose(weights_tri)))
+
+            if self.pos_constraint:
+                pre = tf.add(tf.matmul(tf.maximum(0.0, ws), inputs), tf.transpose(self.biases_var))
+            else:
+                pre = tf.add(tf.matmul(ws, inputs), tf.transpose(self.biases_var))
+
+            if self.ei_mask_var is not None:
+                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+            else:
+                post = self.activation_func(pre)
+
+            self.outputs = post
+
+        if self.log:
+            tf.summary.histogram('act_pre', pre)
+            tf.summary.histogram('act_post', post)
+    # END TLayer.build_graph
 
 
 class CaTentLayer(Layer):
@@ -1172,7 +1337,8 @@ class CaTentLayer(Layer):
       #      num_filters = num_filters[0]
 
         # TODO: how to specify num filters...
-        num_filters = input_dims[1]
+        if num_filters > 1:
+            num_filters = input_dims[1]
 
         super(CaTentLayer, self).__init__(
             scope=scope,
@@ -1236,4 +1402,4 @@ class CaTentLayer(Layer):
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END ConvLayer.build_graph
+    # END CaTentLayer.build_graph

@@ -119,12 +119,14 @@ class Layer(object):
         self.num_filters = num_outputs
         if filter_dims is None:
             filter_dims = input_dims
+
         if my_num_inputs is not None:
             num_inputs = my_num_inputs   # this is for convsep
-        if my_num_outputs is not None:
-            num_outputs = my_num_outputs   # this is for convsep
         else:
             num_inputs = filter_dims[0] * filter_dims[1] * filter_dims[2]
+        if my_num_outputs is not None:
+            num_outputs = my_num_outputs   # this is for convsep
+
         self.filter_dims = filter_dims[:]
 
         # resolve activation function string
