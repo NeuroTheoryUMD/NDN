@@ -116,7 +116,7 @@ class Layer(object):
         self.input_dims = input_dims[:]
         self.output_dims = output_dims[:]
         # default to have N filts for N outputs in base layer class
-        self.num_filters = num_outputs
+
         if filter_dims is None:
             filter_dims = input_dims
 
@@ -127,6 +127,7 @@ class Layer(object):
         if my_num_outputs is not None:
             num_outputs = my_num_outputs   # this is for convsep
 
+        self.num_filters = num_outputs
         self.filter_dims = filter_dims[:]
 
         # resolve activation function string

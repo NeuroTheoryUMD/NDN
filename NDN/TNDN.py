@@ -862,10 +862,11 @@ class TNDN(NDN):
         num_outputs = len(self.ffnet_out)
         output_data = [None] * num_outputs
         for nn in range(num_outputs):
-            output_data[nn] = np.zeros(
-                [self.num_examples,
-                 self.networks[ffnet_n].layers[-1].weights.shape[1]],
-                dtype='float32')
+            if type(self.networks[ffnet_n].layers[-1]) is CaTentLayer:
+                temp_num_outputs = self.networks[ffnet_n].layers[-1].output_dims[1]
+            else:
+                temp_num_outputs = self.networks[ffnet_n].layers[-1].weights.shape[1]
+            output_data[nn] = np.zeros([self.num_examples, temp_num_outputs], dtype='float32')
 
         # build datasets if using 'iterator' pipeline
         if self.data_pipe_type == 'iterator':
@@ -905,9 +906,7 @@ class TNDN(NDN):
                 iter_handle = sess.run(iterator.string_handle())
                 feed_dict = {self.iterator_handle: iter_handle}
 
-            pred = sess.run(
-                self.networks[ffnet_n].layers[layer].outputs,
-                feed_dict=feed_dict)
+            pred = sess.run(self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
 
         # change the batch_size back to its original value
         self._set_batch_size(original_batch_sz)
@@ -1128,7 +1127,7 @@ class TFFnetwork(FFNetwork):
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn + 1],
-                    filter_width=network_params['ca_tent_width'][nn],
+                    filter_width=network_params['ca_tent_widths'][nn],
                     batch_size=self.batch_size,
                     normalize_weights=network_params['normalize_weights'][nn],
                     weights_initializer=network_params['weights_initializers'][nn],
@@ -1137,6 +1136,30 @@ class TFFnetwork(FFNetwork):
                     num_inh=network_params['num_inh'][nn],
                     pos_constraint=network_params['pos_constraints'][nn],
                     log_activations=network_params['log_activations']))
+
+                # Modify output size to take into account shifts
+                if nn < self.num_layers:
+                    layer_sizes[nn + 1] = self.layers[nn].output_dims
+
+            elif self.layer_types[nn] == 'ca_tent_no_roll':
+                self.layers.append(CaTentLayer(
+                    scope='ca_tent_layer_%i' % nn,
+                    input_dims=layer_sizes[nn],
+                    output_dims=layer_sizes[nn],
+                    num_filters=layer_sizes[nn + 1],
+                    filter_width=network_params['ca_tent_widths'][nn],
+                    batch_size=self.batch_size,
+                    normalize_weights=network_params['normalize_weights'][nn],
+                    weights_initializer=network_params['weights_initializers'][nn],
+                    biases_initializer=network_params['biases_initializers'][nn],
+                    reg_initializer=network_params['reg_initializers'][nn],
+                    num_inh=network_params['num_inh'][nn],
+                    pos_constraint=network_params['pos_constraints'][nn],
+                    log_activations=network_params['log_activations']))
+
+                # Modify output size to take into account shifts
+                if nn < self.num_layers:
+                    layer_sizes[nn + 1] = self.layers[nn].output_dims
 
             else:
                 raise TypeError('Layer type %i not defined.' % nn)
@@ -1201,8 +1224,6 @@ class TLayer(Layer):
         self.batch_size = batch_size
         self.time_spread = time_spread
 
-        print('TNDN.py, line 1178, output_dims: ', output_dims)
-
         # TODO: maybe you will need to fix num_filters later
         num_filters = 1
 
@@ -1221,7 +1242,7 @@ class TLayer(Layer):
             output_dims=output_dims,  # Note difference from layer
             filter_dims=None, #TODO: fix this for reg
             my_num_inputs=batch_size,
-            my_num_outputs=2*time_spread,  # effectively
+            my_num_outputs=batch_size,  # effectively
             activation_func=activation_func,
             normalize_weights=normalize_weights,
             weights_initializer=weights_initializer,
@@ -1392,14 +1413,155 @@ class CaTentLayer(Layer):
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
             # this produces shape (batch_size, nc, num_filts)
-            self.outputs = tf.matrix_diag_part(tf.manip.roll(tf.transpose(tf.squeeze(
-                post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0))
+            if self.num_filters > 1:
+                self.outputs = tf.matrix_diag_part(tf.manip.roll(tf.transpose(tf.squeeze(
+                    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0))
+            else:
+                # single filter
+                self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
+                    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)[..., 0]
 
-            # imagine single filter for now...
-            #self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
-            #    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)[..., 0]
+            # both cases will produce self.output.shape ---> (batch_size, nc)
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END CaTentLayer.build_graph
+
+class NoRollCaTentLayer(Layer):
+    """Implementation of calcium tent layer
+
+    Attributes:
+        filter_width (int): time spread
+        batch_size (int): the batch size is explicitly needed for this computation
+
+    """
+
+    def __init__(
+            self,
+            scope=None,
+            input_dims=None,  # this can be a list up to 3-dimensions
+            output_dims=None,
+            num_filters=None,
+            filter_width=None,  # this can be a list up to 3-dimensions
+            batch_size=None,
+            activation_func='lin',
+            normalize_weights=0,
+            weights_initializer='trunc_normal',
+            biases_initializer='zeros',
+            reg_initializer=None,
+            num_inh=0,
+            pos_constraint=True,
+            log_activations=False):
+        """Constructor for convLayer class
+
+        Args:
+            scope (str): name scope for variables and operations in layer
+            input_dims (int or list of ints): dimensions of input data
+            num_filters (int): number of convolutional filters in layer
+            filter_dims (int or list of ints): dimensions of input data
+            shift_spacing (int): stride of convolution operation
+            activation_func (str, optional): pointwise function applied to
+                output of affine transformation
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+                'elu' | 'quad'
+            normalize_weights (int): 1 to normalize weights 0 otherwise
+                [0] | 1
+            weights_initializer (str, optional): initializer for the weights
+                ['trunc_normal'] | 'normal' | 'zeros'
+            biases_initializer (str, optional): initializer for the biases
+                'trunc_normal' | 'normal' | ['zeros']
+            reg_initializer (dict, optional): see Regularizer docs for info
+            num_inh (int, optional): number of inhibitory units in layer
+            pos_constraint (bool, optional): True to constrain layer weights to
+                be positive
+            log_activations (bool, optional): True to use tf.summary on layer
+                activations
+
+        Raises:
+            ValueError: If `pos_constraint` is `True`
+
+        """
+
+        if filter_width is None:
+            filter_width = 2*batch_size
+
+        self.batch_size = batch_size
+        self.filter_width = filter_width
+
+        # Process stim and filter dimensions
+        # (potentially both passed in as num_inputs list)
+        if isinstance(input_dims, list):
+            while len(input_dims) < 3:
+                input_dims.append(1)
+        else:
+            # assume 1-dimensional (space)
+            input_dims = [1, input_dims, 1]
+
+        # If output dimensions already established, just strip out num_filters
+      #  if isinstance(num_filters, list):
+      #      num_filters = num_filters[0]
+
+        # TODO: how to specify num filters...
+        if num_filters > 1:
+            num_filters = input_dims[1]
+
+        super(NoRollCaTentLayer, self).__init__(
+            scope=scope,
+            input_dims=input_dims,
+            output_dims=output_dims,  # Note difference from layer
+            my_num_inputs=filter_width,
+            my_num_outputs=num_filters,
+            activation_func=activation_func,
+            normalize_weights=normalize_weights,
+            weights_initializer=weights_initializer,
+            biases_initializer=biases_initializer,
+            reg_initializer=reg_initializer,
+            num_inh=num_inh,
+            pos_constraint=pos_constraint,
+            log_activations=log_activations)
+
+        self.output_dims = input_dims
+
+    # END CaTentLayer.__init__
+
+    def build_graph(self, inputs, params_dict=None):
+
+        with tf.name_scope(self.scope):
+            self._define_layer_variables()
+
+            # make shaped input
+            shaped_input = tf.reshape(tf.transpose(inputs), [self.input_dims[1], self.batch_size, 1, 1])
+
+            # make shaped filt
+            conv_filt_shape = [self.filter_width, 1, 1, self.num_filters]
+
+            if self.normalize_weights > 0:
+                wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
+                shaped_filt = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filt_shape)
+            else:
+                shaped_filt = tf.reshape(self.weights_var, conv_filt_shape)
+
+            # convolve
+            strides = [1, 1, 1, 1]
+            if self.pos_constraint:
+                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, shaped_filt), strides, padding='SAME')
+            else:
+                pre = tf.nn.conv2d(shaped_input, shaped_filt, strides, padding='SAME')
+
+            # from pre to post
+            if self.ei_mask_var is not None:
+                post = tf.multiply(
+                    self.activation_func(tf.add(pre, self.biases_var)),
+                    self.ei_mask_var)
+            else:
+                post = self.activation_func(tf.add(pre, self.biases_var))
+
+            # this produces shape (batch_size, nc, num_filts)
+            # after matrix_diag_part we have diagonal part ---> shape will be (batch_size, nc)
+            self.outputs = tf.matrix_diag_part(tf.transpose(tf.squeeze(post, axis=2), [1, 0, 2]))
+
+        if self.log:
+            tf.summary.histogram('act_pre', pre)
+            tf.summary.histogram('act_post', post)
+    # END NoRollCaTentLayer.build_graph
