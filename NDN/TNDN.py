@@ -1142,7 +1142,7 @@ class TFFnetwork(FFNetwork):
                     layer_sizes[nn + 1] = self.layers[nn].output_dims
 
             elif self.layer_types[nn] == 'ca_tent_no_roll':
-                self.layers.append(CaTentLayer(
+                self.layers.append(NoRollCaTentLayer(
                     scope='ca_tent_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn],
