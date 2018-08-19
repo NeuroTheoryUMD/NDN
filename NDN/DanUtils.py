@@ -543,3 +543,21 @@ def subplot_setup(num_rows, num_cols, row_height=2):
     fig.set_size_inches(16, row_height*num_rows)
 
 
+def matlab_export(filename, variable_list):
+    """Export list of variables to .mat file"""
+
+    import scipy.io as sio
+    if not isinstance(variable_list, list):
+        variable_list = [variable_list]
+
+    matdata = {}
+    for nn in range(len(variable_list)):
+        assert not isinstance(variable_list[nn], list), 'Cant do a list of lists.'
+        if nn < 10:
+            key_name = 'v0' + str(nn)
+        else:
+            key_name = 'v' + str(nn)
+        matdata[key_name] = variable_list[nn]
+
+    sio.savemat(filename, matdata)
+
