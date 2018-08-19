@@ -861,6 +861,20 @@ class NDN(Network):
 
         return target
 
+    def matlab_export(self, filename):
+        """Exports all weights and biases to matlab-readable file with given filename"""
+
+        import scipy.io as sio
+        matdata = {}
+        for nn in range(self.num_networks):
+            for ll in range(len(self.networks[nn].layers)):
+                wstring = 'ws' + str(nn) + str(ll)
+                matdata[wstring] = self.networks[nn].layers[ll].weights
+                bstring = 'bs' + str(nn) + str(ll)
+                matdata[bstring] = self.networks[nn].layers[ll].biases
+
+        sio.savemat(filename, matdata)
+
     def initialize_output_layer_bias(self, robs):
         """Sets biases in output layer(w) to explain mean firing rate, using 
         Robs"""
