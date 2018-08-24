@@ -360,6 +360,17 @@ def side_distance(side_ndn, c1, c2, level=None):
     return np.max(ds)
 
 
+def side_distance_vector(side_ndn, c1):
+    """compares distances between one cell and all others"""
+    NC = side_ndn.networks[-1].layers[-1].weights.shape[1]
+    dvec = np.zeros(NC, dtype='float32')
+    for cc in range(NC):
+        dvec[cc] = side_distance(side_ndn, c1, cc)
+    dvec[c1] = 0
+
+    return dvec
+
+
 def evaluate_ffnetwork(ffnet, end_weighting=None, to_plot=False, thresh_list=None, percent_drop=None):
     """Analyze FFnetwork nodes to determine their contribution in the big picture.
     thresh_list and percent_drop apply criteria for each layer (one or other) to suggest units to drop"""
