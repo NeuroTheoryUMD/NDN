@@ -3,7 +3,7 @@
 from __future__ import division
 import numpy as np
 import NDN as NDN
-#import NDN.NDNutils as NDNutils
+import NDNutils as NDNutils
 from copy import deepcopy
 
 
@@ -243,6 +243,22 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     wside = side_ndn.networks[1].layers[0].weights
     num_inh = side_ndn.network_list[0]['num_inh']
     ws = []
+
+    # identify max and min weights for plotting (if plotting)
+    if cell_to_plot is not None:
+        if is_conv:
+            # find normalization of layers for relevant cell
+            img_max = np.max(wside[:, cell_to_plot])
+            img_min = np.min(wside[:, cell_to_plot])
+        else:
+            img_max = np.max(wside)
+            img_min = np.min(wside)
+        if img_min < 0:  # then make symmetric arond gray
+            if img_max > -img_min:
+                img_min = -img_max
+            else:
+                img_max = -img_min
+
     for ll in range(num_layers):
         wtemp = wside[range(ll, len(wside), num_layers), :]
         if is_conv:
@@ -254,7 +270,8 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
         if cell_to_plot is not None:
             plt.subplot(1, num_layers, ll+1)
             if is_conv:
-                plt.imshow(ws[ll][:, :, cell_to_plot], aspect=plot_aspect)
+                plt.imshow(ws[ll][:, :, cell_to_plot], aspect=plot_aspect, interpolation='none', cmap='bwr',
+                           vmin=img_min, vmax=img_max)
                 # Put line in for inhibitory units
                 if num_inh[ll] > 0:
                     plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_space-0.5], 'r')
@@ -262,13 +279,96 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
                 if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
                     plt.plot([filter_nums[ll]/2, filter_nums[ll]/2], [-0.5, num_space-0.5], 'w')
             else:
-                plt.imshow(np.transpose(ws[ll]), aspect='auto')  # will plot all cells
+                plt.imshow(np.transpose(ws[ll]), aspect='auto', interpolation='none', cmap='bwr',
+                           vmin=img_min, vmax=img_max)  # will plot all cells
                 # Put line in for inhibitory units
                 if num_inh[ll] > 0:
                     plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_cells-0.5], 'r')
 
     plt.show()
     return ws
+
+
+def side_network_properties(side_ndn):
+
+    ws = side_network_analyze(side_ndn)
+    wside = side_ndn.networks[-1].layers[-1].weights
+    cell_nrms = np.sqrt(np.sum(np.square(wside), axis=0))
+    NC = len(cell_nrms)
+    num_layers = len(ws)
+    NX = side_ndn.network_list[0]['input_dims'][1]
+
+    if (side_ndn.network_list[0]['layer_types'][0] == 'conv') or (side_ndn.network_list[0]['layer_types'][0] == 'biconv'):
+        conv_net = True
+    else:
+        conv_net = False
+    assert conv_net is True, 'Convolutional network only for now.'
+
+    # Calculate layer weights
+    num_inh = side_ndn.network_list[0]['num_inh']
+    layer_weights = np.zeros([num_layers, NC], dtype='float32')
+    spatial_weights = np.zeros([num_layers, NX, NC], dtype='float32')
+
+    for ll in range(num_layers):
+        if conv_net:
+            layer_weights[ll, :] = np.sqrt(np.sum(np.sum(np.square(ws[ll]), axis=0), axis=0)) / cell_nrms
+            spatial_weights[ll, :, :] = np.divide(np.sqrt(np.sum(np.square(ws[ll]), axis=1)), cell_nrms)
+        else:
+            layer_weights[ll, :] = np.sqrt(np.sum(np.square(ws[ll]), axis=0)) / cell_nrms
+
+    if np.sum(num_inh) == 0:  # then no E/I meaurements
+        noEI = True
+    else:
+        noEI = False
+
+    props = {'layer_weights':layer_weights, 'spatial_profile': spatial_weights}
+
+    return props
+
+
+def side_distance(side_ndn, c1, c2, level=None):
+    """Assume network is convolutional -- otherwise wont make sense"""
+
+    ws = side_network_analyze(side_ndn)
+    NX, NC = ws[0].shape[0], ws[0].shape[2]
+    assert (c1 < NC) and (c2 < NC), 'cells out of range'
+
+    if level is not None:
+        assert level < len(ws), 'level too large'
+        w1 = ws[level][:, :, c1]
+        w2 = ws[level][:, :, c2]
+    else:
+        w1 = ws[0][:, :, c1]
+        w2 = ws[0][:, :, c2]
+        for ll in range(1, len(ws)):
+            w1 = np.concatenate((w1, ws[ll][:, :, c1]), axis=1)
+            w2 = np.concatenate((w2, ws[ll][:, :, c2]), axis=1)
+
+    # Normalize
+    nrm1 = np.sqrt(np.sum(np.square(w1)))
+    nrm2 = np.sqrt(np.sum(np.square(w2)))
+    if (nrm1 == 0) or (nrm2 == 0):
+        return 0.0
+    w1 = np.divide(w1, nrm1)
+    w2 = np.divide(w2, nrm2)
+
+    # Shift w2 to have highest overlap with w1
+    ds = np.zeros(2*NX-1)
+    for sh in range(2*NX-1):
+        ds[sh] = np.sum(np.multiply(w1, NDNutils.shift_mat_zpad(w2, sh-NX+1, dim=0)))
+
+    return np.max(ds)
+
+
+def side_distance_vector(side_ndn, c1):
+    """compares distances between one cell and all others"""
+    NC = side_ndn.networks[-1].layers[-1].weights.shape[1]
+    dvec = np.zeros(NC, dtype='float32')
+    for cc in range(NC):
+        dvec[cc] = side_distance(side_ndn, c1, cc)
+    dvec[c1] = 0
+
+    return dvec
 
 
 def evaluate_ffnetwork(ffnet, end_weighting=None, to_plot=False, thresh_list=None, percent_drop=None):
