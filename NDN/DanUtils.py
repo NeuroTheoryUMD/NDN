@@ -371,6 +371,16 @@ def side_distance_vector(side_ndn, c1):
     return dvec
 
 
+def side_distance_matrix(side_ndn):
+
+    NC = side_ndn.networks[-1].layers[-1].weights.shape[1]
+    dmat = np.zeros([NC, NC], dtype='float32')
+    for c1 in range(NC):
+        for c2 in range(c1+1,NC):
+            dmat[c1, c2] = side_distance(side_ndn, c1, c2)
+            dmat[c2, c1] = dmat[c1, c2]
+    return dmat
+
 def evaluate_ffnetwork(ffnet, end_weighting=None, to_plot=False, thresh_list=None, percent_drop=None):
     """Analyze FFnetwork nodes to determine their contribution in the big picture.
     thresh_list and percent_drop apply criteria for each layer (one or other) to suggest units to drop"""
