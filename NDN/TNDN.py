@@ -920,7 +920,7 @@ class TNDN(NDN):
         """Makes an exact copy of model without further elaboration."""
 
         # Assemble network_list
-        target = TNDN(self.network_list, ffnet_out=self.ffnet_out,
+        target = TNDN(self.network_list, ffnet_out=self.ffnet_out, time_spread=self.time_spread,
                      noise_dist=self.noise_dist, batch_size=self.batch_size, tf_seed=tf_seed)
 
         target.poisson_unit_norm = self.poisson_unit_norm

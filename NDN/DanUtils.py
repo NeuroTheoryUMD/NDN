@@ -253,11 +253,11 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
         else:
             img_max = np.max(wside)
             img_min = np.min(wside)
-        if img_min < 0:  # then make symmetric arond gray
-            if img_max > -img_min:
-                img_min = -img_max
-            else:
-                img_max = -img_min
+        # equalize scaling around zero
+        if img_max > -img_min:
+            img_min = -img_max
+        else:
+            img_max = -img_min
 
     for ll in range(num_layers):
         wtemp = wside[range(ll, len(wside), num_layers), :]
