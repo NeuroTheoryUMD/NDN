@@ -1380,6 +1380,11 @@ class CaTentLayer(Layer):
 
         self.output_dims = input_dims
 
+        self.reg = Regularization(
+            input_dims=[filter_width, 1, 1],
+            num_outputs=num_filters,
+            vals=reg_initializer)
+
     # END CaTentLayer.__init__
 
     def build_graph(self, inputs, params_dict=None):
@@ -1567,3 +1572,22 @@ class NoRollCaTentLayer(Layer):
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END NoRollCaTentLayer.build_graph
+
+    def copy_model(self, tf_seed=0):
+        """Makes an exact copy of model without further elaboration."""
+
+        # Assemble network_list
+        target = TNDN(self.network_list, ffnet_out=self.ffnet_out,
+                     noise_dist=self.noise_dist, batch_size=self.batch_size, tf_seed=tf_seed)
+
+        target.poisson_unit_norm = self.poisson_unit_norm
+        target.data_pipe_type = self.data_pipe_type
+
+        # Copy all the parameters
+        for nn in range(self.num_networks):
+            for ll in range(self.networks[nn].num_layers):
+                target.networks[nn].layers[ll].weights = self.networks[nn].layers[ll].weights.copy()
+                target.networks[nn].layers[ll].biases = self.networks[nn].layers[ll].biases.copy()
+                target.networks[nn].layers[ll].reg = self.networks[nn].layers[ll].reg.reg_copy()
+
+        return target
