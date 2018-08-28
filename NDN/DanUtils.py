@@ -374,7 +374,7 @@ def side_distance_vector(side_ndn, c1):
 def side_distance_matrix(side_ndn):
 
     NC = side_ndn.networks[-1].layers[-1].weights.shape[1]
-    dmat = np.zeros([NC, NC], dtype='float32')
+    dmat = np.ones([NC, NC], dtype='float32')
     for c1 in range(NC):
         for c2 in range(c1+1,NC):
             dmat[c1, c2] = side_distance(side_ndn, c1, c2)
