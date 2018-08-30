@@ -308,20 +308,31 @@ def side_network_properties(side_ndn):
     num_inh = side_ndn.network_list[0]['num_inh']
     layer_weights = np.zeros([num_layers, NC], dtype='float32')
     spatial_weights = np.zeros([num_layers, NX, NC], dtype='float32')
-
+    EIlayer = np.zeros([2, num_layers, NC], dtype='float32')
+    EIspatial = np.zeros([2, num_layers, NX, NC], dtype='float32')
     for ll in range(num_layers):
         if conv_net:
             layer_weights[ll, :] = np.sqrt(np.sum(np.sum(np.square(ws[ll]), axis=0), axis=0)) / cell_nrms
             spatial_weights[ll, :, :] = np.divide(np.sqrt(np.sum(np.square(ws[ll]), axis=1)), cell_nrms)
+            if num_inh[ll] > 0:
+                NE = ws[ll].shape[1] - num_inh[ll]
+                elocs = range(NE)
+                ilocs = range(NE, ws[ll].shape[1])
+                EIspatial[0, ll, :, :] = np.sum(ws[ll][:, elocs, :], axis=1)
+                EIspatial[1, ll, :, :] = np.sum(ws[ll][:, ilocs, :], axis=1)
+                EIlayer[:, ll, :] = np.sum(EIspatial[:, ll, :, :], axis=1)
         else:
             layer_weights[ll, :] = np.sqrt(np.sum(np.square(ws[ll]), axis=0)) / cell_nrms
 
-    if np.sum(num_inh) == 0:  # then no E/I meaurements
-        noEI = True
-    else:
-        noEI = False
+    if np.sum(num_inh) > 0:
+        Enorm = np.sum(EIlayer[0, :, :], axis=0)
+        EIlayer = np.divide(EIlayer, Enorm)
+        EIspatial = np.divide(EIspatial, Enorm)
 
-    props = {'layer_weights':layer_weights, 'spatial_profile': spatial_weights}
+    props = {'layer_weights': layer_weights,
+             'spatial_profile': spatial_weights,
+             'EIspatial': EIspatial,
+             'EIlayer': EIlayer}
 
     return props
 
