@@ -17,12 +17,14 @@ import numpy as np
 #from .tlayer import CaTentLayer
 #from .tlayer import NoRollCaTentLayer
 
+from .ffnetwork import FFNetwork
+
 from .layer import *
 from .tlayer import *
 
 
 
-class TFFnetwork(FFNetwork):
+class TFFNetwork(FFNetwork):
     """Implementation of simple fully-connected feed-forward neural network.
     These networks can be composed to create much more complex network
     architectures using the NDN class.
@@ -50,15 +52,14 @@ class TFFnetwork(FFNetwork):
                  time_spread=None):
         """Constructor for TFFnetwork class"""
 
-        super(TFFnetwork, self).__init__(
-            scope=scope,
-            input_dims=input_dims,
-            params_dict=params_dict)
-
         self.batch_size = batch_size
         self.time_spread = time_spread
 
-    # END TFFnetwork.__init
+        super(TFFNetwork, self).__init__(
+            scope=scope,
+            input_dims=input_dims,
+            params_dict=params_dict)
+    # END TFFNetwork.__init
 
     def _define_network(self, network_params):
 
@@ -272,7 +273,7 @@ class TFFnetwork(FFNetwork):
             else:
                 raise TypeError('Layer type %i not defined.' % nn)
 
-    # END TFFnetwork._define_network
+    # END TFFNetwork._define_network
 
     def build_graph(self, inputs, params_dict=None):
         """Build tensorflow graph for this network"""

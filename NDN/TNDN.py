@@ -17,6 +17,7 @@ from FFnetwork.tffnetwork import TFFNetwork
 
 from NDNutils import concatenate_input_dims
 
+from FFnetwork.tlayer import *
 
 
 class TNDN(NDN):
@@ -119,7 +120,7 @@ class TNDN(NDN):
 
 
     def _define_network(self):
-        # This code clipped from NDN, where TFFnetworks has to be added
+        # This code clipped from NDN, where TFFNetworks has to be added
 
         self.networks = []
 
@@ -177,7 +178,7 @@ class TNDN(NDN):
                         params_dict=self.network_list[nn]))
             elif self.network_list[nn]['network_type'] == 'temporal':
                 self.networks.append(
-                    TFFnetwork(
+                    TFFNetwork(
                         scope='temporal_network_%i' % nn,
                         params_dict=self.network_list[nn],
                         batch_size=self.batch_size,

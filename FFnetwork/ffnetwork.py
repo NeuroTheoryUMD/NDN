@@ -5,13 +5,13 @@ from __future__ import division
 
 import tensorflow as tf
 import numpy as np
-from .layer import Layer
-from .layer import ConvLayer
-from .layer import SepLayer
-from .layer import ConvSepLayer
-from .layer import AddLayer
-from .layer import SpikeHistoryLayer
-from .layer import BiConvLayer
+from .layer import *
+#from .layer import ConvLayer
+#from .layer import SepLayer
+#from .layer import ConvSepLayer
+#from .layer import AddLayer
+#from .layer import SpikeHistoryLayer
+#from .layer import BiConvLayer
 
 class FFNetwork(object):
     """Implementation of simple fully-connected feed-forward neural network. 

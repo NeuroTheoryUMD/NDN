@@ -8,6 +8,8 @@ import tensorflow as tf
 from .regularization import Regularization
 from .regularization import SepRegularization
 
+from .layer import Layer
+
 
 class TLayer(Layer):
     """Implementation of calcium tent layer
