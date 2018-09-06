@@ -308,41 +308,79 @@ def side_network_properties(side_ndn):
     num_inh = side_ndn.network_list[0]['num_inh']
     layer_weights = np.zeros([num_layers, NC], dtype='float32')
     spatial_weights = np.zeros([num_layers, NX, NC], dtype='float32')
-
+    EIlayer = np.zeros([2, num_layers, NC], dtype='float32')
+    EIspatial = np.zeros([2, num_layers, NX, NC], dtype='float32')
     for ll in range(num_layers):
         if conv_net:
             layer_weights[ll, :] = np.sqrt(np.sum(np.sum(np.square(ws[ll]), axis=0), axis=0)) / cell_nrms
             spatial_weights[ll, :, :] = np.divide(np.sqrt(np.sum(np.square(ws[ll]), axis=1)), cell_nrms)
+            if num_inh[ll] > 0:
+                NE = ws[ll].shape[1] - num_inh[ll]
+                elocs = range(NE)
+                ilocs = range(NE, ws[ll].shape[1])
+                EIspatial[0, ll, :, :] = np.sum(ws[ll][:, elocs, :], axis=1)
+                EIspatial[1, ll, :, :] = np.sum(ws[ll][:, ilocs, :], axis=1)
+                EIlayer[:, ll, :] = np.sum(EIspatial[:, ll, :, :], axis=1)
         else:
             layer_weights[ll, :] = np.sqrt(np.sum(np.square(ws[ll]), axis=0)) / cell_nrms
 
-    if np.sum(num_inh) == 0:  # then no E/I meaurements
-        noEI = True
-    else:
-        noEI = False
+    if np.sum(num_inh) > 0:
+        Enorm = np.sum(EIlayer[0, :, :], axis=0)
+        EIlayer = np.divide(EIlayer, Enorm)
+        EIspatial = np.divide(EIspatial, Enorm)
 
-    props = {'layer_weights':layer_weights, 'spatial_profile': spatial_weights}
+    props = {'layer_weights': layer_weights,
+             'spatial_profile': spatial_weights,
+             'EIspatial': EIspatial,
+             'EIlayer': EIlayer}
 
     return props
 
 
-def side_distance(side_ndn, c1, c2, level=None):
+def side_distance(side_ndn, c1, c2, level=None, EI=None):
     """Assume network is convolutional -- otherwise wont make sense"""
 
     ws = side_network_analyze(side_ndn)
     NX, NC = ws[0].shape[0], ws[0].shape[2]
     assert (c1 < NC) and (c2 < NC), 'cells out of range'
 
+    num_inh = side_ndn.network_list[0]['num_inh']
+    NUs = side_ndn.network_list[0]['layer_sizes']
+    if np.sum(num_inh) == 0:
+        EI = None
+
     if level is not None:
         assert level < len(ws), 'level too large'
-        w1 = ws[level][:, :, c1]
-        w2 = ws[level][:, :, c2]
+        if EI is not None:
+            if EI > 0:  # then excitatory only
+                w1 = ws[level][:, range(NUs[level]-num_inh[level]), c1]
+                w2 = ws[level][:, range(NUs[level]-num_inh[level]), c2]
+            else:  # then inhibitory only
+                w1 = ws[level][:, range(NUs[level]-num_inh[level], NUs[level]), c1]
+                w2 = ws[level][:, range(NUs[level]-num_inh[level], NUs[level]), c2]
+        else:
+            w1 = ws[level][:, :, c1]
+            w2 = ws[level][:, :, c2]
     else:
-        w1 = ws[0][:, :, c1]
-        w2 = ws[0][:, :, c2]
-        for ll in range(1, len(ws)):
-            w1 = np.concatenate((w1, ws[ll][:, :, c1]), axis=1)
-            w2 = np.concatenate((w2, ws[ll][:, :, c2]), axis=1)
+        if EI is not None:
+            if EI > 0:  # then excitatory only
+                w1 = ws[0][:, range(NUs[0]-num_inh[0]), c1]
+                w2 = ws[0][:, range(NUs[0]-num_inh[0]), c2]
+                for ll in range(1, len(ws)):
+                    w1 = np.concatenate((w1, ws[ll][:, range(NUs[ll]-num_inh[ll]), c1]), axis=1)
+                    w2 = np.concatenate((w2, ws[ll][:, range(NUs[ll]-num_inh[ll]), c2]), axis=1)
+            else:
+                w1 = ws[0][:, range(NUs[0]-num_inh[0], NUs[0]), c1]
+                w2 = ws[0][:, range(NUs[0]-num_inh[0], NUs[0]), c2]
+                for ll in range(1, len(ws)):
+                    w1 = np.concatenate((w1, ws[ll][:, range(NUs[ll]-num_inh[ll], NUs[ll]), c1]), axis=1)
+                    w2 = np.concatenate((w2, ws[ll][:, range(NUs[ll]-num_inh[ll], NUs[ll]), c2]), axis=1)
+        else:
+            w1 = ws[0][:, :, c1]
+            w2 = ws[0][:, :, c2]
+            for ll in range(1, len(ws)):
+                w1 = np.concatenate((w1, ws[ll][:, :, c1]), axis=1)
+                w2 = np.concatenate((w2, ws[ll][:, :, c2]), axis=1)
 
     # Normalize
     nrm1 = np.sqrt(np.sum(np.square(w1)))
@@ -360,24 +398,24 @@ def side_distance(side_ndn, c1, c2, level=None):
     return np.max(ds)
 
 
-def side_distance_vector(side_ndn, c1):
+def side_distance_vector(side_ndn, c1, level=None, EI=None):
     """compares distances between one cell and all others"""
     NC = side_ndn.networks[-1].layers[-1].weights.shape[1]
     dvec = np.zeros(NC, dtype='float32')
     for cc in range(NC):
-        dvec[cc] = side_distance(side_ndn, c1, cc)
-    dvec[c1] = 0
+        dvec[cc] = side_distance(side_ndn, c1, cc, level=level, EI=EI)
+    dvec[c1] = 1
 
     return dvec
 
 
-def side_distance_matrix(side_ndn):
+def side_distance_matrix(side_ndn, level=None, EI=None):
 
     NC = side_ndn.networks[-1].layers[-1].weights.shape[1]
     dmat = np.ones([NC, NC], dtype='float32')
     for c1 in range(NC):
         for c2 in range(c1+1,NC):
-            dmat[c1, c2] = side_distance(side_ndn, c1, c2)
+            dmat[c1, c2] = side_distance(side_ndn, c1, c2, level=level, EI=EI)
             dmat[c2, c1] = dmat[c1, c2]
     return dmat
 
@@ -496,9 +534,15 @@ def prune_ndn(ndn_mod, end_weighting=None, thresh_list=None, percent_drop=None):
 
     net_lists = deepcopy(ndn_mod.network_list)
     layer_sizes = net_lists[0]['layer_sizes']
+    num_inh = net_lists[0]['num_inh']
     for nn in range(num_layers):
+        if num_inh[nn] > 0:
+            # update number of inhibitory units based on how many left
+            num_inh[nn] = np.where(remaining_units[nn] > (layer_sizes[nn]-num_inh[nn]))[0].shape[0]
         layer_sizes[nn] = len(remaining_units[nn])
+
     net_lists[0]['layer_sizes'] = layer_sizes
+    net_lists[0]['num_inh'] = num_inh
 
     # Make new NDN
     pruned_ndn = NDN.NDN(net_lists, noise_dist=ndn_mod.noise_dist, ffnet_out=ndn_mod.ffnet_out, tf_seed=ndn_mod.tf_seed)
