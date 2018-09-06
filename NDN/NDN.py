@@ -8,7 +8,7 @@ import numpy as np
 import tensorflow as tf
 
 from FFnetwork.ffnetwork import FFNetwork
-from FFnetwork.ffnetwork import side_network
+from FFnetwork.ffnetwork import SideNetwork
 from .network import Network
 from NDNutils import concatenate_input_dims
 
@@ -194,7 +194,7 @@ class NDN(Network):
                 network_input_params = \
                     self.network_list[self.network_list[nn]['ffnet_n'][0]]
                 self.networks.append(
-                    side_network(
+                    SideNetwork(
                         scope='side_network_%i' % nn,
                         input_network_params=network_input_params,
                         params_dict=self.network_list[nn]))

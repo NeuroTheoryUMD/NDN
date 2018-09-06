@@ -397,7 +397,7 @@ class FFNetwork(object):
         return reg_loss
 
 
-class side_network(FFNetwork):
+class SideNetwork(FFNetwork):
     """Implementation of side network that takes input from multiple layers of
     other FFNetworks
     
@@ -463,14 +463,14 @@ class side_network(FFNetwork):
             nx_ny = [1, 1]
             input_dims = [len(input_layer_sizes), max(input_layer_sizes), 1]
 
-        super(side_network, self).__init__(
+        super(SideNetwork, self).__init__(
             scope=scope,
             input_dims=input_dims,
             params_dict=params_dict)
 
         self.num_space = nx_ny[0]*nx_ny[1]
         self.num_units = input_layer_sizes
-    # END side_network.__init__
+    # END SideNetwork.__init__
 
     def build_graph(self, input_network, params_dict=None):
         """Note this is different from other network build-graphs in that the 
@@ -513,4 +513,4 @@ class side_network(FFNetwork):
             for layer in range(self.num_layers):
                 self.layers[layer].build_graph(inputs, params_dict)
                 inputs = self.layers[layer].outputs
-    # END side_network.build_graph
+    # END SideNetwork.build_graph
