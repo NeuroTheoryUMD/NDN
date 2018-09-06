@@ -1189,6 +1189,16 @@ class TFFnetwork(FFNetwork):
 
     # END TFFnetwork._define_network
 
+    def build_graph(self, inputs, params_dict=None):
+        """Build tensorflow graph for this network"""
+
+        with tf.name_scope(self.scope):
+            for layer in range(self.num_layers):
+                # input_prime
+                self.layers[layer].build_graph(inputs, params_dict)
+                inputs = self.layers[layer].outputs
+    # END TFFNetwork._build_graph
+
 
 class TLayer(Layer):
     """Implementation of calcium tent layer

@@ -363,7 +363,6 @@ class FFNetwork(object):
 
         with tf.name_scope(self.scope):
             for layer in range(self.num_layers):
-                # input_prime
                 self.layers[layer].build_graph(inputs, params_dict)
                 inputs = self.layers[layer].outputs
     # END FFNetwork._build_graph
