@@ -23,6 +23,7 @@ class TLayer(Layer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,  # this can be a list up to 3-dimensions
             output_dims=None,
             num_filters=None,
@@ -82,6 +83,7 @@ class TLayer(Layer):
 
         super(TLayer, self).__init__(
             scope=scope,
+            nlags=nlags,
             input_dims=input_dims,
             output_dims=output_dims,  # Note difference from layer
             filter_dims=None, #TODO: fix this for reg
@@ -141,6 +143,7 @@ class CaTentLayer(Layer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,  # this can be a list up to 3-dimensions
             output_dims=None,
             num_filters=None,
@@ -206,6 +209,7 @@ class CaTentLayer(Layer):
 
         super(CaTentLayer, self).__init__(
             scope=scope,
+            nlags=nlags,
             input_dims=input_dims,
             output_dims=output_dims,  # Note difference from layer
             my_num_inputs=filter_width,
@@ -288,6 +292,7 @@ class NoRollCaTentLayer(Layer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,  # this can be a list up to 3-dimensions
             output_dims=None,
             num_filters=None,
@@ -356,6 +361,7 @@ class NoRollCaTentLayer(Layer):
 
         super(NoRollCaTentLayer, self).__init__(
             scope=scope,
+            nlags=nlags,
             input_dims=input_dims,
             output_dims=output_dims,  # Note difference from layer
             my_num_inputs=filter_width,

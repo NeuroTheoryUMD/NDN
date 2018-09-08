@@ -65,12 +65,12 @@ class TFFNetwork(FFNetwork):
 
         layer_sizes = [self.input_dims] + network_params['layer_sizes']
         self.layers = []
-        #print(self.scope, layer_sizes)
 
         for nn in range(self.num_layers):
             if self.layer_types[nn] == 'normal':
                 self.layers.append(Layer(
                     scope='layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
                     activation_func=network_params['activation_funcs'][nn],
@@ -85,6 +85,7 @@ class TFFNetwork(FFNetwork):
             elif self.layer_types[nn] == 'sep':
                 self.layers.append(SepLayer(
                     scope='sep_layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
                     activation_func=network_params['activation_funcs'][nn],
@@ -99,6 +100,7 @@ class TFFNetwork(FFNetwork):
             elif self.layer_types[nn] == 'add':
                 self.layers.append(AddLayer(
                     scope='add_layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
                     activation_func=network_params['activation_funcs'][nn],
@@ -111,6 +113,7 @@ class TFFNetwork(FFNetwork):
             elif self.layer_types[nn] == 'spike_history':
                 self.layers.append(SpikeHistoryLayer(
                     scope='spike_history_layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
                     activation_func=network_params['activation_funcs'][nn],
@@ -133,6 +136,7 @@ class TFFNetwork(FFNetwork):
 
                 self.layers.append(ConvLayer(
                     scope='conv_layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn+1],
                     filter_dims=conv_filter_size,
@@ -163,6 +167,7 @@ class TFFNetwork(FFNetwork):
 
                 self.layers.append(ConvSepLayer(
                     scope='sepconv_layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn+1],
                     filter_dims=conv_filter_size,
@@ -193,6 +198,7 @@ class TFFNetwork(FFNetwork):
 
                 self.layers.append(BiConvLayer(
                     scope='conv_layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn+1],
                     filter_dims=conv_filter_size,
@@ -213,6 +219,7 @@ class TFFNetwork(FFNetwork):
             elif self.layer_types[nn] == 'temporal':
                 self.layers.append(TLayer(
                     scope='temporal_layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     output_dims=self.batch_size,
                     num_filters=layer_sizes[nn + 1],
@@ -233,6 +240,7 @@ class TFFNetwork(FFNetwork):
             elif self.layer_types[nn] == 'ca_tent':
                 self.layers.append(CaTentLayer(
                     scope='ca_tent_layer_%i' % nn,
+                    nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn + 1],
@@ -254,6 +262,7 @@ class TFFNetwork(FFNetwork):
                 self.layers.append(NoRollCaTentLayer(
                     scope='ca_tent_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
+                    nlags=network_params['time_expand'][nn],
                     output_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn + 1],
                     filter_width=network_params['ca_tent_widths'][nn],
@@ -280,7 +289,42 @@ class TFFNetwork(FFNetwork):
 
         with tf.name_scope(self.scope):
             for layer in range(self.num_layers):
-                # input_prime
+                if self.layers[layer].nlags is not None:
+                    inputs = time_expand(inputs=inputs,
+                                         batch_sz=self.batch_size,
+                                         nlags=self.layers[layer].nlags)
+                    # no need to update input dims because it should be
+                    # taken care of somewhere else
+                    # self.layers[layer].input_dims = ???
                 self.layers[layer].build_graph(inputs, params_dict)
                 inputs = self.layers[layer].outputs
     # END TFFNetwork._build_graph
+
+
+def get_tmat(batch_sz, nlags):
+    """
+    :param nlags:
+    :param batch_sz:
+    :return:
+    """
+
+    m = np.zeros((batch_sz, nlags, batch_sz))
+
+    for lag in range(nlags):
+        m[:, lag, :] = np.eye(batch_sz, k=-lag)
+
+    return m
+
+
+def time_expand(inputs, batch_sz, nlags):
+
+    with tf.name_scope('time_expand'):
+
+        tmat = get_tmat(batch_sz=batch_sz, nlags=nlags)
+        tmat = tf.constant(tmat, dtype=tf.float32, name='tmat')
+
+        expanded_inputs = tf.tensordot(tmat, inputs, axes=[2, 0])
+        expanded_inputs_tr = tf.transpose(expanded_inputs, [0, 2, 1])
+        expanded_inputs = tf.reshape(expanded_inputs_tr, (batch_sz, -1))
+
+    return expanded_inputs

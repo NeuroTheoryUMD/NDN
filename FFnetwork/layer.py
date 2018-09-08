@@ -43,6 +43,7 @@ class Layer(object):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,  # this can be a list up to 3-dimensions
             filter_dims=None,
             output_dims=None,
@@ -129,6 +130,12 @@ class Layer(object):
 
         self.num_filters = num_outputs
         self.filter_dims = filter_dims[:]
+
+        # take care of nlags
+        if nlags is not None:
+            self.nlags = nlags
+            self.input_dims[0] *= nlags
+            num_inputs = np.prod(self.input_dims)
 
         # resolve activation function string
         if activation_func == 'relu':
@@ -348,6 +355,7 @@ class ConvLayer(Layer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,   # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
@@ -421,6 +429,7 @@ class ConvLayer(Layer):
 
         super(ConvLayer, self).__init__(
                 scope=scope,
+                nlags=nlags,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
                 output_dims=num_filters,   # Note difference from layer
@@ -521,6 +530,7 @@ class SepLayer(Layer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,    # this can be a list up to 3-dimensions
             output_dims=None,
             activation_func='relu',
@@ -572,6 +582,7 @@ class SepLayer(Layer):
 
         super(SepLayer, self).__init__(
                 scope=scope,
+                nlags=nlags,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
                 output_dims=output_dims,
@@ -692,6 +703,7 @@ class ConvSepLayer(Layer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,    # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
@@ -766,6 +778,7 @@ class ConvSepLayer(Layer):
 
         super(ConvSepLayer, self).__init__(
                 scope=scope,
+                nlags=nlags,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
                 output_dims=num_filters,     # ! check this out... output_dims=num_filters?
@@ -915,6 +928,7 @@ class AddLayer(Layer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,  # this can be a list up to 3-dimensions
             output_dims=None,
             activation_func='relu',
@@ -957,6 +971,7 @@ class AddLayer(Layer):
 
         super(AddLayer, self).__init__(
                 scope=scope,
+                nlags=nlags,
                 input_dims=input_dims,
                 filter_dims=input_dims,
                 output_dims=num_outputs,
@@ -1035,6 +1050,7 @@ class SpikeHistoryLayer(Layer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,  # this can be a list up to 3-dimensions
             output_dims=None,
             activation_func='relu',
@@ -1073,6 +1089,7 @@ class SpikeHistoryLayer(Layer):
 
         super(SpikeHistoryLayer, self).__init__(
                 scope=scope,
+                nlags=nlags,
                 input_dims=input_dims,
                 filter_dims=filter_dims,
                 output_dims=output_dims,
@@ -1136,6 +1153,7 @@ class BiConvLayer(ConvLayer):
     def __init__(
             self,
             scope=None,
+            nlags=None,
             input_dims=None,  # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
@@ -1180,6 +1198,7 @@ class BiConvLayer(ConvLayer):
 
         super(BiConvLayer, self).__init__(
             scope=scope,
+            nlags=nlags,
             input_dims=input_dims,
             num_filters=num_filters,
             filter_dims=filter_dims,
