@@ -99,6 +99,7 @@ class Layer(object):
             raise TypeError('Must specify both input and output dimensions')
 
         self.scope = scope
+        self.nlags = nlags
 
         # Make input, output, and filter sizes explicit
         if isinstance(input_dims, list):
@@ -118,24 +119,23 @@ class Layer(object):
         self.output_dims = output_dims[:]
         # default to have N filts for N outputs in base layer class
 
+        # take care of nlags
+        if self.nlags is not None:
+            self.input_dims[0] *= self.nlags
+
         if filter_dims is None:
-            filter_dims = input_dims
+            filter_dims = self.input_dims
+
+        self.filter_dims = filter_dims[:]
 
         if my_num_inputs is not None:
             num_inputs = my_num_inputs   # this is for convsep
         else:
-            num_inputs = filter_dims[0] * filter_dims[1] * filter_dims[2]
+            num_inputs = np.prod(self.filter_dims)
         if my_num_outputs is not None:
             num_outputs = my_num_outputs   # this is for convsep
 
         self.num_filters = num_outputs
-        self.filter_dims = filter_dims[:]
-
-        # take care of nlags
-        if nlags is not None:
-            self.nlags = nlags
-            self.input_dims[0] *= nlags
-            num_inputs = np.prod(self.input_dims)
 
         # resolve activation function string
         if activation_func == 'relu':
@@ -416,6 +416,9 @@ class ConvLayer(Layer):
             else:
                 filter_dims = [filter_dims, 1, 1]
 
+        if nlags is not None:
+            filter_dims[0] *= nlags
+
         # If output dimensions already established, just strip out num_filters
         if isinstance(num_filters, list):
             num_filters = num_filters[0]
@@ -578,7 +581,11 @@ class SepLayer(Layer):
 
         # Determine filter dimensions (first dim + space_dims)
         num_space = input_dims[1]*input_dims[2]
-        filter_dims = [input_dims[0]+num_space, 1, 1]
+
+        if nlags is not None:
+            filter_dims = [input_dims[0] * nlags + num_space, 1, 1]
+        else:
+            filter_dims = [input_dims[0] + num_space, 1, 1]
 
         super(SepLayer, self).__init__(
                 scope=scope,
@@ -761,6 +768,8 @@ class ConvSepLayer(Layer):
             else:
                 filter_dims = [filter_dims, 1, 1]
 
+        if nlags is not None:
+            filter_dims[0] *= nlags
         # Determine filter dimensions (first dim + space_dims)
         num_space = filter_dims[1]*filter_dims[2]
         num_input_dims_convsep = filter_dims[0]+num_space
