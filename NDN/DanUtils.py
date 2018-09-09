@@ -130,6 +130,10 @@ def filtered_eval_model(
     else:
         inds = np.intersect1d(test_indxs, np.where(data_filters[:, int(unit_number)] > 0))
 
+    if len(inds) == 0:
+        print("  Warning: no valid indices for cell %d." % unit_number)
+        return 0
+
     all_LLs = ndn_mod.eval_models(
         input_data=input_data, output_data=output_data,
         data_indxs=inds, data_filters=data_filters, nulladjusted=False)
