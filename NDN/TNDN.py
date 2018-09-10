@@ -224,6 +224,7 @@ class TNDN(NDN):
                             [self.time_spread//2, 0], [self.batch_size-self.time_spread, -1])
 
             # nt is basically self.batch_size - self.time_spread
+            # TODO: update this
             nt = tf.cast(tf.shape(pred)[0], tf.float32)
             # define cost function
             if self.noise_dist == 'gaussian':
@@ -237,7 +238,7 @@ class TNDN(NDN):
 
                     if self.poisson_unit_norm is not None:
                         # normalize based on rate * time (number of spikes)
-                        cost_norm = tf.multiply(self.poisson_unit_norm, nt)
+                        cost_norm = tf.multiply(self.poisson_unit_norm[nn], nt)
                     else:
                         cost_norm = nt
 
@@ -412,8 +413,10 @@ class TNDN(NDN):
                 dataset_test = None
 
         # Set Poisson_unit_norm if specified
-        # overwrite unit_cost_norm with opt_params value
-        self.poisson_unit_norm = opt_params['poisson_unit_norm']
+        if opt_params['poisson_unit_norm'] is not None:
+            self.poisson_unit_norm = opt_params['poisson_unit_norm']
+        elif (self.noise_dist == 'poisson') and (self.poisson_unit_norm is None):
+            self.set_poisson_norm(output_data)
 
         # Build graph: self.build_graph must be defined in child of network
         self._build_graph(
@@ -547,8 +550,8 @@ class TNDN(NDN):
         epochs_ckpt = opt_params['epochs_ckpt']
         epochs_summary = opt_params['epochs_summary']
         # Inherit batch size if relevant
-        if opt_params['batch_size'] is not None:
-            self.batch_size = opt_params['batch_size']
+    #    if opt_params['batch_size'] is not None:
+    #        self.batch_size = opt_params['batch_size']
 
         # print batch size
         print('\n*** Train initiated, batch size = %s ***\n\n' % self.batch_size)
@@ -812,7 +815,7 @@ class TNDN(NDN):
     # in case of TNDN it edits the self.batch_size to be equal to data_indxs so that it can generate what we want.
 
     def generate_prediction(self, input_data, data_indxs=None,
-                            use_gpu=False, single_batch=False,
+                            use_gpu=True, single_batch=False,
                             ffnet_n=-1, layer=-1):
         """Get cost for each output neuron without regularization terms
 
