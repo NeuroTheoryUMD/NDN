@@ -240,6 +240,9 @@ class CaTentLayer(Layer):
             # make shaped input
             shaped_input = tf.reshape(tf.transpose(inputs), [self.input_dims[1], self.batch_size, 1, 1])
 
+            # roll it around so that causality is maintained
+            rolled_input = tf.manip.roll(shaped_input, shift=self.filter_width//2, axis=1)
+
             # make shaped filt
             conv_filt_shape = [self.filter_width, 1, 1, self.num_filters]
 
@@ -252,9 +255,9 @@ class CaTentLayer(Layer):
             # convolve
             strides = [1, 1, 1, 1]
             if self.pos_constraint:
-                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, shaped_filt), strides, padding='SAME')
+                pre = tf.nn.conv2d(rolled_input, tf.maximum(0.0, shaped_filt), strides, padding='SAME')
             else:
-                pre = tf.nn.conv2d(shaped_input, shaped_filt, strides, padding='SAME')
+                pre = tf.nn.conv2d(rolled_input, shaped_filt, strides, padding='SAME')
 
             # from pre to post
             if self.ei_mask_var is not None:
@@ -266,12 +269,10 @@ class CaTentLayer(Layer):
 
             # this produces shape (batch_size, nc, num_filts)
             if self.num_filters > 1:
-                self.outputs = tf.matrix_diag_part(tf.manip.roll(tf.transpose(tf.squeeze(
-                    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0))
+                self.outputs = tf.matrix_diag_part(tf.transpose(tf.squeeze(post, axis=2), [1, 0, 2]))
             else:
                 # single filter
-                self.outputs = tf.manip.roll(tf.transpose(tf.squeeze(
-                    post, axis=2), [1, 0, 2]), self.filter_width//2, axis=0)[..., 0]
+                self.outputs = tf.transpose(tf.squeeze(post, axis=[2, 3]))
 
             # both cases will produce self.output.shape ---> (batch_size, nc)
 
