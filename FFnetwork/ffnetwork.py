@@ -444,24 +444,33 @@ class SideNetwork(FFNetwork):
                 
         """
 
-        # Determine dimensions of input and pass into regular network
-        # initializer
+        # Determine dimensions of input and pass into regular network initializer
         input_layer_sizes = input_network_params['layer_sizes'][:]
+        # Check if entire network is convolutional (then will have spatial input dims)
+        all_convolutional = False
+        nonconv_inputs = np.zeros(len(input_layer_sizes), dtype=int)
         if (input_network_params['layer_types'][0] == 'conv') or \
                 (input_network_params['layer_types'][0] == 'biconv'):
             # then check that all are conv
-            for nn in range(1, len(input_layer_sizes)):
-                if input_network_params['layer_types'][nn] != 'conv':
-                    ValueError('All layers must be convolutional.')
+            all_convolutional = True
+            for nn in range(len(input_layer_sizes)):
+                if input_network_params['layer_types'][nn] == 'conv' or \
+                        (input_network_params['layer_types'][0] == 'biconv'):
+                    nonconv_inputs[nn] = input_layer_sizes[nn]*input_network_params['input_dims'][1] *\
+                                         input_network_params['input_dims'][2]
+                else:
+                    all_convolutional = False
+                    nonconv_inputs[nn] = input_layer_sizes[nn]
+
+        if all_convolutional:
             nx_ny = input_network_params['input_dims'][1:3]
             if input_network_params['layer_types'][0] == 'biconv':
                 nx_ny[0] = int(nx_ny[0]/2)
                 input_layer_sizes[0] = input_layer_sizes[0]*2
-
             input_dims = [max(input_layer_sizes)*len(input_layer_sizes), nx_ny[0], nx_ny[1]]
         else:
             nx_ny = [1, 1]
-            input_dims = [len(input_layer_sizes), max(input_layer_sizes), 1]
+            input_dims = [len(input_layer_sizes), max(nonconv_inputs), 1]
 
         super(SideNetwork, self).__init__(
             scope=scope,
@@ -469,7 +478,10 @@ class SideNetwork(FFNetwork):
             params_dict=params_dict)
 
         self.num_space = nx_ny[0]*nx_ny[1]
-        self.num_units = input_layer_sizes
+        if all_convolutional:
+            self.num_units = input_layer_sizes
+        else:
+            self.num_units = nonconv_inputs
     # END SideNetwork.__init__
 
     def build_graph(self, input_network, params_dict=None):
@@ -498,16 +510,6 @@ class SideNetwork(FFNetwork):
 
             # Need to put layer dimension with the filters as bottom dimension instead of top
             inputs = tf.reshape(inputs_raw, [-1, num_layers*max_units*self.num_space])
-            # prev
-            #inputs = tf.reshape(
-            #    tf.transpose(inputs_raw, perm=[0, 2, 1]),
-            #    [-1, num_layers*max_units*self.num_space])
-
-            #inputs = tf.reshape(
-            #    tf.transpose(
-            #        tf.reshape(inputs_raw, [-1, num_layers, self.num_space, max_units]),
-            #        perm=[0, 3, 1, 2]),
-            #    [-1, num_layers*max_units*self.num_space])
 
             # Now standard graph-build (could just call the parent with inputs)
             for layer in range(self.num_layers):
