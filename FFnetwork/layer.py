@@ -621,6 +621,14 @@ class SepLayer(Layer):
             ksp = tf.slice(self.weights_var, [self.input_dims[0], 0],
                            [self.input_dims[1]*self.input_dims[2], self.num_filters])
 
+            if self.pos_constraint == 0:
+                kts = tf.maximum(0.0, kts)
+            elif self.pos_constraint == 1:
+                ksp = tf.maximum(0.0, ksp)
+            elif self.pos_constraint == 2:
+                kts = tf.maximum(0.0, kts)
+                ksp = tf.maximum(0.0, ksp)
+
             # Normalize weights (one or both dimensions)
             if self.normalize_weights in [0, 2]:
                 wnorms = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
@@ -634,13 +642,7 @@ class SepLayer(Layer):
                           tf.expand_dims(tf.transpose(kts), 1)),
                 [self.num_filters, np.prod(self.input_dims)]))
 
-            # Define computation
-            if self.pos_constraint:
-                pre = tf.add(tf.matmul(
-                    inputs, tf.maximum(0.0, weights_full)), self.biases_var)
-            else:
-                pre = tf.add(
-                    tf.matmul(inputs, weights_full), self.biases_var)
+            pre = tf.add(tf.matmul(inputs, weights_full), self.biases_var)
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)

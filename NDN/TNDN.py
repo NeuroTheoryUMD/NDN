@@ -210,7 +210,8 @@ class TNDN(NDN):
         # interval used to calculate costs: range(self.time_spread//2, self.batch_size - self.time_spread//2)
         for nn in range(len(self.ffnet_out)):
             data_out = tf.slice(self.data_out_batch[nn],
-                                [self.time_spread//2, 0], [self.batch_size-self.time_spread, -1])
+                                [self.time_spread, 0],
+                                [self.batch_size - self.time_spread - self.time_spread//2, -1])
             if self.filter_data:
                 # this will zero out predictions where there is no data,
                 # matching Robs here
@@ -221,16 +222,18 @@ class TNDN(NDN):
                 pred = self.networks[self.ffnet_out[nn]].layers[-1].outputs
 
             pred = tf.slice(pred,
-                            [self.time_spread//2, 0], [self.batch_size-self.time_spread, -1])
+                            [self.time_spread, 0],
+                            [self.batch_size - self.time_spread - self.time_spread//2, -1])
 
-            # nt is basically self.batch_size - self.time_spread
-            # TODO: update this
-            nt = tf.cast(tf.shape(pred)[0], tf.float32)
+            # effective_batch_size is self.batch_size - 3/2 * self.time_spread
+            effective_batch_size = tf.constant(
+                self.batch_size - self.time_spread - self.time_spread//2, dtype=tf.float32)
+
             # define cost function
             if self.noise_dist == 'gaussian':
                 with tf.name_scope('gaussian_loss'):
                     cost.append(
-                        tf.nn.l2_loss(data_out - pred) / nt)
+                        tf.nn.l2_loss(data_out - pred) / effective_batch_size)
                     unit_cost.append(tf.reduce_mean(tf.square(data_out-pred), axis=0))
 
             elif self.noise_dist == 'poisson':
@@ -238,9 +241,9 @@ class TNDN(NDN):
 
                     if self.poisson_unit_norm is not None:
                         # normalize based on rate * time (number of spikes)
-                        cost_norm = tf.multiply(self.poisson_unit_norm[nn], nt)
+                        cost_norm = tf.multiply(self.poisson_unit_norm[nn], effective_batch_size)
                     else:
-                        cost_norm = nt
+                        cost_norm = effective_batch_size
 
                     cost.append(-tf.reduce_sum(tf.divide(
                         tf.multiply(data_out, tf.log(self._log_min + pred)) - pred,
@@ -920,18 +923,18 @@ class TNDN(NDN):
             data_indxs_sz = len(data_indxs)
             pred = np.zeros((data_indxs_sz, temp_num_outputs), dtype='float32')
 
-            _b_tau = original_batch_sz - self.time_spread
+            # this is the effective batch size with useful info in pred
+            _b_tau = original_batch_sz - self.time_spread - self.time_spread//2
 
             with tf.Session(graph=self.graph, config=temp_config) as sess:
                 self._restore_params(sess, input_data, output_data)
                 for nn in range(data_indxs_sz//_b_tau + 1):
 
                     big_end = min(nn*_b_tau + original_batch_sz, data_indxs_sz)
-                    small_end = min(self.time_spread//2 + (nn + 1)*_b_tau,
-                                    data_indxs_sz - self.time_spread//2)
+                    small_end = min(self.time_spread + (nn + 1)*_b_tau, data_indxs_sz)
 
                     big_intvl = np.arange(nn*_b_tau, big_end)
-                    small_intvl = np.arange(self.time_spread//2 + nn*_b_tau, small_end)
+                    small_intvl = np.arange(self.time_spread + nn*_b_tau, small_end)
 
                     if len(big_intvl) != original_batch_sz:
                         continue
@@ -949,8 +952,7 @@ class TNDN(NDN):
 
                     pred_tmp = sess.run(
                         self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
-                    pred[small_intvl, :] = pred_tmp[self.time_spread // 2 :
-                                                    -self.time_spread // 2, :]
+                    pred[small_intvl, :] = pred_tmp[self.time_spread : -self.time_spread // 2 + 1, :]
 
             # now do the last remaining part
             self._set_batch_size(len(big_intvl))
@@ -978,13 +980,10 @@ class TNDN(NDN):
 
                 pred_tmp = sess.run(
                     self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
-                pred[small_intvl, :] = pred_tmp[self.time_spread // 2 :
-                                                -self.time_spread // 2 + 1, :]
+                pred[small_intvl, :] = pred_tmp[self.time_spread:
+                                                self.time_spread + len(small_intvl) + 1, :]
 
-
-
-            print('WARNING: discard the first and last parts of pred with length time_spread//2 when single_batch=False...')
-
+            print('WARNING: discard the first tau time points when single_batch=False... (tau = self.time_spread)')
 
         # change the batch_size back to its original value
         self._set_batch_size(original_batch_sz)
