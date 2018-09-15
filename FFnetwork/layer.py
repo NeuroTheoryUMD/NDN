@@ -8,6 +8,8 @@ import tensorflow as tf
 from .regularization import Regularization
 from .regularization import SepRegularization
 
+from copy import deepcopy
+
 
 class Layer(object):
     """Implementation of fully connected neural network layer
@@ -615,55 +617,55 @@ class SepLayer(Layer):
             self._define_layer_variables()
 
             # Section weights into first dimension and space
-            kts = tf.slice(self.weights_var, [0, 0],
+            kt = tf.slice(self.weights_var, [0, 0],
                            [self.input_dims[0], self.num_filters])
 
-            ksp = tf.slice(self.weights_var, [self.input_dims[0], 0],
+            ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
                            [self.input_dims[1]*self.input_dims[2], self.num_filters])
 
             # Normalize weights (one or both dimensions)
             if self.normalize_weights == 0:
-                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
-                kts_n = tf.divide(kts, tf.maximum(wnorms_t, 1e-6))
-                ksp_n = ksp
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = ks
             elif self.normalize_weights == 1:
-                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
-                ksp_n = tf.divide(ksp, tf.maximum(wnorms_s, 1e-6))
-                kts_n = kts
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+                kt_n = kt
             elif self.normalize_weights == 2:
-                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
-                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
-                kts_n = tf.divide(kts, tf.maximum(wnorms_t, 1e-6))
-                ksp_n = tf.divide(ksp, tf.maximum(wnorms_s, 1e-6))
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
             else:
-                kts_n = kts
-                ksp_n = ksp
+                kt_n = kt
+                ks_n = ks
 
 #            if self.normalize_weights in [0, 2]:
-#                wnorms = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
- #               kts_n = tf.divide(kts, tf.maximum(wnorms, 1e-6))
-  #              ksp_n = ksp
+#                wnorms = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+ #               kt_n = tf.divide(kt, tf.maximum(wnorms, 1e-6))
+  #              ks_n = ks
    #         if self.normalize_weights in [1, 2]:
-    #            wnorms = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
-     #           ksp_n = tf.divide(ksp, tf.maximum(wnorms, 1e-6))
-      #          kts_n = kts
+    #            wnorms = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+     #           ks_n = tf.divide(ks, tf.maximum(wnorms, 1e-6))
+      #          kt_n = kt
 
             if self.pos_constraint == 0:
-                kts_np = tf.maximum(0.0, kts_n)
-                ksp_np = ksp_n
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = ks_n
             elif self.pos_constraint == 1:
-                ksp_np = tf.maximum(0.0, ksp_n)
-                kts_np = kts_n
+                ks_np = tf.maximum(0.0, ks_n)
+                kt_np = kt_n
             elif self.pos_constraint == 2:
-                kts_np = tf.maximum(0.0, kts_n)
-                ksp_np = tf.maximum(0.0, ksp_n)
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = tf.maximum(0.0, ks_n)
             else:
-                kts_np = kts_n
-                ksp_np = ksp_n
+                kt_np = kt_n
+                ks_np = ks_n
 
             weights_full = tf.transpose(tf.reshape(
-                tf.matmul(tf.expand_dims(tf.transpose(ksp_np), 2),
-                          tf.expand_dims(tf.transpose(kts_np), 1)),
+                tf.matmul(tf.expand_dims(tf.transpose(ks_np), 2),
+                          tf.expand_dims(tf.transpose(kt_np), 1)),
                 [self.num_filters, np.prod(self.input_dims)]))
 
             pre = tf.add(tf.matmul(inputs, weights_full), self.biases_var)
@@ -684,21 +686,45 @@ class SepLayer(Layer):
         """overloaded function to handle different normalization in SepLayer"""
         with tf.name_scope(self.scope):
             # Normalize weights
-            kts = tf.slice(self.weights_var, [0, 0],
-                           [self.input_dims[0], self.num_filters] )
+            kt = tf.slice(self.weights_var, [0, 0],
+                           [self.input_dims[0], self.num_filters])
 
-            ksp = tf.slice(self.weights_var, [self.input_dims[0], 0],
+            ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
                            [self.input_dims[1]*self.input_dims[2], self.num_filters])
 
             # Normalize weights (one or both dimensions)
-            if self.normalize_weights in [0, 2]:
-                wnorms = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
-                kts = tf.divide(kts, tf.maximum(wnorms, 1e-6))
-            if self.normalize_weights in [1, 2]:
-                wnorms = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
-                ksp = tf.divide(ksp, tf.maximum(wnorms, 1e-6))
+            if self.normalize_weights == 0:
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = ks
+            elif self.normalize_weights == 1:
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+                kt_n = kt
+            elif self.normalize_weights == 2:
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+            else:
+                kt_n = kt
+                ks_n = ks
+
+            if self.pos_constraint == 0:
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = ks_n
+            elif self.pos_constraint == 1:
+                ks_np = tf.maximum(0.0, ks_n)
+                kt_np = kt_n
+            elif self.pos_constraint == 2:
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = tf.maximum(0.0, ks_n)
+            else:
+                kt_np = kt_n
+                ks_np = ks_n
+
             # Concatenate into single weight vector
-            ws = tf.concat([kts, ksp], 0)
+            ws = tf.concat([kt_np, ks_np], 0)
             return self.reg.define_reg_loss(ws)
 
     def write_layer_params(self, sess):
@@ -707,20 +733,42 @@ class SepLayer(Layer):
 
         self.weights = sess.run(self.weights_var)
 
-        if self.pos_constraint:
-            self.weights = np.maximum(self.weights, 0)
+        wt = deepcopy(self.weights[:self.input_dims[0], :])
+        ws = deepcopy(self.weights[self.input_dims[0]:, :])
 
-        if self.normalize_weights in [0, 2]:
-            kts = self.weights[range(self.input_dims[0]), :]
-            wnorms = np.sqrt(np.sum(np.square(kts), axis=0))
-            self.weights[range(self.input_dims[0]), :] = \
-                np.divide(kts, np.maximum(wnorms, 1e-6))
+        # Normalize weights (one or both dimensions)
+        if self.normalize_weights == 0:
+            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
+            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
+            ws_n = ws
+        elif self.normalize_weights == 1:
+            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
+            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
+            wt_n = wt
+        elif self.normalize_weights == 2:
+            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
+            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
+            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
+            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
+        else:
+            wt_n = wt
+            ws_n = ws
 
-        if self.normalize_weights in [1, 2]:
-            ksp = self.weights[self.input_dims[0]:, :]
-            wnorms = np.sqrt(np.sum(np.square(ksp), axis=0))
-            self.weights[self.input_dims[0]:, :] = \
-                np.divide(ksp, np.maximum(wnorms, 1e-6))
+        if self.pos_constraint == 0:
+            wt_np = np.maximum(0.0, wt_n)
+            ws_np = ws_n
+        elif self.pos_constraint == 1:
+            ws_np = np.maximum(0.0, ws_n)
+            wt_np = wt_n
+        elif self.pos_constraint == 2:
+            wt_np = np.maximum(0.0, wt_n)
+            ws_np = np.maximum(0.0, ws_n)
+        else:
+            wt_np = wt_n
+            ws_np = ws_n
+
+        self.weights[:self.input_dims[0], :] = wt_np
+        self.weights[self.input_dims[0]:, :] = ws_np
 
         self.biases = sess.run(self.biases_var)
     # END SepLayer.write_layer_params
@@ -847,33 +895,46 @@ class ConvSepLayer(Layer):
             self._define_layer_variables()
 
             # Section weights into first dimension and space
-            kts = tf.slice(self.weights_var, [0, 0],
+            kt = tf.slice(self.weights_var, [0, 0],
                            [self.input_dims[0], self.num_filters])
 
-            ksp = tf.slice(self.weights_var, [self.input_dims[0], 0],
+            ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
                            [self.filter_dims[1]*self.filter_dims[2], self.num_filters])
 
             # Normalize weights (one or both dimensions)
             if self.normalize_weights == 0:
-                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
-                kts_n = tf.divide(kts, tf.maximum(wnorms_t, 1e-6))
-                ksp_n = ksp
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = ks
             elif self.normalize_weights == 1:
-                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
-                ksp_n = tf.divide(ksp, tf.maximum(wnorms_s, 1e-6))
-                kts_n = kts
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+                kt_n = kt
             elif self.normalize_weights == 2:
-                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
-                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
-                kts_n = tf.divide(kts, tf.maximum(wnorms_t, 1e-6))
-                ksp_n = tf.divide(ksp, tf.maximum(wnorms_s, 1e-6))
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
             else:
-                kts_n = kts
-                ksp_n = ksp
+                kt_n = kt
+                ks_n = ks
+
+            if self.pos_constraint == 0:
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = ks_n
+            elif self.pos_constraint == 1:
+                ks_np = tf.maximum(0.0, ks_n)
+                kt_np = kt_n
+            elif self.pos_constraint == 2:
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = tf.maximum(0.0, ks_n)
+            else:
+                kt_np = kt_n
+                ks_np = ks_n
 
             weights_full = tf.transpose(tf.reshape(
-                tf.matmul(tf.expand_dims(tf.transpose(ksp_n), 2),
-                          tf.expand_dims(tf.transpose(kts_n), 1)),
+                tf.matmul(tf.expand_dims(tf.transpose(ks_np), 2),
+                          tf.expand_dims(tf.transpose(kt_np), 1)),
                 [self.num_filters, np.prod(self.filter_dims)]))
 
             # now conv part of the computation begins:
@@ -920,21 +981,45 @@ class ConvSepLayer(Layer):
         """overloaded function to handle different normalization in SepLayer"""
         with tf.name_scope(self.scope):
             # Normalize weights
-            kts = tf.slice(self.weights_var, [0, 0],
-                           [self.filter_dims[0], self.num_filters])
+            kt = tf.slice(self.weights_var, [0, 0],
+                           [self.input_dims[0], self.num_filters])
 
-            ksp = tf.slice(self.weights_var, [self.input_dims[0], 0],
+            ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
                            [self.filter_dims[1]*self.filter_dims[2], self.num_filters])
 
             # Normalize weights (one or both dimensions)
-            if self.normalize_weights in [0, 2]:
-                wnorms = tf.sqrt(tf.reduce_sum(tf.square(kts), axis=0))
-                kts = tf.divide(kts, tf.maximum(wnorms, 1e-6))
-            if self.normalize_weights in [1, 2]:
-                wnorms = tf.sqrt(tf.reduce_sum(tf.square(ksp), axis=0))
-                ksp = tf.divide(ksp, tf.maximum(wnorms, 1e-6))
+            if self.normalize_weights == 0:
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = ks
+            elif self.normalize_weights == 1:
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+                kt_n = kt
+            elif self.normalize_weights == 2:
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+            else:
+                kt_n = kt
+                ks_n = ks
+
+            if self.pos_constraint == 0:
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = ks_n
+            elif self.pos_constraint == 1:
+                ks_np = tf.maximum(0.0, ks_n)
+                kt_np = kt_n
+            elif self.pos_constraint == 2:
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = tf.maximum(0.0, ks_n)
+            else:
+                kt_np = kt_n
+                ks_np = ks_n
+
             # Concatenate into single weight vector
-            ws = tf.concat([kts, ksp], 0)
+            ws = tf.concat([kt_np, ks_np], 0)
             return self.reg.define_reg_loss(ws)
 
     def write_layer_params(self, sess):
@@ -943,20 +1028,42 @@ class ConvSepLayer(Layer):
 
         self.weights = sess.run(self.weights_var)
 
-        if self.pos_constraint:
-            self.weights = np.maximum(self.weights, 0)
+        wt = deepcopy(self.weights[:self.input_dims[0], :])
+        ws = deepcopy(self.weights[self.input_dims[0]:, :])
 
-        if self.normalize_weights in [0, 2]:
-            kts = self.weights[range(self.filter_dims[0]), :]
-            wnorms = np.sqrt(np.sum(np.square(kts), axis=0))
-            self.weights[range(self.filter_dims[0]), :] = \
-                np.divide(kts, np.maximum(wnorms, 1e-6))
+        # Normalize weights (one or both dimensions)
+        if self.normalize_weights == 0:
+            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
+            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
+            ws_n = ws
+        elif self.normalize_weights == 1:
+            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
+            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
+            wt_n = wt
+        elif self.normalize_weights == 2:
+            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
+            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
+            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
+            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
+        else:
+            wt_n = wt
+            ws_n = ws
 
-        if self.normalize_weights in [1, 2]:
-            ksp = self.weights[self.filter_dims[0]:, :]
-            wnorms = np.sqrt(np.sum(np.square(ksp), axis=0))
-            self.weights[self.filter_dims[0]:, :] = \
-                np.divide(ksp, np.maximum(wnorms, 1e-6))
+        if self.pos_constraint == 0:
+            wt_np = np.maximum(0.0, wt_n)
+            ws_np = ws_n
+        elif self.pos_constraint == 1:
+            ws_np = np.maximum(0.0, ws_n)
+            wt_np = wt_n
+        elif self.pos_constraint == 2:
+            wt_np = np.maximum(0.0, wt_n)
+            ws_np = np.maximum(0.0, ws_n)
+        else:
+            wt_np = wt_n
+            ws_np = ws_n
+
+        self.weights[:self.input_dims[0], :] = wt_np
+        self.weights[self.input_dims[0]:, :] = ws_np
 
         self.biases = sess.run(self.biases_var)
     # END SepLayer.write_layer_params
