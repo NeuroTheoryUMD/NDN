@@ -4,7 +4,7 @@ from __future__ import print_function
 from __future__ import division
 
 import tensorflow as tf
-import FFnetwork.create_reg_matrices as makeRmats
+import FFnetwork.create_reg_matrices as get_rmats
 
 
 class Regularization(object):
@@ -163,23 +163,23 @@ class Regularization(object):
         """
 
         if (reg_type == 'd2t') or (reg_type == 'd2x') or (reg_type == 'd2xt'):
-            reg_mat = makeRmats.create_tikhonov_matrix(
+            reg_mat = get_rmats.create_tikhonov_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_laplacian'
         elif (reg_type == 'max') or (reg_type == 'max_filt') or (reg_type == 'max_space'):
-            reg_mat = makeRmats.create_maxpenalty_matrix(
+            reg_mat = get_rmats.create_maxpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
         elif reg_type == 'center':
-            reg_mat = makeRmats.create_maxpenalty_matrix(
+            reg_mat = get_rmats.create_maxpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
         elif reg_type == 'local':
-            reg_mat = makeRmats.create_localpenalty_matrix(
+            reg_mat = get_rmats.create_localpenalty_matrix(
                 self.input_dims, separable=False)
             name = reg_type + '_reg'
         elif reg_type == 'glocal':
-            reg_mat = makeRmats.create_localpenalty_matrix(
+            reg_mat = get_rmats.create_localpenalty_matrix(
                 self.input_dims, separable=False, spatial_global=True)
             name = reg_type + '_reg'
         else:
@@ -297,21 +297,27 @@ class Regularization(object):
 class SepRegularization(Regularization):
     """Child class that adjusts regularization for separable layers"""
 
-    def __init__(self, input_dims=None, num_outputs=None, vals=None):
+    def __init__(self,
+                 input_dims=None,
+                 num_outputs=None,
+                 vals=None,
+                 partial_fit=None):
         """Constructor for Sep_Regularization object
         
         Args:
             input_dims (int): dimension of input size (for building reg mats)
             num_outputs (int): number of outputs (for normalization in norm2)
             vals (dict, optional): key-value pairs specifying value for each
-                type of regularization 
-                
+                type of regularization
+            partial_fit (0, 1, or None): ???
         """
 
         super(SepRegularization, self).__init__(
             input_dims=input_dims,
             num_outputs=num_outputs,
             vals=vals)
+
+        self.partial_fit = partial_fit
     # END SepRegularization.__init__
 
     def _build_reg_mats(self, reg_type):
@@ -323,31 +329,37 @@ class SepRegularization(Regularization):
         """
 
         if reg_type == 'd2t':
-            reg_mat = makeRmats.create_tikhonov_matrix(
-                [self.input_dims[0], 1, 1], reg_type)
-            name = reg_type + '_laplacian'
+            if self.partial_fit == 1:
+                raise TypeError('d2t is pointless when only fitting spatial part.')
+            else:
+                reg_mat = get_rmats.create_tikhonov_matrix(
+                    [self.input_dims[0], 1, 1], reg_type)
+                name = reg_type + '_laplacian'
         elif reg_type == 'd2x':
-            reg_mat = makeRmats.create_tikhonov_matrix(
-                [1, self.input_dims[1], self.input_dims[2]], reg_type)
-            name = reg_type + '_laplacian'
+            if self.partial_fit == 0:
+                raise TypeError('d2x is pointless when only fitting temporal part.')
+            else:
+                reg_mat = get_rmats.create_tikhonov_matrix(
+                    [1, self.input_dims[1], self.input_dims[2]], reg_type)
+                name = reg_type + '_laplacian'
         elif reg_type == 'd2xt':
             raise TypeError('d2xt does not work with a separable layer.')
         elif reg_type == 'max':
             raise ValueError('Cannot use max regularization with a separable layer.')
         elif reg_type == 'max_filt':
-            reg_mat = makeRmats.create_maxpenalty_matrix(
+            reg_mat = get_rmats.create_maxpenalty_matrix(
                 [self.input_dims[0], 1, 1], 'max')
             name = reg_type + '_reg'
         elif reg_type == 'max_space':
-            reg_mat = makeRmats.create_maxpenalty_matrix(
+            reg_mat = get_rmats.create_maxpenalty_matrix(
                 [self.input_dims[1]*self.input_dims[2], 1, 1], 'max')
             name = reg_type + '_reg'
         elif reg_type == 'center':
-            reg_mat = makeRmats.create_maxpenalty_matrix(
+            reg_mat = get_rmats.create_maxpenalty_matrix(
                 [1, self.input_dims[1], self.input_dims[2]], 'center')
             name = reg_type + '_reg'
         elif reg_type == 'local':
-            reg_mat = makeRmats.create_localpenalty_matrix(
+            reg_mat = get_rmats.create_localpenalty_matrix(
                 self.input_dims, separable=True)
             name = reg_type + '_reg'
         elif reg_type == 'glocal':
@@ -390,52 +402,82 @@ class SepRegularization(Regularization):
                 tf.square(tf.reduce_sum(tf.square(wspace))-self.num_outputs))
 
         elif reg_type == 'max_space':
-            wspace2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
-                          [self.input_dims[1]*self.input_dims[2],
-                           self.num_outputs]))
+            if self.partial_fit == 0:
+                raise TypeError('max_space is pointless when only fitting temporal part.')
+            elif self.partial_fit == 1:
+                ws2 = tf.square(weights)
+            else:
+                ws2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
+                                         [self.input_dims[1]*self.input_dims[2],
+                                          self.num_outputs]))
             reg_pen = tf.multiply(
                 self.vals_var['max_space'], tf.trace(tf.matmul(
-                    wspace2, tf.matmul(self.mats['max_space'], wspace2),
+                    ws2, tf.matmul(self.mats['max_space'], ws2),
                     transpose_a=True)))
 
         elif reg_type == 'max_filt':
-            wfilt2 = tf.square(tf.slice(
-                weights, [0, 0], [self.input_dims[0], self.num_outputs]))
-            reg_pen = tf.multiply(
-                self.vals_var['max_filt'],
-                tf.trace(tf.matmul(wfilt2,
-                                   tf.matmul(self.mats['max_filt'],
-                                             wfilt2), transpose_a=True)))
+            if self.partial_fit == 1:
+                raise TypeError('max_filt is pointless when only fitting spatial part.')
+            elif self.partial_fit == 0:
+                wt2 = tf.square(weights)
+            else:
+                wt2 = tf.square(tf.slice(weights, [0, 0],
+                                         [self.input_dims[0], self.num_outputs]))
+            reg_pen = tf.multiply(self.vals_var['max_filt'],
+                                  tf.trace(tf.matmul(wt2, tf.matmul(self.mats['max_filt'],
+                                                               wt2), transpose_a=True)))
 
         elif reg_type == 'd2t':
-            wt = tf.slice(weights, [0, 0], [self.input_dims[0],
-                                            self.num_outputs])
+            if self.partial_fit == 1:
+                raise TypeError('d2t is pointless when only fitting spatial part...')
+            elif self.partial_fit == 0:
+                wt = weights
+            else:
+                wt = tf.slice(weights, [0, 0], [self.input_dims[0], self.num_outputs])
+
             reg_pen = tf.multiply(self.vals_var['d2t'],
                                   tf.reduce_sum(tf.square(tf.matmul(self.mats['d2t'], wt))))
 
         elif reg_type == 'd2x':
-            wspace = tf.slice(weights, [self.input_dims[0], 0],
+            if self.partial_fit == 0:
+                raise TypeError('d2x is pointless when only fitting temporal part...')
+            elif self.partial_fit == 0:
+                ws = weights
+            else:
+                ws = tf.slice(weights, [self.input_dims[0], 0],
                               [self.input_dims[1]*self.input_dims[2],
                                self.num_outputs])
+
             reg_pen = tf.multiply(self.vals_var['d2x'],
                                   tf.reduce_sum(tf.square(
-                                      tf.matmul(self.mats['d2x'], wspace))))
+                                      tf.matmul(self.mats['d2x'], ws))))
         elif reg_type == 'center':
-            wspace = tf.slice(weights, [self.input_dims[0], 0],
+            if self.partial_fit == 0:
+                raise TypeError('center reg is pointless when only fitting temporal part...')
+            elif self.partial_fit == 1:
+                ws = weights
+            else:
+                ws = tf.slice(weights, [self.input_dims[0], 0],
                               [self.input_dims[1]*self.input_dims[2],
                                self.num_outputs])
-            reg_pen = tf.multiply(
-                self.vals_var['center'],
-                tf.trace(tf.matmul(wspace,
-                                   tf.matmul(self.mats['center'], wspace),
-                                   transpose_a=True)))
+
+            reg_pen = tf.multiply(self.vals_var['center'],
+                                  tf.trace(tf.matmul(ws, tf.matmul(self.mats['center'], ws),
+                                                     transpose_a=True)))
+
         elif reg_type == 'local':
-            wspace2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
-                          [self.input_dims[1]*self.input_dims[2],
-                           self.num_outputs]))
+            if self.partial_fit == 0:
+                raise TypeError('local reg is pointless when only fitting temporal part...')
+            elif self.partial_fit == 1:
+                ws2 = tf.square(weights)
+            else:
+                ws2 = tf.square(tf.slice(weights, [self.input_dims[0], 0],
+                                         [self.input_dims[1]*self.input_dims[2],
+                                          self.num_outputs]))
+
             reg_pen = tf.multiply(
                 self.vals_var['local'],
-                tf.trace(tf.matmul(wspace2, tf.matmul(self.mats['local'], wspace2),
+                tf.trace(tf.matmul(ws2, tf.matmul(self.mats['local'], ws2),
                                    transpose_a=True)))
         elif reg_type == 'd2xt':
             raise TypeError('d2xt does not work with a separable layer.')
@@ -449,7 +491,8 @@ class SepRegularization(Regularization):
 
         reg_target = SepRegularization(
             input_dims=self.input_dims,
-            num_outputs=self.num_outputs)
+            num_outputs=self.num_outputs,
+            partial_fit=self.partial_fit)
         reg_target.vals = self.vals.copy()
         #reg_target.mats = self.mats.copy()
         reg_target.mats = {}

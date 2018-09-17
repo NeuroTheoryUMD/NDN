@@ -553,6 +553,7 @@ class SepLayer(Layer):
             scope (str): name scope for variables and operations in layer
             input_dims (int): dimensions of input data
             output_dims (int): dimensions of output data
+            partial_fit (0, 1, or None): ???
             activation_func (str, optional): pointwise function applied to
                 output of affine transformation
                 ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 
@@ -611,7 +612,8 @@ class SepLayer(Layer):
         self.reg = SepRegularization(
             input_dims=input_dims,
             num_outputs=self.reg.num_outputs,
-            vals=reg_initializer)
+            vals=reg_initializer,
+            partial_fit=self.partial_fit)
     # END SepLayer.__init_
 
     def _define_layer_variables(self):
@@ -815,12 +817,18 @@ class SepLayer(Layer):
     def define_regularization_loss(self):
         """overloaded function to handle different normalization in SepLayer"""
         with tf.name_scope(self.scope):
-            # Normalize weights
-            kt = tf.slice(self.weights_var, [0, 0],
-                           [self.input_dims[0], self.num_filters])
-
-            ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
-                           [self.input_dims[1]*self.input_dims[2], self.num_filters])
+            # Section weights into first dimension and space
+            if self.partial_fit == 0:
+                kt = self.weights_var
+                ks = tf.constant(self.weights[self.input_dims[0]:, :], dtype=tf.float32)
+            elif self.partial_fit == 1:
+                kt = tf.constant(self.weights[:self.input_dims[0], :], dtype=tf.float32)
+                ks = self.weights_var
+            else:
+                kt = tf.slice(self.weights_var, [0, 0],
+                              [self.input_dims[0], self.num_filters])
+                ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
+                              [self.input_dims[1] * self.input_dims[2], self.num_filters])
 
             # Normalize weights (one or both dimensions)
             if self.normalize_weights == 0:
@@ -853,9 +861,12 @@ class SepLayer(Layer):
                 kt_np = kt_n
                 ks_np = ks_n
 
-            # Concatenate into single weight vector
-            ws = tf.concat([kt_np, ks_np], 0)
-            return self.reg.define_reg_loss(ws)
+            if self.partial_fit == 0:
+                return self.reg.define_reg_loss(kt_np)
+            elif self.partial_fit == 1:
+                return self.reg.define_reg_loss(ks_np)
+            else:
+                return self.reg.define_reg_loss(tf.concat([kt_np, ks_np], 0))
 
 
 class ConvSepLayer(Layer):
