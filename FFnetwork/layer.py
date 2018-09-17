@@ -538,6 +538,7 @@ class SepLayer(Layer):
             nlags=None,
             input_dims=None,    # this can be a list up to 3-dimensions
             output_dims=None,
+            partial_fit=None,
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='trunc_normal',
@@ -604,12 +605,135 @@ class SepLayer(Layer):
                 pos_constraint=pos_constraint,
                 log_activations=log_activations)
 
+        self.partial_fit = partial_fit
+
         # Redefine specialized Regularization object to overwrite default
         self.reg = SepRegularization(
             input_dims=input_dims,
             num_outputs=self.reg.num_outputs,
             vals=reg_initializer)
-    # END SepLayer.__init__
+    # END SepLayer.__init_
+
+    def _define_layer_variables(self):
+        # Define tensor-flow versions of variables (placeholder and variables)
+
+        if self.partial_fit == 0:
+            wt = self.weights[:self.input_dims[0], :]
+            with tf.name_scope('weights_init'):
+                self.weights_ph = tf.placeholder_with_default(
+                    wt, shape=wt.shape, name='wt_ph')
+                self.weights_var = tf.Variable(
+                    self.weights_ph, dtype=tf.float32, name='wt_var')
+        elif self.partial_fit == 1:
+            ws = self.weights[self.input_dims[0]:, :]
+            with tf.name_scope('weights_init'):
+                self.weights_ph = tf.placeholder_with_default(
+                    ws, shape=ws.shape, name='ws_ph')
+                self.weights_var = tf.Variable(
+                    self.weights_ph, dtype=tf.float32, name='ws_var')
+        else:
+            with tf.name_scope('weights_init'):
+                self.weights_ph = tf.placeholder_with_default(
+                    self.weights,
+                    shape=self.weights.shape,
+                    name='weights_ph')
+                self.weights_var = tf.Variable(
+                    self.weights_ph,
+                    dtype=tf.float32,
+                    name='weights_var')
+
+        # Initialize biases placeholder/variable
+        with tf.name_scope('biases_init'):
+            self.biases_ph = tf.placeholder_with_default(
+                self.biases,
+                shape=self.biases.shape,
+                name='biases_ph')
+            self.biases_var = tf.Variable(
+                self.biases_ph,
+                dtype=tf.float32,
+                name='biases_var')
+
+        # Check for need of ei_mask
+        if np.sum(self.ei_mask) < len(self.ei_mask):
+            self.ei_mask_var = tf.constant(
+                self.ei_mask, dtype=tf.float32, name='ei_mask')
+        else:
+            self.ei_mask_var = None
+    # END SepLayer._define_layer_variables
+
+    def assign_layer_params(self, sess):
+        """Read weights/biases in numpy arrays into tf Variables"""
+        if self.partial_fit == 0:
+            wt = self.weights[:self.input_dims[0], :]
+            sess.run(
+                [self.weights_var.initializer, self.biases_var.initializer],
+                feed_dict={self.weights_ph: wt, self.biases_ph: self.biases})
+        elif self.partial_fit == 1:
+            ws = self.weights[self.input_dims[0]:, :]
+            sess.run(
+                [self.weights_var.initializer, self.biases_var.initializer],
+                feed_dict={self.weights_ph: ws, self.biases_ph: self.biases})
+        else:
+            sess.run(
+                [self.weights_var.initializer, self.biases_var.initializer],
+                feed_dict={self.weights_ph: self.weights, self.biases_ph: self.biases})
+    # END SepLayer.assign_layer_params
+
+    def write_layer_params(self, sess):
+        """Write weights/biases in tf Variables to numpy arrays"""
+
+        # rebuild self.weights
+        if self.partial_fit == 0:
+            wt = sess.run(self.weights_var)
+            ws = deepcopy(self.weights[self.input_dims[0]:, :])
+            self.weights = np.concatenate((wt, ws), axis=0)
+        elif self.partial_fit == 1:
+            wt = deepcopy(self.weights[:self.input_dims[0], :])
+            ws = sess.run(self.weights_var)
+            self.weights = np.concatenate((wt, ws), axis=0)
+        else:
+            self.weights = sess.run(self.weights_var)
+
+        # get the temporal and spatial parts (generic)
+        wt = deepcopy(self.weights[:self.input_dims[0], :])
+        ws = deepcopy(self.weights[self.input_dims[0]:, :])
+
+        # Normalize weights (one or both dimensions)
+        if self.normalize_weights == 0:
+            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
+            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
+            ws_n = ws
+        elif self.normalize_weights == 1:
+            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
+            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
+            wt_n = wt
+        elif self.normalize_weights == 2:
+            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
+            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
+            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
+            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
+        else:
+            wt_n = wt
+            ws_n = ws
+
+        if self.pos_constraint == 0:
+            wt_np = np.maximum(0.0, wt_n)
+            ws_np = ws_n
+        elif self.pos_constraint == 1:
+            ws_np = np.maximum(0.0, ws_n)
+            wt_np = wt_n
+        elif self.pos_constraint == 2:
+            wt_np = np.maximum(0.0, wt_n)
+            ws_np = np.maximum(0.0, ws_n)
+        else:
+            wt_np = wt_n
+            ws_np = ws_n
+
+        self.weights[:self.input_dims[0], :] = wt_np
+        self.weights[self.input_dims[0]:, :] = ws_np
+
+        self.biases = sess.run(self.biases_var)
+    # END SepLayer.write_layer_params
 
     def build_graph(self, inputs, params_dict=None):
 
@@ -617,11 +741,17 @@ class SepLayer(Layer):
             self._define_layer_variables()
 
             # Section weights into first dimension and space
-            kt = tf.slice(self.weights_var, [0, 0],
-                           [self.input_dims[0], self.num_filters])
-
-            ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
-                           [self.input_dims[1]*self.input_dims[2], self.num_filters])
+            if self.partial_fit == 0:
+                kt = self.weights_var
+                ks = tf.constant(self.weights[self.input_dims[0]:, :], dtype=tf.float32)
+            elif self.partial_fit == 1:
+                kt = tf.constant(self.weights[:self.input_dims[0], :], dtype=tf.float32)
+                ks = self.weights_var
+            else:
+                kt = tf.slice(self.weights_var, [0, 0],
+                              [self.input_dims[0], self.num_filters])
+                ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
+                              [self.input_dims[1] * self.input_dims[2], self.num_filters])
 
             # Normalize weights (one or both dimensions)
             if self.normalize_weights == 0:
@@ -726,52 +856,6 @@ class SepLayer(Layer):
             # Concatenate into single weight vector
             ws = tf.concat([kt_np, ks_np], 0)
             return self.reg.define_reg_loss(ws)
-
-    def write_layer_params(self, sess):
-        """Write weights/biases in tf Variables to numpy arrays. Overloads function in layer
-        in order to take care of normalization differences."""
-
-        self.weights = sess.run(self.weights_var)
-
-        wt = deepcopy(self.weights[:self.input_dims[0], :])
-        ws = deepcopy(self.weights[self.input_dims[0]:, :])
-
-        # Normalize weights (one or both dimensions)
-        if self.normalize_weights == 0:
-            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
-            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
-            ws_n = ws
-        elif self.normalize_weights == 1:
-            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
-            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
-            wt_n = wt
-        elif self.normalize_weights == 2:
-            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
-            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
-            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
-            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
-        else:
-            wt_n = wt
-            ws_n = ws
-
-        if self.pos_constraint == 0:
-            wt_np = np.maximum(0.0, wt_n)
-            ws_np = ws_n
-        elif self.pos_constraint == 1:
-            ws_np = np.maximum(0.0, ws_n)
-            wt_np = wt_n
-        elif self.pos_constraint == 2:
-            wt_np = np.maximum(0.0, wt_n)
-            ws_np = np.maximum(0.0, ws_n)
-        else:
-            wt_np = wt_n
-            ws_np = ws_n
-
-        self.weights[:self.input_dims[0], :] = wt_np
-        self.weights[self.input_dims[0]:, :] = ws_np
-
-        self.biases = sess.run(self.biases_var)
-    # END SepLayer.write_layer_params
 
 
 class ConvSepLayer(Layer):

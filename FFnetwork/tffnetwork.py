@@ -88,6 +88,7 @@ class TFFNetwork(FFNetwork):
                     nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
+                    partial_fit=network_params['partial_fit'][nn],
                     activation_func=network_params['activation_funcs'][nn],
                     normalize_weights=network_params['normalize_weights'][nn],
                     weights_initializer=network_params['weights_initializers'][nn],
