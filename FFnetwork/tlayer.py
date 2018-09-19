@@ -440,7 +440,6 @@ class TLayer(Layer):
             num_filters=None,
             filter_width=None,  # this can be a list up to 3-dimensions
             batch_size=None,
-            time_spread=None,
             activation_func='lin',
             normalize_weights=True,
             weights_initializer='trunc_normal',
@@ -511,7 +510,8 @@ class TLayer(Layer):
             pos_constraint=pos_constraint,
             log_activations=log_activations)
 
-        self.output_dims = input_dims
+   #     self.output_dims = deepcopy(input_dims)
+        self.output_dims[0] = self.num_filters
 
         self.reg = Regularization(
             input_dims=[filter_width, 1, 1],
@@ -556,14 +556,12 @@ class TLayer(Layer):
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            # this produces shape (batch_size, nc, num_filts)
-            if self.num_filters > 1:
-                self.outputs = tf.matrix_diag_part(tf.transpose(tf.squeeze(post, axis=2), [1, 0, 2]))
-            else:
-                # single filter
-                self.outputs = tf.transpose(tf.squeeze(post, axis=[2, 3]))
-
-            # both cases will produce self.output.shape ---> (batch_size, nc)
+            # post has shape: (ndims, batch_sz, 1, num_filts) where ndims = ny*nx
+            # true:
+       #     self.outputs = tf.reshape(tf.transpose(post, [1, 0, 2, 3]), (self.batch_size, -1))
+            # self.output has shape: (batch_sz, ndims*num_filts)
+            # therefore, self.output_dims is now ---> (num_filters, nx, ny)
+            self.outputs = tf.reshape(tf.transpose(post, [1, 0, 2, 3]), (self.batch_size, -1))
 
         if self.log:
             tf.summary.histogram('act_pre', pre)

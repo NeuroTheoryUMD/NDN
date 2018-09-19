@@ -193,9 +193,9 @@ class TNDN(NDN):
         for nn in range(len(self.ffnet_out)):
             ffnet_n = self.ffnet_out[nn]
 
-            if type(self.networks[ffnet_n].layers[-1]) is CaTentLayer:
+            if type(self.networks[ffnet_n].layers[-1]) is CaTentLayer or TLayer:
                 self.output_sizes[nn] = \
-                    self.networks[ffnet_n].layers[-1].output_dims[1]
+                    np.prod(self.networks[ffnet_n].layers[-1].output_dims)
             else:
                 self.output_sizes[nn] = \
                     self.networks[ffnet_n].layers[-1].weights.shape[1]
@@ -872,8 +872,8 @@ class TNDN(NDN):
         num_outputs = len(self.ffnet_out)
         output_data = [None] * num_outputs
         for nn in range(num_outputs):
-            if type(self.networks[ffnet_n].layers[layer]) is CaTentLayer:
-                temp_num_outputs = self.networks[ffnet_n].layers[layer].output_dims[1]
+            if type(self.networks[ffnet_n].layers[layer]) is CaTentLayer or TLayer:
+                temp_num_outputs = np.prod(self.networks[ffnet_n].layers[layer].output_dims)
             else:
                 temp_num_outputs = self.networks[ffnet_n].layers[layer].weights.shape[1]
             output_data[nn] = np.zeros([self.num_examples, temp_num_outputs], dtype='float32')
