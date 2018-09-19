@@ -572,7 +572,7 @@ class Network(object):
                             output_data=output_data,
                             data_filters=data_filters,
                             test_indxs=test_indxs,
-                            test_batch_size=opt_params['batch_size_test'])
+                            test_batch_size=opt_params['batch_size'])
                     elif self.data_pipe_type == 'iterator':
                         cost_test = self._get_test_cost(
                             sess=sess,
@@ -580,7 +580,7 @@ class Network(object):
                             output_data=output_data,
                             data_filters=data_filters,
                             test_indxs=iter_handle_test,
-                            test_batch_size=opt_params['batch_size_test'])
+                            test_batch_size=opt_params['batch_size'])
 
                 # print additional testing info
                 print('Epoch %04d:  avg train cost = %10.4f,  '
@@ -650,7 +650,7 @@ class Network(object):
                         output_data=output_data,
                         data_filters=data_filters,
                         test_indxs=test_indxs,
-                        test_batch_size=opt_params['batch_size_test'])
+                        test_batch_size=opt_params['batch_size'])
                 elif self.data_pipe_type == 'iterator':
                     cost_test = self._get_test_cost(
                         sess=sess,
@@ -658,7 +658,7 @@ class Network(object):
                         output_data=output_data,
                         data_filters=data_filters,
                         test_indxs=iter_handle_test,
-                        test_batch_size=opt_params['batch_size_test'])
+                        test_batch_size=opt_params['batch_size'])
 
                 prev_costs = np.roll(prev_costs, 1)
                 prev_costs[0] = cost_test
@@ -1034,10 +1034,6 @@ class Network(object):
             opt_params['batch_size'] (int, optional): number of data points to
                 use for each iteration of training.
                 DEFAULT: 128
-            opt_params['batch_size_test] (int, optional): number of data
-                points to use for each iteration of finding test cost
-                (use if data is big)
-                DEFAULT: None
             opt_params['epochs_training'] (int, optional): max number of
                 epochs.
                 DEFAULT: 100
@@ -1092,8 +1088,6 @@ class Network(object):
                 opt_params['learning_rate'] = 1e-3
             if 'batch_size' not in opt_params:
                 opt_params['batch_size'] = None
-            if 'batch_size_test' not in opt_params:
-                opt_params['batch_size_test'] = None
             if 'epochs_training' not in opt_params:
                 opt_params['epochs_training'] = 100
             if 'epochs_ckpt' not in opt_params:
