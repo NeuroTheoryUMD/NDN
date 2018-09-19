@@ -955,33 +955,34 @@ class TNDN(NDN):
                     pred[small_intvl, :] = pred_tmp[self.time_spread : -self.time_spread // 2 + 1, :]
 
             # now do the last remaining part
-            self._set_batch_size(len(big_intvl))
-            if not use_gpu:
-                temp_config = tf.ConfigProto(device_count={'GPU': 0})
-                with tf.device('/cpu:0'):
+            if len(big_intvl) - self.time_spread - self.time_spread//2 > 1:
+                self._set_batch_size(len(big_intvl))
+                if not use_gpu:
+                    temp_config = tf.ConfigProto(device_count={'GPU': 0})
+                    with tf.device('/cpu:0'):
+                        self._build_graph()
+                else:
+                    temp_config = tf.ConfigProto(device_count={'GPU': 1})
                     self._build_graph()
-            else:
-                temp_config = tf.ConfigProto(device_count={'GPU': 1})
-                self._build_graph()
 
-            with tf.Session(graph=self.graph, config=temp_config) as sess:
-                self._restore_params(sess, input_data, output_data)
+                with tf.Session(graph=self.graph, config=temp_config) as sess:
+                    self._restore_params(sess, input_data, output_data)
 
-                if self.data_pipe_type == 'data_as_var':
-                    feed_dict = {self.indices: data_indxs[big_intvl]}
-                elif self.data_pipe_type == 'feed_dict':
-                    feed_dict = self._get_feed_dict(
-                        input_data=input_data,
-                        batch_indxs=batch_indxs)
-                elif self.data_pipe_type == 'iterator':
-                    # get string handle of iterator
-                    iter_handle = sess.run(iterator.string_handle())
-                    feed_dict = {self.iterator_handle: iter_handle}
+                    if self.data_pipe_type == 'data_as_var':
+                        feed_dict = {self.indices: data_indxs[big_intvl]}
+                    elif self.data_pipe_type == 'feed_dict':
+                        feed_dict = self._get_feed_dict(
+                            input_data=input_data,
+                            batch_indxs=batch_indxs)
+                    elif self.data_pipe_type == 'iterator':
+                        # get string handle of iterator
+                        iter_handle = sess.run(iterator.string_handle())
+                        feed_dict = {self.iterator_handle: iter_handle}
 
-                pred_tmp = sess.run(
-                    self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
-                pred[small_intvl, :] = pred_tmp[self.time_spread:
-                                                self.time_spread + len(small_intvl) + 1, :]
+                    pred_tmp = sess.run(
+                        self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
+                    pred[small_intvl, :] = pred_tmp[self.time_spread:
+                                                    self.time_spread + len(small_intvl) + 1, :]
 
             print('WARNING: discard the first tau time points when single_batch=False... (tau = self.time_spread)')
 

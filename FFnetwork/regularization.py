@@ -441,7 +441,7 @@ class SepRegularization(Regularization):
         elif reg_type == 'd2x':
             if self.partial_fit == 0:
                 raise TypeError('d2x is pointless when only fitting temporal part...')
-            elif self.partial_fit == 0:
+            elif self.partial_fit == 1:
                 ws = weights
             else:
                 ws = tf.slice(weights, [self.input_dims[0], 0],
