@@ -301,7 +301,7 @@ class SepRegularization(Regularization):
                  input_dims=None,
                  num_outputs=None,
                  vals=None,
-                 partial_fit=None):
+                 partial_fit=None):  #TODO: this is not fine
         """Constructor for Sep_Regularization object
         
         Args:

@@ -538,7 +538,7 @@ class SepLayer(Layer):
             nlags=None,
             input_dims=None,    # this can be a list up to 3-dimensions
             output_dims=None,
-            partial_fit=None,
+            partial_fit=None,  #TODO: this is not fine
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='trunc_normal',
@@ -613,7 +613,7 @@ class SepLayer(Layer):
             input_dims=input_dims,
             num_outputs=self.reg.num_outputs,
             vals=reg_initializer,
-            partial_fit=self.partial_fit)
+            partial_fit=self.partial_fit)  #TODO: this is not fine
     # END SepLayer.__init_
 
     def _define_layer_variables(self):

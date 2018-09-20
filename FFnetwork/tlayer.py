@@ -241,24 +241,22 @@ class CaTentLayer(Layer):
             # make shaped input
             shaped_input = tf.reshape(tf.transpose(inputs), [self.input_dims[1], self.batch_size, 1, 1])
 
-            # roll it around so that causality is maintained
-            rolled_input = tf.manip.roll(shaped_input, shift=self.filter_width//2, axis=1)
-
-            # make shaped filt
-            conv_filt_shape = [self.filter_width, 1, 1, self.num_filters]
-
             if self.normalize_weights > 0:
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
-                shaped_filt = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filt_shape)
+                w_n = tf.divide(self.weights_var, wnorms)
             else:
-                shaped_filt = tf.reshape(self.weights_var, conv_filt_shape)
+                w_n = self.weights_var
+
+            padding = tf.constant([[0, self.filter_width], [0, 0]])
+            padded_filt = tf.pad(w_n, padding)
+            shaped_padded_filt = tf.reshape(padded_filt, [2*self.filter_width, 1, 1, self.num_filters])
 
             # convolve
             strides = [1, 1, 1, 1]
             if self.pos_constraint:
-                pre = tf.nn.conv2d(rolled_input, tf.maximum(0.0, shaped_filt), strides, padding='SAME')
+                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, shaped_padded_filt), strides, padding='SAME')
             else:
-                pre = tf.nn.conv2d(rolled_input, shaped_filt, strides, padding='SAME')
+                pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
 
             # from pre to post
             if self.ei_mask_var is not None:
@@ -529,24 +527,22 @@ class TLayer(Layer):
             shaped_input = tf.reshape(tf.transpose(inputs),
                                       [self.input_dims[1]*self.input_dims[2], self.batch_size, 1, 1])
 
-            # roll it around so that causality is maintained
-            rolled_input = tf.manip.roll(shaped_input, shift=self.filter_width//2, axis=1)
-
-            # make shaped filt
-            conv_filt_shape = [self.filter_width, 1, 1, self.num_filters]
-
             if self.normalize_weights > 0:
                 wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
-                shaped_filt = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filt_shape)
+                w_n = tf.divide(self.weights_var, wnorms)
             else:
-                shaped_filt = tf.reshape(self.weights_var, conv_filt_shape)
+                w_n = self.weights_var
+
+            padding = tf.constant([[0, self.filter_width], [0, 0]])
+            padded_filt = tf.pad(w_n, padding)
+            shaped_padded_filt = tf.reshape(padded_filt, [2*self.filter_width, 1, 1, self.num_filters])
 
             # convolve
             strides = [1, 1, 1, 1]
             if self.pos_constraint:
-                pre = tf.nn.conv2d(rolled_input, tf.maximum(0.0, shaped_filt), strides, padding='SAME')
+                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, shaped_padded_filt), strides, padding='SAME')
             else:
-                pre = tf.nn.conv2d(rolled_input, shaped_filt, strides, padding='SAME')
+                pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
 
             # from pre to post
             if self.ei_mask_var is not None:
@@ -556,11 +552,6 @@ class TLayer(Layer):
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            # post has shape: (ndims, batch_sz, 1, num_filts) where ndims = ny*nx
-            # true:
-       #     self.outputs = tf.reshape(tf.transpose(post, [1, 0, 2, 3]), (self.batch_size, -1))
-            # self.output has shape: (batch_sz, ndims*num_filts)
-            # therefore, self.output_dims is now ---> (num_filters, nx, ny)
             self.outputs = tf.reshape(tf.transpose(post, [1, 0, 2, 3]), (self.batch_size, -1))
 
         if self.log:
