@@ -639,27 +639,25 @@ class NDN(Network):
             data_indxs = np.arange(self.num_examples)
 
         # build datasets if using 'iterator' pipeline
-        if self.data_pipe_type == 'iterator':
-            dataset = self._build_dataset(
-                input_data=input_data,
-                output_data=output_data,
-                data_filters=data_filters,
-                indxs=data_indxs,
-                training_dataset=False,
-                batch_size=self.num_examples)
-            # store info on dataset for buiding data pipeline
-            self.dataset_types = dataset.output_types
-            self.dataset_shapes = dataset.output_shapes
-            # build iterator object to access elements from dataset
-            iterator = dataset.make_one_shot_iterator()
+        #if self.data_pipe_type == 'iterator':
+        #    dataset = self._build_dataset(
+        #        input_data=input_data,
+        #        output_data=output_data,
+        #        data_filters=data_filters,
+        #        indxs=data_indxs,
+        #        training_dataset=False,
+        #        batch_size=self.num_examples)
+        #    # store info on dataset for buiding data pipeline
+        #    self.dataset_types = dataset.output_types
+        #    self.dataset_shapes = dataset.output_shapes
+        #    # build iterator object to access elements from dataset
+        #    iterator = dataset.make_one_shot_iterator()
 
         # Place graph operations on CPU
         if not use_gpu:
-            #temp_config = tf.ConfigProto(device_count={'GPU': 0})
             with tf.device('/cpu:0'):
                 self._build_graph()
         else:
-            #temp_config = tf.ConfigProto(device_count={'GPU': 1})
             self._build_graph()
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
@@ -667,29 +665,13 @@ class NDN(Network):
             self._restore_params(
                 sess, input_data, output_data, data_filters=data_filters)
 
-            if self.data_pipe_type == 'data_as_var':
-                # get the feed_dict for batch_indxs
-                feed_dict = {self.indices: data_indxs}
-                ll_neuron = sess.run(self.unit_cost, feed_dict=feed_dict)
-            elif self.batch_size is None:
-                if self.data_pipe_type == 'feed_dict':
-                    feed_dict = self._get_feed_dict(
-                        input_data=input_data,
-                        output_data=output_data,
-                        data_filters=data_filters,
-                        batch_indxs=data_indxs)
-                elif self.data_pipe_type == 'iterator':
-                    # get string handle of iterator
-                    iter_handle = sess.run(iterator.string_handle())
-                    feed_dict = {self.iterator_handle: iter_handle}
-
-                ll_neuron = sess.run(self.unit_cost, feed_dict=feed_dict)
-            else:
+            if self.batch_size is not None:
                 num_batches_test = data_indxs.shape[0] // self.batch_size
+
                 for batch_test in range(num_batches_test):
                     batch_indxs_test = data_indxs[
-                        batch_test * self.batch_size:
-                        (batch_test + 1) * self.batch_size]
+                                       batch_test * self.batch_size:
+                                       (batch_test + 1) * self.batch_size]
                     if self.data_pipe_type == 'data_as_var':
                         feed_dict = {self.indices: batch_indxs_test}
                     elif self.data_pipe_type == 'feed_dict':
@@ -707,6 +689,20 @@ class NDN(Network):
                         unit_cost = np.add(unit_cost, sess.run(self.unit_cost, feed_dict=feed_dict))
 
                 ll_neuron = np.divide(unit_cost, num_batches_test)
+
+            else:  # no batch-size given
+                if self.data_pipe_type == 'data_as_var':
+                    feed_dict = {self.indices: data_indxs}
+                elif self.data_pipe_type == 'feed_dict':
+                    feed_dict = self._get_feed_dict(
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=data_filters,
+                        batch_indxs=data_indxs)
+                elif self.data_pipe_type == 'iterator':
+                    feed_dict = {self.iterator_handle: data_indxs}
+
+                ll_neuron = sess.run(self.unit_cost, feed_dict=feed_dict)
 
             if nulladjusted:
                 # note that ll_neuron is negative of the true log-likelihood,
