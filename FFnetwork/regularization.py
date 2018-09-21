@@ -300,8 +300,8 @@ class SepRegularization(Regularization):
     def __init__(self,
                  input_dims=None,
                  num_outputs=None,
-                 vals=None,
-                 partial_fit=None):  #TODO: this is not fine
+                 vals=None):
+
         """Constructor for Sep_Regularization object
         
         Args:
@@ -317,7 +317,7 @@ class SepRegularization(Regularization):
             num_outputs=num_outputs,
             vals=vals)
 
-        self.partial_fit = partial_fit
+        self.partial_fit = None
     # END SepRegularization.__init__
 
     def _build_reg_mats(self, reg_type):
@@ -325,7 +325,6 @@ class SepRegularization(Regularization):
 
         Args:
             reg_type (str): see `_allowed_reg_types` for options
-            
         """
 
         if reg_type == 'd2t':
