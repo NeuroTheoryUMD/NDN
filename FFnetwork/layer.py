@@ -538,7 +538,7 @@ class SepLayer(Layer):
             nlags=None,
             input_dims=None,    # this can be a list up to 3-dimensions
             output_dims=None,
-            partial_fit=None,  #TODO: this is not fine
+            #partial_fit=None,  #TODO: this is not fine
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='trunc_normal',
@@ -606,14 +606,16 @@ class SepLayer(Layer):
                 pos_constraint=pos_constraint,
                 log_activations=log_activations)
 
-        self.partial_fit = partial_fit
+        #self.partial_fit = partial_fit
+        self.partial_fit = None
 
         # Redefine specialized Regularization object to overwrite default
         self.reg = SepRegularization(
             input_dims=input_dims,
             num_outputs=self.reg.num_outputs,
-            vals=reg_initializer,
-            partial_fit=self.partial_fit)  #TODO: this is not fine
+            vals=reg_initializer)
+            #vals=reg_initializer,
+            #partial_fit=self.partial_fit)  #TODO: this is not fine
     # END SepLayer.__init_
 
     def _define_layer_variables(self):
@@ -873,7 +875,7 @@ class ConvSepLayer(Layer):
             input_dims=None,    # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
-            partial_fit=None,
+            #partial_fit=None,
             shift_spacing=1,
             # output_dims=None,
             activation_func='relu',
@@ -961,14 +963,16 @@ class ConvSepLayer(Layer):
                 pos_constraint=pos_constraint,
                 log_activations=log_activations)
 
-        self.partial_fit = partial_fit
+        #self.partial_fit = partial_fit
+        self.partial_fit = None
 
         # Redefine specialized Regularization object to overwrite default
         self.reg = SepRegularization(
             input_dims=filter_dims,
             num_outputs=self.num_filters,
-            vals=reg_initializer,
-            partial_fit=self.partial_fit)
+            vals=reg_initializer)
+            #vals=reg_initializer,
+            #partial_fit=self.partial_fit)
 
         # ConvLayer-specific properties
         self.shift_spacing = shift_spacing
