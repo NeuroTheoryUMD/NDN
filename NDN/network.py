@@ -266,17 +266,6 @@ class Network(object):
 
         """
 
-        if partial_fit is not None:
-            for key in partial_fit.keys():
-                for nn in range(self.num_networks):
-                    for ll in range(len(self.networks[nn].layers)):
-                        if key == 'net%sL%s' % (nn, ll):
-                            if type(self.networks[nn].layers[ll]) is SepLayer or ConvSepLayer:
-                                self.networks[nn].layers[ll].partial_fit = partial_fit[key]
-                                self.networks[nn].layers[ll].reg.partial_fit = partial_fit[key]
-                            else:
-                                raise ValueError('partial fit should be used with Sep layer families.')
-
         self.num_examples = 0
         self.filter_data = False
 
@@ -313,6 +302,17 @@ class Network(object):
 
         if train_indxs is None:
             train_indxs = np.arange(self.num_examples)
+
+        if partial_fit is not None:
+            for key in partial_fit.keys():
+                for nn in range(self.num_networks):
+                    for ll in range(len(self.networks[nn].layers)):
+                        if key == 'net%sL%s' % (nn, ll):
+                            if type(self.networks[nn].layers[ll]) is SepLayer or ConvSepLayer:
+                                self.networks[nn].layers[ll].partial_fit = partial_fit[key]
+                                self.networks[nn].layers[ll].reg.partial_fit = partial_fit[key]
+                            else:
+                                raise ValueError('partial fit should be used with Sep layer families.')
 
         # Check values entered
         if learning_alg is 'adam':
