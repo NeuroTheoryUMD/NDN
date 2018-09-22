@@ -129,7 +129,6 @@ class NDN(Network):
         # list of output sizes (for Robs placeholders)
         self.output_sizes = [0] * len(ffnet_out)
         self.noise_dist = noise_dist
-        self.poisson_unit_norm = None
         self.tf_seed = tf_seed
 
         self._define_network()
@@ -872,8 +871,7 @@ class NDN(Network):
         sio.savemat(filename, matdata)
 
     def initialize_output_layer_bias(self, robs):
-        """Sets biases in output layer(w) to explain mean firing rate, using 
-        Robs"""
+        """Sets biases in output layer(w) to explain mean firing rate, using Robs"""
 
         if robs is not list:
             robs = [robs]

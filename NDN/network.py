@@ -29,9 +29,10 @@ class Network(object):
         self.filter_data = False
         # for tf.data API / 'iterator' pipeline
         self.data_pipe_type = 'data_as_var'
-        self.batch_size = None    # only relevant to temporal NDNs (NO!)
+        self.batch_size = None
         self.dataset_types = None
         self.dataset_shapes = None
+        self.poisson_unit_norm = None
 
     # END Network.__init__
 

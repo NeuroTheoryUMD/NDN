@@ -149,13 +149,14 @@ def ffnetwork_params(
             for reg_type, reg_val_list in reg_list.iteritems():
                 if not isinstance(reg_val_list, list):
                     if reg_val_list is not None:
-                        reg_initializers[nn][reg_type] = reg_val_list
+                        reg_initializers[0][reg_type] = reg_val_list  # only set first value
+                        # reg_initializers[nn][reg_type] = reg_val_list
                 else:
-                    if len(reg_val_list) != num_layers:
-                        ValueError(
-                            'reg_list length must match number of layers.')
-                    if reg_val_list[nn] is not None:
-                        reg_initializers[nn][reg_type] = reg_val_list[nn]
+                    # if len(reg_val_list) != num_layers:
+                    #     ValueError('reg_list length must match number of layers.')
+                    if nn <= len(reg_val_list):
+                        if reg_val_list[nn] is not None:
+                            reg_initializers[nn][reg_type] = reg_val_list[nn]
 
     network_params = {
         'network_type': network_type,
