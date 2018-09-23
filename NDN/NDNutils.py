@@ -154,7 +154,7 @@ def ffnetwork_params(
                 else:
                     # if len(reg_val_list) != num_layers:
                     #     ValueError('reg_list length must match number of layers.')
-                    if nn <= len(reg_val_list):
+                    if nn < len(reg_val_list):
                         if reg_val_list[nn] is not None:
                             reg_initializers[nn][reg_type] = reg_val_list[nn]
 
