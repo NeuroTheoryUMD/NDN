@@ -463,16 +463,20 @@ class SideNetwork(FFNetwork):
                 else:
                     all_convolutional = False
                     nonconv_inputs[nn] = input_layer_sizes[nn]
+        else:
+            nonconv_inputs = input_layer_sizes[:]
 
         if all_convolutional:
             nx_ny = input_network_params['input_dims'][1:3]
             if input_network_params['layer_types'][0] == 'biconv':
                 nx_ny[0] = int(nx_ny[0]/2)
                 input_layer_sizes[0] = input_layer_sizes[0]*2
-            input_dims = [max(input_layer_sizes)*len(input_layer_sizes), nx_ny[0], nx_ny[1]]
+            #input_dims = [max(input_layer_sizes)*len(input_layer_sizes), nx_ny[0], nx_ny[1]]
+            input_dims = [np.sum(input_layer_sizes), nx_ny[0], nx_ny[1]]
         else:
             nx_ny = [1, 1]
-            input_dims = [len(input_layer_sizes), max(nonconv_inputs), 1]
+            #input_dims = [len(input_layer_sizes), max(nonconv_inputs), 1]
+            input_dims = [np.sum(nonconv_inputs), 1, 1]
 
         super(SideNetwork, self).__init__(
             scope=scope,
@@ -491,7 +495,6 @@ class SideNetwork(FFNetwork):
         whole network graph, rather than just a link to its output, so that it 
         can be assembled here"""
 
-        max_units = max(self.num_units)
         num_layers = len(self.num_units)
         with tf.name_scope(self.scope):
 
@@ -501,24 +504,25 @@ class SideNetwork(FFNetwork):
                 new_slice = tf.reshape(input_network.layers[input_nn].outputs,
                                        [-1, self.num_space, self.num_units[input_nn]])
 
-                if max_units-self.num_units[input_nn] > 0:
-                    layer_padding = tf.constant([
-                        [0, 0],
-                        [0, 0],
-                        [0, (max_units-self.num_units[input_nn])]])
-                    new_slice_mod = tf.pad(new_slice, layer_padding)
-                else:
-                    new_slice_mod = new_slice
+                #if max_units-self.num_units[input_nn] > 0:
+                #    layer_padding = tf.constant([
+                #        [0, 0],
+                #        [0, 0],
+                #        [0, (max_units-self.num_units[input_nn])]])
+                #    new_slice_mod = tf.pad(new_slice, layer_padding)
+                #else:
+                #    new_slice_mod = new_slice
 
                 if input_nn == 0:
-                    #inputs_raw = tf.expand_dims(new_slice, 2)
-                    inputs_raw = new_slice_mod
+                    inputs_raw = new_slice
+                    # inputs_raw = new_slice_mod
                 else:
-                    #inputs_raw = tf.concat([inputs_raw, tf.expand_dims(new_slice, 2)], 2)
-                    inputs_raw = tf.concat([inputs_raw, new_slice_mod], 2)
+                    inputs_raw = tf.concat([inputs_raw, new_slice], 2)
+                    #inputs_raw = tf.concat([inputs_raw, new_slice_mod], 2)
 
             # Need to put layer dimension with the filters as bottom dimension instead of top
-            inputs = tf.reshape(inputs_raw, [-1, num_layers*max_units*self.num_space])
+            inputs = tf.reshape(inputs_raw, [-1, np.sum(self.num_units)*self.num_space])
+            #inputs = tf.reshape(inputs_raw, [-1, num_layers*max_units*self.num_space])
 
             # Now standard graph-build (could just call the parent with inputs)
             for layer in range(self.num_layers):
