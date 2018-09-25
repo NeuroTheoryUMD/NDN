@@ -304,7 +304,16 @@ class Network(object):
         if train_indxs is None:
             train_indxs = np.arange(self.num_examples)
 
-        if partial_fit is not None:
+        # take care of partial fit
+        if partial_fit is None:
+            # reset partial fit values
+            for nn in range(self.num_networks):
+                for ll in range(len(self.networks[nn].layers)):
+                    if hasattr(self.networks[nn].layers[ll], 'partial_fit'):
+                        self.networks[nn].layers[ll].partial_fit = None
+                    if hasattr(self.networks[nn].layers[ll].reg, 'partial_fit'):
+                        self.networks[nn].layers[ll].reg.partial_fit = None
+        else:
             for key in partial_fit.keys():
                 for nn in range(self.num_networks):
                     for ll in range(len(self.networks[nn].layers)):
