@@ -341,7 +341,7 @@ class Regularization(object):
             for sp in range(num_space):
                 indx_range = np.concatenate((indx_range, np.add(filter_range, sp*num_filt)))
 
-            self.blocks.append(indx_range)
+            self.blocks.append(indx_range.astype(int))
             # END Regularization.scaffold_setup
 # END Regularization
 
@@ -567,6 +567,6 @@ class SepRegularization(Regularization):
             filter_range = range(fcount, fcount+num_units[ll])
             fcount += num_units[ll]
 
-            self.blocks.append(filter_range)
+            self.blocks.append(filter_range.astype(int))
             # END SepRegularization.scaffold_setup
     # END SepRegularization
