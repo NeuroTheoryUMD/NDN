@@ -30,7 +30,7 @@ class Regularization(object):
 
     _allowed_reg_types = ['l1', 'l2', 'norm2', 'norm2_space', 'norm2_filt',
                           'd2t', 'd2x', 'd2xt', 'local', 'glocal', 'center',
-                          'max', 'max_filt', 'max_space']
+                          'max', 'max_filt', 'max_space', 'scaffold_level']
 
     def __init__(self, input_dims=None, num_outputs=None, vals=None):
         """Constructor for Regularization class
@@ -70,6 +70,7 @@ class Regularization(object):
         self.vals_var = deepcopy(none_default)
         self.mats = deepcopy(none_default)
         self.penalties = deepcopy(none_default)
+        self.blocks = None
 
         # read user input
         if vals is not None:
@@ -174,6 +175,13 @@ class Regularization(object):
             reg_mat = get_rmats.create_maxpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
+        elif reg_type == 'scaffold_level':
+            if self.blocks is not None:
+                reg_mat = get_rmats.create_maxpenalty_matrix(
+                    [len(self.blocks), 1, 1], 'max')
+            else:
+                reg_mat = 0.0
+            name = reg_type + '_reg'
         elif reg_type == 'local':
             reg_mat = get_rmats.create_localpenalty_matrix(
                 self.input_dims, separable=False)
@@ -260,7 +268,20 @@ class Regularization(object):
                 tf.trace(tf.matmul(weights,
                                    tf.matmul(self.mats['center'], weights),
                                    transpose_a=True)))
-
+        elif reg_type == 'scaffold_level':
+            if self.blocks is not None:
+                w2 = tf.square(weights)
+                num_levels = len(self.blocks)
+                level_mags = tf.get_variable('level_mags', shape=[num_levels, self.num_outputs], trainable=False)
+                for nn in range(num_levels):
+                    level_mags[nn] = tf.sum(tf.gather(w2, self.blocks[nn]), axis=0)
+                reg_pen = tf.multiply(
+                    self.vals_var['scaffold_level'],
+                    tf.trace(tf.matmul(level_mags,
+                                       tf.matmul(self.mats['scaffold_level'], level_mags),
+                                       transpose_a=True)))
+            else:
+                reg_pen = tf.constant(0.0)
         else:
             reg_pen = tf.constant(0.0)
         return reg_pen
