@@ -232,9 +232,12 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     else:
         is_conv = False
 
-    num_space = side_ndn.network_list[0]['input_dims'][1]
+    # number of spatial dims depends on whether first side layer is convolutional or not
+    #num_space = side_ndn.networks[0].input_dims[1]*side_ndn.networks[0].input_dims[2]
+    num_space = int(side_ndn.networks[1].layers[0].weights.shape[0]/ side_ndn.networks[1].input_dims[0])
     num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
-    filter_nums = side_ndn.network_list[0]['layer_sizes'][:]
+    filter_nums = side_ndn.networks[1].num_units[:]
+    #filter_nums = side_ndn.network_list[0]['layer_sizes'][:]
     num_layers = len(filter_nums)
 
     # Adjust effective space/filter number if binocular model
@@ -246,7 +249,8 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
         fig, ax = plt.subplots(nrows=1, ncols=num_layers)
         fig.set_size_inches(16, 3)
 
-    wside = side_ndn.networks[1].layers[0].weights
+    # Reshape whole weight matrix
+    wside = np.reshape(side_ndn.networks[1].layers[0].weights, [num_space, np.sum(filter_nums), num_cells] )
     num_inh = side_ndn.network_list[0]['num_inh']
     ws = []
 
@@ -265,6 +269,8 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
         else:
             img_max = -img_min
 
+
+    fcount = 0
     for ll in range(num_layers):
         wtemp = wside[range(ll, len(wside), num_layers), :]
         if is_conv:
@@ -272,6 +278,7 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
                                  [num_space, filter_nums[ll], num_cells]))
         else:
             ws.append(np.reshape(wtemp[range(filter_nums[ll]), :], [filter_nums[ll], num_cells]))
+        fcount += num_units[ll]
 
         if cell_to_plot is not None:
             plt.subplot(1, num_layers, ll+1)
@@ -291,7 +298,7 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
                 if num_inh[ll] > 0:
                     plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_cells-0.5], 'r')
 
-    plt.show()
+            plt.show()
     return ws
 
 
