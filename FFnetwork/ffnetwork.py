@@ -490,12 +490,13 @@ class SideNetwork(FFNetwork):
             self.num_units = nonconv_inputs
 
         # Set up potential side_network regularization (in first layer)
-        lvl_blocks = []
-        pos = 0
-        for nn in range(len(input_layer_sizes)):
-            lvl_blocks.append(range(pos, pos+self.num_units[nn]))
-            pos += self.num_units[nn]
-        self.layers[0].reg.blocks = lvl_blocks
+        self.layers[0].reg.scaffold_setup( self.num_units )
+        #lvl_blocks = []
+        #pos = 0
+        #for nn in range(len(input_layer_sizes)):
+        #    lvl_blocks.append(range(pos, pos+self.num_units[nn]))
+        #    pos += self.num_units[nn]
+        #self.layers[0].reg.blocks = lvl_blocks
 
     # END SideNetwork.__init__
 

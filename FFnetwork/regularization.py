@@ -275,6 +275,7 @@ class Regularization(object):
                 #level_mags = tf.get_variable('level_mags', shape=[num_levels, self.num_outputs], trainable=False)
                 level_mags = []
                 for nn in range(num_levels):
+                    # Compute range of indices given 'blocks' represent filters and there is space
                     level_mags.append(tf.reduce_sum(tf.gather(w2, self.blocks[nn]), axis=0))
                 reg_pen = tf.multiply(
                     self.vals_var['scaffold_level'],
@@ -305,14 +306,43 @@ class Regularization(object):
 
     def reg_copy(self):
         """Copy regularization to new structure"""
+
+        from copy import deepcopy
+
         reg_target = Regularization(
             input_dims=self.input_dims,
             num_outputs=self.num_outputs)
         reg_target.vals = self.vals.copy()
         reg_target.mats = {}
+        if self.blocks is not None:
+            reg_target.blocks = deepcopy(self.blocks)
 
         return reg_target
     # END Regularization.reg_copy
+
+    def scaffold_setup(self, num_units):
+        """This sets up the 'blocks' within the inputs to the first scaffold layer, for
+        regularization schemes that act with knowledge of these inputs. num_units is the
+        number of 'filters' in each level of the scaffold."""
+
+        import numpy as np
+
+        num_space = self.input_dims[1] * self.input_dims[2]
+        num_filt = self.input_dims[0]
+
+        self.blocks = []
+        fcount = 0
+        for ll in range(len(num_units)):
+            indx_range = []
+            # filter range is the 'most internal' dimension
+            filter_range = range(fcount, fcount+num_units[ll])
+            fcount += num_units[ll]
+
+            for sp in range(num_space):
+                indx_range = np.concatenate((indx_range, np.add(filter_range, sp*num_filt)))
+
+            self.blocks.append(indx_range)
+            # END Regularization.scaffold_setup
 # END Regularization
 
 
@@ -519,3 +549,24 @@ class SepRegularization(Regularization):
 
         return reg_target
     # END SepRegularization.reg_copy
+
+    def scaffold_setup(self, num_units):
+        """This sets up the 'blocks' within the inputs to the first scaffold layer, for
+        regularization schemes that act with knowledge of these inputs. num_units is the
+        number of 'filters' in each level of the scaffold."""
+
+        import numpy as np
+
+        #num_space = self.input_dims[1] * self.input_dims[2]
+        #num_filt = self.input_dims[0]
+
+        self.blocks = []
+        fcount = 0
+        for ll in range(len(num_units)):
+            # filter range is the 'most internal' dimension
+            filter_range = range(fcount, fcount+num_units[ll])
+            fcount += num_units[ll]
+
+            self.blocks.append(filter_range)
+            # END SepRegularization.scaffold_setup
+    # END SepRegularization
