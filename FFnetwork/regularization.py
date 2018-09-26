@@ -272,9 +272,10 @@ class Regularization(object):
             if self.blocks is not None:
                 w2 = tf.square(weights)
                 num_levels = len(self.blocks)
-                level_mags = tf.get_variable('level_mags', shape=[num_levels, self.num_outputs], trainable=False)
+                #level_mags = tf.get_variable('level_mags', shape=[num_levels, self.num_outputs], trainable=False)
+                level_mags = []
                 for nn in range(num_levels):
-                    level_mags[nn] = tf.sum(tf.gather(w2, self.blocks[nn]), axis=0)
+                    level_mags.append(tf.reduce_sum(tf.gather(w2, self.blocks[nn]), axis=0))
                 reg_pen = tf.multiply(
                     self.vals_var['scaffold_level'],
                     tf.trace(tf.matmul(level_mags,
