@@ -12,6 +12,9 @@ from FFnetwork.ffnetwork import SideNetwork
 from .network import Network
 from NDNutils import concatenate_input_dims
 
+from FFnetwork.tlayer import *
+from FFnetwork.layer import *
+
 
 class NDN(Network):
     """Tensorflow (tf) implementation of Neural Deep Network class
@@ -458,6 +461,48 @@ class NDN(Network):
                         fit_list[nn][layer]['biases'] = False
         return fit_list
         # END NDN.set_fit_variables
+
+
+    def set_partial_fit(self, ffnet_list, layer_list, value_list):
+        """
+        :param ffnet_list:
+        :param layer_list:
+        :param value_list: list of partial_fit values:
+            - 0 ---> fit only temporal part
+            - 1 ---> fit only spatial part
+            - anything else ---> fit everything
+        :return: None
+        """
+
+        assert len(ffnet_list) == len(layer_list) == len(value_list), 'all lists should have same length'
+
+        # reset all partial fit values
+        for nn in range(self.num_networks):
+            for ll in range(len(self.networks[nn].layers)):
+                if hasattr(self.networks[nn].layers[ll], 'partial_fit'):
+                    self.networks[nn].layers[ll].partial_fit = None
+                if hasattr(self.networks[nn].layers[ll].reg, 'partial_fit'):
+                    self.networks[nn].layers[ll].reg.partial_fit = None
+
+        # set the new values
+        for ii in range(len(ffnet_list)):
+            nn, ll, val = ffnet_list[ii], layer_list[ii], value_list[ii]
+
+            if type(self.networks[nn].layers[ll]) is SepLayer or ConvSepLayer:
+                self.networks[nn].layers[ll].partial_fit = val
+                self.networks[nn].layers[ll].reg.partial_fit = val
+                if val == 0:
+                    translation = 'only --temporal--'
+                elif val == 1:
+                    translation = 'only --spatial--'
+                else:
+                    translation = '--everything--'
+                print('....partial_fit value for --net%sL%s-- set to %s, %s will be fit'
+                      % (nn, ll, val, translation))
+            else:
+                raise ValueError('partial fit should be used only with Seplayer families.')
+    # END NDN.set_partial_fit
+
 
     def set_regularization(self, reg_type, reg_val, ffnet_n=0,
                            layer_target=None):

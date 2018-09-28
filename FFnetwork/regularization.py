@@ -567,6 +567,6 @@ class SepRegularization(Regularization):
             filter_range = range(fcount, fcount+num_units[ll])
             fcount += num_units[ll]
 
-            self.blocks.append(filter_range.astype(int))
+            self.blocks.append(filter_range)
             # END SepRegularization.scaffold_setup
     # END SepRegularization

@@ -446,28 +446,29 @@ class SideNetwork(FFNetwork):
                 
         """
 
+        _conv_types = ['conv', 'convsep', 'biconv']
+
         # Determine dimensions of input and pass into regular network initializer
         input_layer_sizes = input_network_params['layer_sizes'][:]
         # Check if entire network is convolutional (then will have spatial input dims)
         all_convolutional = False
         nonconv_inputs = np.zeros(len(input_layer_sizes), dtype=int)
-        if (input_network_params['layer_types'][0] == 'conv') or \
-                (input_network_params['layer_types'][0] == 'biconv'):
+        if input_network_params['layer_types'][0] in _conv_types:
             # then check that all are conv
             all_convolutional = True
             for nn in range(len(input_layer_sizes)):
-                if input_network_params['layer_types'][nn] == 'conv' or \
-                        (input_network_params['layer_types'][0] == 'biconv'):
-                    nonconv_inputs[nn] = input_layer_sizes[nn]*input_network_params['input_dims'][1] *\
+                if input_network_params['layer_types'][nn] in _conv_types:
+                    nonconv_inputs[nn] = input_layer_sizes[nn] * input_network_params['input_dims'][1] *\
                                          input_network_params['input_dims'][2]
                 else:
                     all_convolutional = False
+                    print(nn)
                     nonconv_inputs[nn] = input_layer_sizes[nn]
         else:
             nonconv_inputs = input_layer_sizes[:]
 
         if all_convolutional:
-            nx_ny = input_network_params['input_dims'][1:3]
+            nx_ny = input_network_params['input_dims'][1:]
             if input_network_params['layer_types'][0] == 'biconv':
                 nx_ny[0] = int(nx_ny[0]/2)
                 input_layer_sizes[0] = input_layer_sizes[0]*2
