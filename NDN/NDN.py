@@ -463,48 +463,36 @@ class NDN(Network):
         # END NDN.set_fit_variables
 
 
-    def set_partial_fit(self, ffnet_list, layer_list, value_list):
+    def set_partial_fit(self, ffnet_target=0, layer_target=None, value=None):
+        """ Assign partial_fit values
+
+        Args:
+            ffnet_target (int): which network
+            layer_target (int): which layer
+            value (0, 1, or None): partial_fit value to be assigned
+                - 0 ---> fit only temporal part
+                - 1 ---> fit only spatial part
+                - anything else ---> fit everything
         """
-        :param ffnet_list:
-        :param layer_list:
-        :param value_list: list of partial_fit values:
-            - 0 ---> fit only temporal part
-            - 1 ---> fit only spatial part
-            - anything else ---> fit everything
-        :return: None
-        """
 
-        assert len(ffnet_list) == len(layer_list) == len(value_list), 'all lists should have same length'
+        if value == 0:
+            translation = 'only --temporal--'
+        elif value == 1:
+            translation = 'only --spatial--'
+        else:
+            translation = '--everything--'
 
-        # reset all partial fit values
-        for nn in range(self.num_networks):
-            for ll in range(len(self.networks[nn].layers)):
-                if hasattr(self.networks[nn].layers[ll], 'partial_fit'):
-                    self.networks[nn].layers[ll].partial_fit = None
-                if hasattr(self.networks[nn].layers[ll].reg, 'partial_fit'):
-                    self.networks[nn].layers[ll].reg.partial_fit = None
+        if type(self.networks[ffnet_target].layers[layer_target]) is SepLayer or ConvSepLayer:
+            self.networks[ffnet_target].layers[layer_target].partial_fit = value
+            self.networks[ffnet_target].layers[layer_target].reg.partial_fit = value
 
-        # set the new values
-        for ii in range(len(ffnet_list)):
-            nn, ll, val = ffnet_list[ii], layer_list[ii], value_list[ii]
-
-            if type(self.networks[nn].layers[ll]) is SepLayer or ConvSepLayer:
-                self.networks[nn].layers[ll].partial_fit = val
-                self.networks[nn].layers[ll].reg.partial_fit = val
-                if val == 0:
-                    translation = 'only --temporal--'
-                elif val == 1:
-                    translation = 'only --spatial--'
-                else:
-                    translation = '--everything--'
-                print('....partial_fit value for --net%sL%s-- set to %s, %s will be fit'
-                      % (nn, ll, val, translation))
-            else:
-                raise ValueError('partial fit should be used only with Seplayer families.')
+            print('....partial_fit value for --net%sL%s-- set to %s, %s will be fit'
+                  % (ffnet_target, layer_target, value, translation))
+        else:
+            raise ValueError('partial fit should be used only with Seplayer families.')
     # END NDN.set_partial_fit
 
-    def set_regularization(self, reg_type, reg_val, ffnet_target=0,
-                           layer_target=None):
+    def set_regularization(self, reg_type, reg_val, ffnet_target=0, layer_target=None):
         """Add or reassign regularization values
 
         Args:

@@ -212,7 +212,7 @@ class TNDN(NDN):
         for nn in range(len(self.ffnet_out)):
             data_out = tf.slice(self.data_out_batch[nn],
                                 [self.time_spread, 0],
-                                [self.batch_size - self.time_spread - self.time_spread//2, -1])
+                                [self.batch_size - self.time_spread, -1])
             if self.filter_data:
                 # this will zero out predictions where there is no data,
                 # matching Robs here
@@ -224,11 +224,10 @@ class TNDN(NDN):
 
             pred = tf.slice(pred,
                             [self.time_spread, 0],
-                            [self.batch_size - self.time_spread - self.time_spread//2, -1])
+                            [self.batch_size - self.time_spread, -1])
 
-            # effective_batch_size is self.batch_size - 3/2 * self.time_spread
-            effective_batch_size = tf.constant(
-                self.batch_size - self.time_spread - self.time_spread//2, dtype=tf.float32)
+            # effective_batch_size is self.batch_size - self.time_spread
+            effective_batch_size = tf.constant(self.batch_size - self.time_spread, dtype=tf.float32)
 
             # define cost function
             if self.noise_dist == 'gaussian':
@@ -925,7 +924,7 @@ class TNDN(NDN):
             pred = np.zeros((data_indxs_sz, temp_num_outputs), dtype='float32')
 
             # this is the effective batch size with useful info in pred
-            _b_tau = original_batch_sz - self.time_spread - self.time_spread//2
+            _b_tau = original_batch_sz - self.time_spread
 
             with tf.Session(graph=self.graph, config=temp_config) as sess:
                 self._restore_params(sess, input_data, output_data)
@@ -953,10 +952,10 @@ class TNDN(NDN):
 
                     pred_tmp = sess.run(
                         self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
-                    pred[small_intvl, :] = pred_tmp[self.time_spread : -self.time_spread // 2 + 1, :]
+                    pred[small_intvl, :] = pred_tmp[self.time_spread:, :]
 
             # now do the last remaining part
-            if len(big_intvl) - self.time_spread - self.time_spread//2 > 1:
+            if len(big_intvl) - self.time_spread > 1:
                 self._set_batch_size(len(big_intvl))
                 if not use_gpu:
                     temp_config = tf.ConfigProto(device_count={'GPU': 0})
