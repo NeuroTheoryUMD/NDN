@@ -57,8 +57,8 @@ class NDN(Network):
     """
 
     _allowed_noise_dists = ['gaussian', 'poisson', 'bernoulli']
-    _allowed_layer_types = ['normal', 'conv', 'sep', 'convsep', 'add']
-    # ca_tent # pre0 (stim preprocessing layer?)
+    _allowed_network_types = ['normal', 'side']
+    _allowed_layer_types = ['normal', 'conv', 'sep', 'convsep', 'add', 'biconv', 'spike_history']
 
     def __init__(
             self,
@@ -416,7 +416,7 @@ class NDN(Network):
         return var_list
     # END _generate_variable_list
 
-    def variables_to_fit(self, layers_to_skip=None, fit_biases=False):
+    def fit_variables(self, layers_to_skip=None, fit_biases=False):
         """Generates a list-of-lists-of-lists of correct format to specify all 
         the variables to fit, as an argument for network.train
 
@@ -503,19 +503,18 @@ class NDN(Network):
                 raise ValueError('partial fit should be used only with Seplayer families.')
     # END NDN.set_partial_fit
 
-
-    def set_regularization(self, reg_type, reg_val, ffnet_n=0,
+    def set_regularization(self, reg_type, reg_val, ffnet_target=0,
                            layer_target=None):
         """Add or reassign regularization values
 
         Args:
             reg_type (str): see allowed_reg_types in regularization.py
             reg_val (int): corresponding regularization value
-            ffnet_n (int): which network to assign regularization to 
+            ffnet_target (int): which network to assign regularization to
                 DEFAULT: 0
             layer_target (int or list of ints): specifies which layers the
                 current reg_type/reg_val pair is applied to 
-                DEFAULT: all layers in ffnet_n
+                DEFAULT: all layers in ffnet_target
 
         """
 
@@ -528,7 +527,7 @@ class NDN(Network):
 
         # set regularization at the layer level
         for layer in layer_target:
-            self.networks[ffnet_n].layers[layer].set_regularization(
+            self.networks[ffnet_target].layers[layer].set_regularization(
                 reg_type, reg_val)
     # END set_regularization
 
@@ -762,7 +761,7 @@ class NDN(Network):
     # END get_LL_neuron
 
     def generate_prediction(self, input_data, data_indxs=None, use_gpu=False,
-                            ffnet_n=-1, layer=-1):
+                            ffnet_target=-1, layer_target=-1):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -770,17 +769,17 @@ class NDN(Network):
             data_indxs (numpy array, optional): indexes of data to use in
                 calculating forward pass; if not supplied, all data is used
             use_gpu (True or False): Obvious
-            ffnet_n (int, optional): index into `network_list` that specifies 
+            ffnet_target (int, optional): index into `network_list` that specifies
                 which FFNetwork to generate the prediction from
-            layer (int, optional): index into layers of network_list[ffnet_n]
+            layer (int, optional): index into layers of network_list[ffnet_target]
                 that specifies which layer to generate prediction from
 
         Returns:
-            numpy array: pred values from network_list[ffnet_n].layers[layer]
+            numpy array: pred values from network_list[ffnet_target].layers[layer]
                 
         Raises:
             ValueError: If `layer` index is larger than number of layers in
-                network_list[ffnet_n]                
+                network_list[ffnet_target]
 
         """
 
@@ -794,7 +793,7 @@ class NDN(Network):
                     'Input data dims must match across input_data.')
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
-        if layer >= len(self.networks[ffnet_n].layers):
+        if layer >= len(self.networks[ffnet_target].layers):
                 ValueError('This layer does not exist.')
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
@@ -807,7 +806,7 @@ class NDN(Network):
         for nn in range(num_outputs):
             output_data[nn] = np.zeros(
                 [self.num_examples,
-                 self.networks[ffnet_n].layers[-1].weights.shape[1]],
+                 self.networks[ffnet_target].layers[layer_target].weights.shape[1]],
                 dtype='float32')
 
         # build datasets if using 'iterator' pipeline
@@ -849,7 +848,7 @@ class NDN(Network):
                 feed_dict = {self.iterator_handle: iter_handle}
 
             pred = sess.run(
-                self.networks[ffnet_n].layers[layer].outputs,
+                self.networks[ffnet_target].layers[layer_target].outputs,
                 feed_dict=feed_dict)
 
         return pred

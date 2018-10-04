@@ -4,14 +4,8 @@ from __future__ import print_function
 from __future__ import division
 
 import tensorflow as tf
-import numpy as np
 from .layer import *
-#from .layer import ConvLayer
-#from .layer import SepLayer
-#from .layer import ConvSepLayer
-#from .layer import AddLayer
-#from .layer import SpikeHistoryLayer
-#from .layer import BiConvLayer
+
 
 class FFNetwork(object):
     """Implementation of simple fully-connected feed-forward neural network. 
@@ -46,38 +40,45 @@ class FFNetwork(object):
                 [num_lags, num_x_pix, num_y_pix]. If the input does not have 
                 spatial or temporal structure, this should be 
                 [1, num_inputs, 1]
-            params_dict (dict): contains parameters about details of FFnetwork
-            params_dict['layer_sizes'] (list of ints): list of layer sizes, 
-                including input and output. All arguments (input size) can be 
-                up to a 3-dimensional list. 
-                REQUIRED (NO DEFAULT)
-            params_dict['num_inh'] (int or list of ints): denotes number of 
-                inhibitory units in each layer. This specifies the output of 
-                that number of units multiplied by -1
-                DEFAULT = 0 (and having any single value will be used for all 
-                layers)
-            params_dict['activation_funcs'] (str or list of strs, optional): 
-                pointwise function for each layer; replicated if a single 
-                element. 
-                DEFAULT = 'relu'. See Layer class for other options.
-            params_dict['pos_constraints'] (bool or list of bools, optional): 
-                constrains all weights to be positive
-                DEFAULTS = False.
-            params_dict['reg_initializer'] (list): a list of dictionaries, one 
-                for each layer. Within the dictionary, reg_type/vals as 
-                key-value pairs.
-                DEFAULT = None
-            params_dict['weights_initializer'] (str or list of strs, optional): 
-                initializer for the weights in each layer; replicated if a 
-                single element.
-                DEFAULT = 'trunc_normal'. See Layer class for other options.
-            params_dict['biases_initializer'] (str or list of strs, optional): 
-                initializer for the biases in each layer; replicated if a 
-                single element.
-                DEFAULT = 'zeros'. See Layer class for other options.
-            params_dict['log_activations'] (bool, optional): True to use 
-                tf.summary on layer activations
-                DEFAULT = False
+
+            params_dict (dict): contains parameters about details of FFnetwork:
+                params_dict['xstim_n'] (list of ints or None): If not none, the external
+                    stimulus that this network gets input from.
+                params_dict['ffnet_n'] (list of ints or None): If not none, the ffnetwork
+                    that this network gets input from.
+                params_dict['layer_sizes'] (list of ints): list of layer sizes. All
+                    arguments (input size) can be up to a 3-dimensional list.
+                    REQUIRED (NO DEFAULT)
+                params_dict['layer_types'] (list of strs): the type of layer specified
+                    for all layers in the ffnetwork.
+                params_dict['activation_funcs'] (str or list of strs, optional):
+                    pointwise function for each layer; replicated if a single element.
+                    DEFAULT = 'relu'. See Layer class for other options.
+                params_dict['num_inh'] (int or list of ints): denotes number of
+                    inhibitory units in each layer. This specifies the output of
+                    that number of units multiplied by -1
+                    DEFAULT = 0 (and having any single value will be used for all layers)
+                params_dict['pos_constraints'] (bool or list of bools, optional):
+                    constrains all weights to be positive
+                    DEFAULTS = False.
+                params_dict['normalize_weights'] (list of ints): normalization setting for
+                    each layer.
+                params_dict['conv_filter_widths'] (list of ints, None): when set, the width
+                    of the convolutional filter for each layer
+                params_dict['shift_spacing'] (list of ints, None): when set, the shift-spacing
+                    for each layer
+                params_dict['reg_initializer'] (list): a list of dictionaries, one
+                    for each layer. Within the dictionary, reg_type/vals as key-value pairs.
+                    DEFAULT = None
+                params_dict['weights_initializer'] (str or list of strs, optional):
+                    initializer for the weights in each layer; replicated if a single element.
+                    DEFAULT = 'trunc_normal'. See Layer class for other options.
+                params_dict['biases_initializer'] (str or list of strs, optional):
+                    initializer for the biases in each layer; replicated if a single element.
+                    DEFAULT = 'zeros'. See Layer class for other options.
+                params_dict['log_activations'] (bool, optional): True to use, see
+                    tf.summary on layer activations
+                    DEFAULT = False
 
         Raises:
             TypeError: If `scope` is not specified
@@ -212,7 +213,6 @@ class FFNetwork(object):
                     scope='sep_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn+1],
-                    #partial_fit=network_params['partial_fit'][nn],
                     activation_func=network_params['activation_funcs'][nn],
                     normalize_weights=network_params['normalize_weights'][nn],
                     weights_initializer=network_params['weights_initializers'][nn],
@@ -296,7 +296,6 @@ class FFNetwork(object):
                     input_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn+1],
                     filter_dims=conv_filter_size,
-                    #partial_fit=network_params['partial_fit'][nn],
                     shift_spacing=network_params['shift_spacing'][nn],
                     activation_func=network_params['activation_funcs'][nn],
                     normalize_weights=network_params['normalize_weights'][nn],
@@ -441,8 +440,7 @@ class SideNetwork(FFNetwork):
                 FFNetwork documentation
             params_dict['pos_constraint'] (bool or list of bools, optional): 
                 see FFNetwork documentation
-            params_dict['log_activations'] (bool, optional): see FFNetwork 
-                documentation
+            params_dict['log_activations'] (bool, optional): see FFNetwork documentation
                 
         """
 
@@ -492,13 +490,6 @@ class SideNetwork(FFNetwork):
 
         # Set up potential side_network regularization (in first layer)
         self.layers[0].reg.scaffold_setup( self.num_units )
-        #lvl_blocks = []
-        #pos = 0
-        #for nn in range(len(input_layer_sizes)):
-        #    lvl_blocks.append(range(pos, pos+self.num_units[nn]))
-        #    pos += self.num_units[nn]
-        #self.layers[0].reg.blocks = lvl_blocks
-
     # END SideNetwork.__init__
 
     def build_graph(self, input_network, params_dict=None):

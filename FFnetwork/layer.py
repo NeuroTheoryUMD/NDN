@@ -605,7 +605,6 @@ class SepLayer(Layer):
                 pos_constraint=pos_constraint,
                 log_activations=log_activations)
 
-        #self.partial_fit = partial_fit
         self.partial_fit = None
 
         # Redefine specialized Regularization object to overwrite default
@@ -959,7 +958,6 @@ class ConvSepLayer(Layer):
                 pos_constraint=pos_constraint,
                 log_activations=log_activations)
 
-        #self.partial_fit = partial_fit
         self.partial_fit = None
 
         # Redefine specialized Regularization object to overwrite default

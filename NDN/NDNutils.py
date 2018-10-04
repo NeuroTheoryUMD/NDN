@@ -9,68 +9,73 @@ from scipy.linalg import toeplitz
 
 
 def ffnetwork_params(
-        layer_sizes=None,
         input_dims=None,
-        ei_layers=None,
+        layer_sizes=None,
+        layer_types=None,
         act_funcs='relu',
+        ei_layers=None,
         reg_list=None,
-        layers_to_normalize=None,
         xstim_n=0,
         ffnet_n=None,
-        verbose=True,
+        normalization=None,
         network_type='normal',
-        num_conv_layers=0,      # the below are for convolutional network
-        num_convsep_layers=0,
-        sep_layers=None,
-        conv_filter_widths=None,
-        shift_spacing=1,
-        log_activations=False):
+        verbose=True,
+        log_activations=False,
+        conv_filter_widths=None,  # the below are for convolutional network
+        shift_spacing=1):
     """generates information for the network_params dict that is passed to the
     NDN constructor.
     
     Args:
-        layer_sizes (list of ints): number of subunits in each layer of 
+        input_dims (list of ints, optional): list of the form
+            [num_lags, num_x_pix, num_y_pix] that describes the input size for
+            the network. If only a single dimension is needed, use
+            [1, input_size, 1].
+        layer_sizes (list of ints): number of subunits in each layer of
             the network. Last layer should match number of neurons (Robs). Each 
             entry can be a 3-d list, if there is a spatio-filter/temporal 
             arrangement.
-        input_dims (list of ints, optional): list of the form 
-            [num_lags, num_x_pix, num_y_pix] that describes the input size for 
-            the network. If only a single dimension is needed, use 
-            [1, input_size, 1].
-        ei_layers (`None` or list of ints, optional): if not `None`, it should  
-            be a list of the number of inhibitory units for each layer other 
-            than the output layer, so list should be of length one less than 
-            layer_sizes. All the non-inhibitory units are of course excitatory, 
-            and having `None` for a layer means it will be unrestricted.
-        act_funcs: (str or list of strs, optional): activation function for 
+        layer_types (list of strs): a string for each layer, specifying what type
+            of layer is should be. Layer types include the following:
+            ['normal' | 'sep' | | 'conv' | 'convsep' | 'biconv' | 'add' | 'spike_history']
+        act_funcs: (str or list of strs, optional): activation function for
             network layers; replicated if a single element.
             ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 'elu' | 
             'quad' | 'lin'
-        reg_list (dict, optional): each key corresponds to a type of 
-            regularization (refer to regularization documentation for a 
-            complete list). An example using l2 regularization looks like
-            {'l2': [l2_layer_0_val, l2_layer_1_val, ..., l2_layer_-1_val}. If
-            a single value is given like
-            {'l2': l2_val}
-            then that value is applied to all layers in the network.           
-        layers_to_normalize (list, optional): description
+        ei_layers (`None` or list of ints, optional): if not `None`, it should
+            be a list of the number of inhibitory units for each layer other
+            than the output layer, so list should be of length one less than
+            layer_sizes. All the non-inhibitory units are of course excitatory,
+            and having `None` for a layer means it will be unrestricted.
+        reg_list (dict, optional): each key corresponds to a type of regularization
+            (refer to regularization documentation for a complete list). An example
+            using l2 regularization looks like:
+            {'l2': [l2_layer_0_val, l2_layer_1_val, ..., l2_layer_-1_val}.
+            If a single value is given like {'l2': l2_val} then that value is
+            applied to all layers in the network. If the list is shorter than
+            the number of layers, regularization will default to 'None'.
+        normalization (list of ints, optional): specifies normalization for each
+            layer, with '0' corresponding to layer default (usually no reg), and
+            '1' usually tuning on. See layer-specific docs for layers with more
+            complex regularization
+        partial_fit (list of ints, or None): No partial-fitting if None, and otherwise
+            integer corresponding to partial_fit setting (see layer-specific docs).
         xstim_n (int or `None`): index into external list of input matrices 
             that specifies which input to process. It should be `None` if the 
             network will be directed internally (see ffnet_n)
         ffnet_n (int or `None`): internal network that this network receives 
             input from (has to be `None` if xstim_n is not `None`)
-        verbose (bool, optional): `True` to print network specifications
         network_type (str, optional): specify type of network
-            ['normal'] | 'sep'
-        num_conv_layers (int, optional): number of convolutional layers
-        num_convsep_layers (int, optional): number of convolutional, separable
-            layers
-        sep_layers (int, optional):
-        conv_filter_widths (list of ints, optional): spatial dimension of 
-            filter (if different than stim_dims)
-        shift_spacing (int, optional): stride used by convolution operation
+            ['normal'] | 'sep' |
+        verbose (bool, optional): `True` to print network specifications
         log_activations (bool, optional): `True` to log layer activations for
             viewing in tensorboard
+
+        FOR convolution-specific parameters:
+        conv_filter_widths (list of ints, optional): spatial dimension of
+            filter (if different than stim_dims)
+        shift_spacing (int, optional): stride used by convolution operation
+
         
     Returns:
         dict: params to initialize an `FFNetwork` object
@@ -99,35 +104,23 @@ def ffnetwork_params(
         if not isinstance(ffnet_n, list):
             ffnet_n = [ffnet_n]
 
+    num_layers = len(layer_sizes)
+    if len(layer_types) != num_layers:
+        TypeError('Must assign the correct number of layer types.')
+
     # Process input_dims, if applicable
     if input_dims is not None:
         input_dims = expand_input_dims_to_3d(input_dims)
-
-    # Build layer_sizes, layer_types, and ei_layers
-    num_layers = len(layer_sizes)
-    layer_types = ['normal']*num_layers
-
-    # for now assume all conv layers come after convsep layers
-    for nn in range(num_convsep_layers):
-        layer_types[nn] = 'convsep'
-    for nn in range(num_conv_layers):
-        layer_types[num_convsep_layers+nn] = 'conv'
-
-    if sep_layers is not None:
-        if not isinstance(sep_layers, list):
-            sep_layers = [sep_layers]
-        for nn in sep_layers:
-            layer_types[nn] = 'sep'
 
     # Establish positivity constraints
     pos_constraints = [False] * num_layers
     num_inh_layers = [0] * num_layers
 
     # Establish normalization
-    norm_weights = [0] * num_layers
-    if layers_to_normalize is not None:
-        for nn in layers_to_normalize:
-            norm_weights[nn] = 1
+    norm_vals = [0] * num_layers
+    if normalization is not None:
+        for nn in range(len(normalization)):
+            norm_vals[nn] = normalization[nn]
 
     if ei_layers is not None:
         for nn in range(len(ei_layers)):
@@ -150,10 +143,7 @@ def ffnetwork_params(
                 if not isinstance(reg_val_list, list):
                     if reg_val_list is not None:
                         reg_initializers[0][reg_type] = reg_val_list  # only set first value
-                        # reg_initializers[nn][reg_type] = reg_val_list
                 else:
-                    # if len(reg_val_list) != num_layers:
-                    #     ValueError('reg_list length must match number of layers.')
                     if nn < len(reg_val_list):
                         if reg_val_list[nn] is not None:
                             reg_initializers[nn][reg_type] = reg_val_list[nn]
@@ -166,41 +156,45 @@ def ffnetwork_params(
         'layer_sizes': layer_sizes,
         'layer_types': layer_types,
         'activation_funcs': act_funcs,
-        'normalize_weights': norm_weights,
+        'normalize_weights': norm_vals,
         'reg_initializers': reg_initializers,
         'num_inh': num_inh_layers,
         'pos_constraints': pos_constraints,
         'log_activations': log_activations}
 
     # if convolutional, add the following convolution-specific fields
-    if num_conv_layers + num_convsep_layers > 0:
+    if conv_filter_widths is not None:
         if not isinstance(conv_filter_widths, list):
             conv_filter_widths = [conv_filter_widths]
-        while len(conv_filter_widths) < num_conv_layers + num_convsep_layers:
+        while len(conv_filter_widths) < num_layers:
             conv_filter_widths.append(None)
-        network_params['conv_filter_widths'] = conv_filter_widths
+    else:
+        conv_filter_widths = [None]*num_layers
 
-        network_params['shift_spacing'] = \
-            [shift_spacing]*(num_conv_layers + num_convsep_layers)
+    network_params['conv_filter_widths'] = conv_filter_widths
+
+    if shift_spacing is not None:
+        if not isinstance(shift_spacing, list):
+            shift_spacing = [shift_spacing]*num_layers
+        while len(shift_spacing) < num_layers:
+            shift_spacing.append(None)
+    else:
+        shift_spacing = [1]*num_layers
+    network_params['shift_spacing'] = shift_spacing
 
     if verbose:
         if input_dims is not None:
             print('Input dimensions: ' + str(input_dims))
-        for nn in range(num_conv_layers):
-            s = 'Conv Layer ' + str(nn) + ' (' + act_funcs[nn] + '): [E' + \
+        for nn in range(num_layers):
+            s = str(nn) + ': ' + layer_types[nn] + ' (' + act_funcs[nn] + '):  \t[E' + \
                 str(layer_sizes[nn]-num_inh_layers[nn])
-            s += '/I' + str(num_inh_layers[nn]) + ']'
+            s += '/I' + str(num_inh_layers[nn]) + '] '
+            if norm_vals[nn] != 0:
+                s += 'N'  # + str(norm_vals[nn])
             if pos_constraints[nn]:
-                s += ' +'
+                s += '+'
             if conv_filter_widths[nn] is not None:
                 s += '  \tfilter width = ' + str(conv_filter_widths[nn])
-            print(s)
-        for nn in range(num_conv_layers, num_layers):
-            s = 'Layer ' + str(nn) + ' (' + act_funcs[nn] + '): [E' + \
-                str(layer_sizes[nn]-num_inh_layers[nn])
-            s += '/I' + str(num_inh_layers[nn]) + ']'
-            if pos_constraints[nn]:
-                s += ' +'
             print(s)
     return network_params
 # END FFNetwork_params
