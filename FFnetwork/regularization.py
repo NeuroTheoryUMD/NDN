@@ -30,7 +30,7 @@ class Regularization(object):
 
     _allowed_reg_types = ['l1', 'l2', 'norm2', 'norm2_space', 'norm2_filt',
                           'd2t', 'd2x', 'd2xt', 'local', 'glocal', 'center',
-                          'max', 'max_filt', 'max_space', 'scaffold_level']
+                          'max', 'max_filt', 'max_space', 'max_level']
 
     def __init__(self, input_dims=None, num_outputs=None, vals=None):
         """Constructor for Regularization class
@@ -175,7 +175,7 @@ class Regularization(object):
             reg_mat = get_rmats.create_maxpenalty_matrix(
                 self.input_dims, reg_type)
             name = reg_type + '_reg'
-        elif reg_type == 'scaffold_level':
+        elif reg_type == 'max_level':
             if self.blocks is not None:
                 reg_mat = get_rmats.create_maxpenalty_matrix(
                     [len(self.blocks), 1, 1], 'max')
@@ -268,7 +268,7 @@ class Regularization(object):
                 tf.trace(tf.matmul(weights,
                                    tf.matmul(self.mats['center'], weights),
                                    transpose_a=True)))
-        elif reg_type == 'scaffold_level':
+        elif reg_type == 'max_level':
             if self.blocks is not None:
                 w2 = tf.square(weights)
                 num_levels = len(self.blocks)
@@ -278,9 +278,9 @@ class Regularization(object):
                     # Compute range of indices given 'blocks' represent filters and there is space
                     level_mags.append(tf.reduce_sum(tf.gather(w2, self.blocks[nn]), axis=0))
                 reg_pen = tf.multiply(
-                    self.vals_var['scaffold_level'],
+                    self.vals_var['max_level'],
                     tf.trace(tf.matmul(level_mags,
-                                       tf.matmul(self.mats['scaffold_level'], level_mags),
+                                       tf.matmul(self.mats['max_level'], level_mags),
                                        transpose_a=True)))
             else:
                 reg_pen = tf.constant(0.0)

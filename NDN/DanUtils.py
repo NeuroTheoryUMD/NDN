@@ -250,9 +250,8 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
         fig.set_size_inches(16, 3)
 
     # Reshape whole weight matrix
-    wside = np.reshape(side_ndn.networks[1].layers[0].weights, [num_space, np.sum(filter_nums), num_cells] )
+    wside = np.reshape(side_ndn.networks[1].layers[0].weights, [num_space, np.sum(filter_nums), num_cells])
     num_inh = side_ndn.network_list[0]['num_inh']
-    ws = []
 
     # identify max and min weights for plotting (if plotting)
     if cell_to_plot is not None:
@@ -269,21 +268,18 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
         else:
             img_max = -img_min
 
-
     fcount = 0
+    ws = []
     for ll in range(num_layers):
-        wtemp = wside[range(ll, len(wside), num_layers), :]
-        if is_conv:
-            ws.append(np.reshape(wtemp[range(filter_nums[ll] * num_space), :],
-                                 [num_space, filter_nums[ll], num_cells]))
-        else:
-            ws.append(np.reshape(wtemp[range(filter_nums[ll]), :], [filter_nums[ll], num_cells]))
-        fcount += num_units[ll]
+        #wtemp = wside[range(ll, len(wside), num_layers), :]
+        wtemp = wside[:, range(fcount, fcount+filter_nums[ll]), :]
+        ws.append(wtemp.copy())
+        fcount += filter_nums[ll]
 
         if cell_to_plot is not None:
             plt.subplot(1, num_layers, ll+1)
             if is_conv:
-                plt.imshow(ws[ll][:, :, cell_to_plot], aspect=plot_aspect, interpolation='none', cmap='bwr',
+                plt.imshow(wtemp[:, :, cell_to_plot], aspect=plot_aspect, interpolation='none', cmap='bwr',
                            vmin=img_min, vmax=img_max)
                 # Put line in for inhibitory units
                 if num_inh[ll] > 0:
@@ -292,13 +288,13 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
                 if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
                     plt.plot([filter_nums[ll]/2, filter_nums[ll]/2], [-0.5, num_space-0.5], 'w')
             else:
-                plt.imshow(np.transpose(ws[ll]), aspect='auto', interpolation='none', cmap='bwr',
+                plt.imshow(np.transpose(wtemp), aspect='auto', interpolation='none', cmap='bwr',
                            vmin=img_min, vmax=img_max)  # will plot all cells
                 # Put line in for inhibitory units
                 if num_inh[ll] > 0:
                     plt.plot(np.multiply([1, 1], filter_nums[ll]-num_inh[ll]-0.5), [-0.5, num_cells-0.5], 'r')
 
-            plt.show()
+    plt.show()
     return ws
 
 
