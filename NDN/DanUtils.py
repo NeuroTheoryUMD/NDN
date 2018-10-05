@@ -15,8 +15,8 @@ def reg_path(
         test_indxs=None,
         reg_type='l1',
         reg_vals=[1e-6, 1e-4, 1e-3, 1e-2, 0.1, 1],
-        ffnet_n=0,
-        layer_n=0,
+        ffnet_target=0,
+        layer_target=0,
         data_filters=None,
         opt_params=None,
         variable_list=None):
@@ -49,9 +49,9 @@ def reg_path(
     test_mods = []
 
     for nn in range(num_regs):
-        print('\nRegulariation test: %s = %s:\n' % (reg_type, str(reg_vals[nn])))
+        print('\nRegularization test: %s = %s:\n' % (reg_type, str(reg_vals[nn])))
         test_mod = ndn_mod.copy_model()
-        test_mod.set_regularization(reg_type, reg_vals[nn], ffnet_n, layer_n)
+        test_mod.set_regularization(reg_type, reg_vals[nn], ffnet_target, layer_target)
         test_mod.train(input_data=input_data, output_data=output_data,
                        train_indxs=train_indxs, test_indxs=test_indxs,
                        data_filters=data_filters, variable_list=variable_list,
