@@ -54,7 +54,7 @@ def reg_path(
         test_mod.set_regularization(reg_type, reg_vals[nn], ffnet_target, layer_target)
         test_mod.train(input_data=input_data, output_data=output_data,
                        train_indxs=train_indxs, test_indxs=test_indxs,
-                       data_filters=data_filters, variable_list=variable_list,
+                       data_filters=data_filters, fit_variables=variable_list,
                        learning_alg='adam', opt_params=opt_params)
         LLxs[nn] = np.mean(
             test_mod.eval_models(input_data=input_data, output_data=output_data,
