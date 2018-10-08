@@ -148,6 +148,9 @@ def ffnetwork_params(
                         if reg_val_list[nn] is not None:
                             reg_initializers[nn][reg_type] = reg_val_list[nn]
 
+    # Make default weights initializers
+    weight_inits = ['trunc_normal']*num_layers
+
     network_params = {
         'network_type': network_type,
         'xstim_n': xstim_n,
@@ -158,6 +161,7 @@ def ffnetwork_params(
         'activation_funcs': act_funcs,
         'normalize_weights': norm_vals,
         'reg_initializers': reg_initializers,
+        'weights_initializers': weight_inits,
         'num_inh': num_inh_layers,
         'pos_constraints': pos_constraints,
         'log_activations': log_activations}

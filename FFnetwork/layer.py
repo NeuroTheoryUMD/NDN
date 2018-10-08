@@ -187,7 +187,7 @@ class Layer(object):
         weight_dims = (num_inputs, num_outputs)
 
         if weights_initializer == 'trunc_normal':
-            init_weights = np.random.normal(size=weight_dims, scale=0.1)
+            init_weights = np.abs(np.random.normal(size=weight_dims, scale=0.1))
         elif weights_initializer == 'normal':
             init_weights = np.random.normal(size=weight_dims, scale=0.1)
         elif weights_initializer == 'zeros':
