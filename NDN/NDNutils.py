@@ -58,9 +58,7 @@ def ffnetwork_params(
             layer, with '0' corresponding to layer default (usually no reg), and
             '1' usually tuning on. See layer-specific docs for layers with more
             complex regularization
-        partial_fit (list of ints, or None): No partial-fitting if None, and otherwise
-            integer corresponding to partial_fit setting (see layer-specific docs).
-        xstim_n (int or `None`): index into external list of input matrices 
+        xstim_n (int or `None`): index into external list of input matrices
             that specifies which input to process. It should be `None` if the 
             network will be directed internally (see ffnet_n)
         ffnet_n (int or `None`): internal network that this network receives 
@@ -113,7 +111,7 @@ def ffnetwork_params(
         input_dims = expand_input_dims_to_3d(input_dims)
 
     # Establish positivity constraints
-    pos_constraints = [False] * num_layers
+    pos_constraints = [None] * num_layers
     num_inh_layers = [0] * num_layers
 
     # Establish normalization

@@ -33,7 +33,7 @@ class Layer(object):
         ei_mask_var (tf constant): mask of +/-1s to multiply output of layer
         ei_mask (list): mask of +/-1s to multiply output of layer; shadows 
             `ei_mask_tf` for easier manipulation outside of tf sessions
-        pos_constraint (bool): positivity constraint on weights in layer
+        pos_constraint (None, valued): positivity constraint on weights in layer
         num_filters (int): equal to output_dims
         filter_dims (list of ints): equal to input_dims
         normalize_weights (int): defines normalization type for weights in 
@@ -57,7 +57,7 @@ class Layer(object):
             biases_initializer='zeros',
             reg_initializer=None,
             num_inh=0,
-            pos_constraint=False,
+            pos_constraint=None,
             log_activations=False):
         """Constructor for Layer class
 
@@ -78,7 +78,7 @@ class Layer(object):
                 'trunc_normal' | 'normal' | ['zeros']
             reg_initializer (dict, optional): see Regularizer docs for info
             num_inh (int, optional): number of inhibitory units in layer
-            pos_constraint (bool, optional): True to constrain layer weights to 
+            pos_constraint (None, valued): True to constrain layer weights to
                 be positive
             log_activations (bool, optional): True to use tf.summary on layer 
                 activations
@@ -195,7 +195,7 @@ class Layer(object):
         else:
             raise ValueError('Invalid weights_initializer ''%s''' %
                              weights_initializer)
-        if pos_constraint:
+        if pos_constraint is not None:
             init_weights = np.maximum(init_weights, 0)
         if normalize_weights > 0:
             init_weights_norm = np.linalg.norm(init_weights, axis=0)
@@ -282,7 +282,7 @@ class Layer(object):
             # Define computation
             ws = self._normalize_weights(self.weights_var)
 
-            if self.pos_constraint:
+            if self.pos_constraint is not None:
                 pre = tf.add(tf.matmul(
                     inputs,
                     tf.maximum(0.0, ws)), self.biases_var)
@@ -314,7 +314,7 @@ class Layer(object):
         """Write weights/biases in tf Variables to numpy arrays"""
 
         self.weights = sess.run(self.weights_var)
-        if self.pos_constraint:
+        if self.pos_constraint is not None:
             self.weights = np.maximum(self.weights, 0)
         if self.normalize_weights > 0:
             wnorm = np.sqrt(np.sum(np.square(self.weights), axis=0))
@@ -368,7 +368,7 @@ class ConvLayer(Layer):
             biases_initializer='zeros',
             reg_initializer=None,
             num_inh=0,
-            pos_constraint=False,
+            pos_constraint=None,
             log_activations=False):
         """Constructor for convLayer class
 
@@ -390,7 +390,7 @@ class ConvLayer(Layer):
                 'trunc_normal' | 'normal' | ['zeros']
             reg_initializer (dict, optional): see Regularizer docs for info
             num_inh (int, optional): number of inhibitory units in layer
-            pos_constraint (bool, optional): True to constrain layer weights to 
+            pos_constraint (None, valued): True to constrain layer weights to
                 be positive
             log_activations (bool, optional): True to use tf.summary on layer 
                 activations
@@ -504,7 +504,7 @@ class ConvLayer(Layer):
                 # strides[2] = self.shift_spacing
             # possibly different strides for x,y
 
-            if self.pos_constraint:
+            if self.pos_constraint is not None:
                 pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
             else:
                 pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
@@ -544,7 +544,7 @@ class SepLayer(Layer):
             biases_initializer='zeros',
             reg_initializer=None,
             num_inh=0,
-            pos_constraint=False,
+            pos_constraint=None,
             log_activations=False):
         """Constructor for sepLayer class
 
@@ -567,7 +567,7 @@ class SepLayer(Layer):
                 'trunc_normal' | 'normal' | ['zeros']
             reg_initializer (dict, optional): see Regularizer docs for info
             num_inh (int, optional): number of inhibitory units in layer
-            pos_constraint (bool, optional): True to constrain layer weights to
+            pos_constraint (None, valued, optional): True to constrain layer weights to
                 be positive
             log_activations (bool, optional): True to use tf.summary on layer
                 activations
@@ -879,7 +879,7 @@ class ConvSepLayer(Layer):
             biases_initializer='zeros',
             reg_initializer=None,
             num_inh=0,
-            pos_constraint=False,
+            pos_constraint=None,
             log_activations=False):
         """Constructor for sepLayer class
 
@@ -901,7 +901,7 @@ class ConvSepLayer(Layer):
                 'trunc_normal' | 'normal' | ['zeros']
             reg_initializer (dict, optional): see Regularizer docs for info
             num_inh (int, optional): number of inhibitory units in layer
-            pos_constraint (bool, optional): True to constrain layer weights to
+            pos_constraint (None, Valued, optional): True to constrain layer weights to
                 be positive
             log_activations (bool, optional): True to use tf.summary on layer
                 activations
@@ -1268,7 +1268,7 @@ class AddLayer(Layer):
             normalize_weights=0,
             reg_initializer=None,
             num_inh=0,
-            pos_constraint=False,
+            pos_constraint=None,
             log_activations=False):
         """Constructor for sepLayer class
 
@@ -1286,7 +1286,7 @@ class AddLayer(Layer):
                 dimensions instead, and '2' will normalize both
             reg_initializer (dict, optional): see Regularizer docs for info
             num_inh (int, optional): number of inhibitory units in layer
-            pos_constraint (bool, optional): True to constrain layer weights to
+            pos_constraint (None, valued, optional): True to constrain layer weights to
                 be positive
             log_activations (bool, optional): True to use tf.summary on layer
                 activations
@@ -1335,7 +1335,7 @@ class AddLayer(Layer):
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
-            if self.pos_constraint:
+            if self.pos_constraint is not None:
                 ws = tf.maximum(0.0, self.weights_var)
             else:
                 ws = self.weights_var
@@ -1390,7 +1390,7 @@ class SpikeHistoryLayer(Layer):
             normalize_weights=0,
             reg_initializer=None,
             num_inh=0,
-            pos_constraint=False,
+            pos_constraint=None,
             log_activations=False):
         """Constructor for sepLayer class
 
@@ -1408,7 +1408,7 @@ class SpikeHistoryLayer(Layer):
                 dimensions instead, and '2' will normalize both
             reg_initializer (dict, optional): see Regularizer docs for info
             num_inh (int, optional): number of inhibitory units in layer
-            pos_constraint (bool, optional): True to constrain layer weights to
+            pos_constraint (None, valued, optional): True to constrain layer weights to
                 be positive
             log_activations (bool, optional): True to use tf.summary on layer
                 activations
@@ -1448,7 +1448,7 @@ class SpikeHistoryLayer(Layer):
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
-            if self.pos_constraint:
+            if self.pos_constraint is not None:
                 ws_flat = tf.reshape(tf.maximum(0.0, tf.transpose(self.weights_var)),
                                      [1, self.input_dims[0]*self.input_dims[1]])
             else:
@@ -1497,7 +1497,7 @@ class BiConvLayer(ConvLayer):
             biases_initializer='zeros',
             reg_initializer=None,
             num_inh=0,
-            pos_constraint=False,
+            pos_constraint=None,
             log_activations=False):
         """Constructor for convLayer class
 
@@ -1519,7 +1519,7 @@ class BiConvLayer(ConvLayer):
                 'trunc_normal' | 'normal' | ['zeros']
             reg_initializer (dict, optional): see Regularizer docs for info
             num_inh (int, optional): number of inhibitory units in layer
-            pos_constraint (bool, optional): True to constrain layer weights to
+            pos_constraint (None, valued, optional): True to constrain layer weights to
                 be positive
             log_activations (bool, optional): True to use tf.summary on layer
                 activations
@@ -1600,7 +1600,7 @@ class BiConvLayer(ConvLayer):
                 # strides[2] = self.shift_spacing
             # possibly different strides for x,y
 
-            if self.pos_constraint:
+            if self.pos_constraint is not None:
                 pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
             else:
                 pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
