@@ -1,12 +1,14 @@
 """Neural deep network situtation-specific utils by Hadi"""
 
-
 from __future__ import print_function
 from __future__ import division
 
+import os
 import numpy as np
 from copy import deepcopy
 import matplotlib.pyplot as plt
+import math
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 def crop(input_k, input_dims, x_range, y_range):
@@ -107,3 +109,158 @@ def get_gaussian_filter(spatial_dims, sigmas_dict, centers_dict=None, alpha=0.4,
         plt.show()
 
     return filts
+
+import numpy as np
+
+
+def space_embedding(k, dims, x_rng, y_rng):
+    """
+    :param k: vector with first dim as space
+    :param dims: spatial dims of the larger space [nx, ny]
+    :param x_rng: x range of the embedding window
+    :param y_rng: y range of the embedding window
+    :return: k embedded in the larger space
+    """
+
+    assert len(dims) == 2, 'dims should be a list of two integers: [NX, NY].'
+    assert len(x_rng) == 2, 'x_rng should be a list of two integers.'
+    assert len(y_rng) == 2, 'x_rng should be a list of two integers.'
+
+    nx, ny = sorted(dims)
+    x_start, x_end = sorted(x_rng)
+    y_start, y_end = sorted(y_rng)
+
+    delta_x, delta_y = x_end - x_start, y_end - y_start
+    assert delta_y * delta_x == k.shape[0], 'k should be the same size as the window provided.'
+    other_dim = k.shape[1]
+
+    x_start_small, x_end_small = 0, delta_x
+
+    if x_start < 0:
+        x_start_small = -x_start
+        x_start = 0
+    elif x_end > nx:
+        x_end_small = delta_x - (x_end - nx)
+        x_end = nx
+
+    k_embedded = np.zeros((np.prod(dims), other_dim))
+
+    for yy in range(y_start, y_end):
+        if yy < 0 or yy >= ny:
+            continue
+        big_intvl = range(yy * dims[0] + x_start,
+                          yy * dims[0] + x_end)
+        small_intvl = range((yy - y_start) * delta_x + x_start_small,
+                            (yy - y_start) * delta_x + x_end_small)
+        k_embedded[big_intvl, :] = k[small_intvl, :]
+
+    return k_embedded
+
+
+def subunit_plots(ndn, mode='subs', fig_sz=(20, 12), save_dir='./plots/'):
+    _allowed_modes = ['tbasis', 'sbasis', 'kers', 'subs', 'neurons']
+
+    if not os.path.isdir(os.path.dirname(save_dir)):
+        os.makedirs(os.path.dirname(save_dir))
+
+    tbasis = ndn.networks[0].layers[0].weights
+    nlags, tbasis_n = tbasis.shape
+    [_, width_x, width_y] = ndn.networks[0].layers[1].filter_dims
+
+    pp = PdfPages(save_dir + '%s.pdf' % mode)
+
+    if mode == 'kers':
+        kers_n = ndn.networks[0].layers[1].num_filters
+
+        for which_ker in range(kers_n):
+            tmp = deepcopy(ndn.networks[0].layers[1].weights[:, which_ker])
+            k = np.reshape(tmp, (width_y, width_x, tbasis_n))
+            k = np.matmul(k, tbasis.T)
+
+            fig = make_plot(k, dims=[nlags, width_x, width_y], fig_sz=fig_sz)
+            fig.suptitle('Kernels,  #  %s' % which_ker, fontsize=30)
+            pp.savefig(fig, orientation='horizontal')
+            plt.close()
+        pp.close()
+
+    elif mode == 'subs_1':
+        # TODO: if mod_width > 1 then generate subs in a different way
+        subs = np.matmul(ndn.networks[0].layers[1].weights,
+                         ndn.networks[0].layers[2].weights)
+        subs_n = ndn.networks[0].layers[2].num_filters
+
+        for which_sub in range(subs_n):
+            tmp = deepcopy(subs[:, which_sub])
+            k = np.reshape(tmp, (width_y, width_x, tbasis_n))
+            k = np.matmul(k, tbasis.T)
+
+            fig = make_plot(k, dims=[nlags, width_x, width_y], fig_sz=fig_sz)
+            fig.suptitle('1st Hidden Subunits,  #  %s' % which_sub, fontsize=30)
+            pp.savefig(fig, orientation='horizontal')
+            plt.close()
+        pp.close()
+
+    elif mode == 'subs_2':
+        # TODO: if mod_width > 1 then generate subs in a different way
+        subs = np.matmul(
+            np.matmul(ndn.networks[0].layers[1].weights,
+                         ndn.networks[0].layers[2].weights),
+            ndn.networks[0].layers[3].weights)
+        subs_n = ndn.networks[0].layers[3].num_filters
+
+        for which_sub in range(subs_n):
+            tmp = deepcopy(subs[:, which_sub])
+            k = np.reshape(tmp, (width_y, width_x, tbasis_n))
+            k = np.matmul(k, tbasis.T)
+
+            fig = make_plot(k, dims=[nlags, width_x, width_y], fig_sz=fig_sz)
+            fig.suptitle('2nd Hidden Subunits,  #  %s' % which_sub, fontsize=30)
+            pp.savefig(fig, orientation='horizontal')
+            plt.close()
+        pp.close()
+
+    elif mode == 'cells':
+        print('under construction')
+
+
+def make_plot(k, dims, fig_sz):
+    nlags, x_width, y_width = dims
+    nrows, ncols = 3, max(dims)
+
+
+    fig = plt.figure(figsize=fig_sz)
+    for ll in range(nlags):
+        plt.subplot(nrows, ncols, ll + (ncols - nlags) // 2 + 1)
+        plt.imshow(k[..., ll].T, cmap="Greys",
+                   vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+        plt.title('(lag = %s)' % ll)
+        plt.xticks([], [])
+        plt.yticks([], [])
+        if ll == 0:
+            plt.xlabel('x')
+            plt.ylabel('y')
+
+    for xx in range(x_width):
+        plt.subplot(nrows, ncols, ncols + xx + abs(ncols - x_width) // 2 + 1)
+        plt.imshow(k[xx, ...], cmap="Greys",
+                   vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+        plt.xticks([], [])
+        plt.yticks([], [])
+        plt.title('(x = %s)' % xx)
+        if xx == 0:
+            plt.xlabel('time')
+            plt.ylabel('y')
+
+    for yy in range(y_width):
+        plt.subplot(nrows, ncols, 2*ncols + yy + abs(ncols - x_width) // 2 + 1)
+        plt.imshow(k[:, yy, :].T, cmap="Greys",
+                   vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+        plt.title('(y = %s)' % yy)
+        plt.xticks([], [])
+        plt.yticks([], [])
+        if yy == 0:
+            plt.xlabel('x')
+            plt.ylabel('time')
+
+    return fig
+

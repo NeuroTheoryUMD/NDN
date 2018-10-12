@@ -781,7 +781,7 @@ class NDN(Network):
                     'Input data dims must match across input_data.')
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
-        if layer >= len(self.networks[ffnet_target].layers):
+        if layer_target >= len(self.networks[ffnet_target].layers):
                 ValueError('This layer does not exist.')
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
