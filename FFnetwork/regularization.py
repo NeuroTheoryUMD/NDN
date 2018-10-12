@@ -272,7 +272,6 @@ class Regularization(object):
             if self.blocks is not None:
                 w2 = tf.square(weights)
                 num_levels = len(self.blocks)
-                #level_mags = tf.get_variable('level_mags', shape=[num_levels, self.num_outputs], trainable=False)
                 level_mags = []
                 for nn in range(num_levels):
                     # Compute range of indices given 'blocks' represent filters and there is space
@@ -405,6 +404,13 @@ class SepRegularization(Regularization):
             reg_mat = get_rmats.create_maxpenalty_matrix(
                 [self.input_dims[1]*self.input_dims[2], 1, 1], 'max')
             name = reg_type + '_reg'
+        elif reg_type == 'max_level':
+            if self.blocks is not None:
+                reg_mat = get_rmats.create_maxpenalty_matrix(
+                    [len(self.blocks), 1, 1], 'max')
+            else:
+                reg_mat = 0.0
+            name = reg_type + '_reg'
         elif reg_type == 'center':
             reg_mat = get_rmats.create_maxpenalty_matrix(
                 [1, self.input_dims[1], self.input_dims[2]], 'center')
@@ -477,6 +483,21 @@ class SepRegularization(Regularization):
             reg_pen = tf.multiply(self.vals_var['max_filt'],
                                   tf.trace(tf.matmul(wt2, tf.matmul(self.mats['max_filt'],
                                                                wt2), transpose_a=True)))
+        elif reg_type == 'max_level':
+            if self.blocks is not None:
+                w2 = tf.square(weights)
+                num_levels = len(self.blocks)
+                level_mags = []
+                for nn in range(num_levels):
+                    # Compute range of indices given 'blocks' represent filters and there is space
+                    level_mags.append(tf.reduce_sum(tf.gather(w2, self.blocks[nn]), axis=0))
+                reg_pen = tf.multiply(
+                    self.vals_var['max_level'],
+                    tf.trace(tf.matmul(level_mags,
+                                       tf.matmul(self.mats['max_level'], level_mags),
+                                       transpose_a=True)))
+            else:
+                reg_pen = tf.constant(0.0)
 
         elif reg_type == 'd2t':
             if self.partial_fit == 1:
@@ -544,7 +565,6 @@ class SepRegularization(Regularization):
             input_dims=self.input_dims,
             num_outputs=self.num_outputs)
         reg_target.vals = self.vals.copy()
-        #reg_target.mats = self.mats.copy()
         reg_target.mats = {}
 
         return reg_target
@@ -555,11 +575,6 @@ class SepRegularization(Regularization):
         regularization schemes that act with knowledge of these inputs. num_units is the
         number of 'filters' in each level of the scaffold."""
 
-        import numpy as np
-
-        #num_space = self.input_dims[1] * self.input_dims[2]
-        #num_filt = self.input_dims[0]
-
         self.blocks = []
         fcount = 0
         for ll in range(len(num_units)):
@@ -568,5 +583,5 @@ class SepRegularization(Regularization):
             fcount += num_units[ll]
 
             self.blocks.append(filter_range)
-            # END SepRegularization.scaffold_setup
-    # END SepRegularization
+    # END SepRegularization.scaffold_setup
+# END SepRegularization
