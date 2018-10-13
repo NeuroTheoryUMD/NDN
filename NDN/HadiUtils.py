@@ -157,8 +157,12 @@ def space_embedding(k, dims, x_rng, y_rng):
     return k_embedded
 
 
-def subunit_plots(ndn, mode='subs', fig_sz=(20, 12), save_dir='./plots/'):
-    _allowed_modes = ['tbasis', 'sbasis', 'kers', 'subs', 'neurons']
+def subunit_plots(ndn, mode='kers', layer=1, sub_indxs=None, only_sep_plot=True,
+                  fig_sz_sep_s=(20, 20), fig_sz_sep_t=(40, 20), fig_sz_nonsep=(20, 12),
+                  save_dir='./plots/'):
+    #_allowed_modes = ['tbasis', 'sbasis', 'kers', 'subs', 'neurons']
+
+    print('Plotting... mode: --%s--, layer: --%s--' % (mode, layer))
 
     if not os.path.isdir(os.path.dirname(save_dir)):
         os.makedirs(os.path.dirname(save_dir))
@@ -166,67 +170,107 @@ def subunit_plots(ndn, mode='subs', fig_sz=(20, 12), save_dir='./plots/'):
     tbasis = ndn.networks[0].layers[0].weights
     nlags, tbasis_n = tbasis.shape
     [_, width_x, width_y] = ndn.networks[0].layers[1].filter_dims
+    kers = deepcopy(ndn.networks[0].layers[1].weights)
+
+    # TODO: if mod_width > 1 and layer >= 2 then generate subs in a different way
+    subs = deepcopy(kers)
+    for ii in range(layer - 1):
+        if mode == 'cells' and ii == layer-2:
+            mods_n = ndn.networks[0].layers[layer].input_dims[0]
+            w_readout_filt = deepcopy(ndn.networks[0].layers[layer].weights[:mods_n, :])
+            subs = np.matmul(subs, w_readout_filt)
+        else:
+            subs = np.matmul(subs, ndn.networks[0].layers[ii + 2].weights)
+
+    subs_n = ndn.networks[0].layers[layer].num_filters
 
     pp = PdfPages(save_dir + '%s.pdf' % mode)
 
-    if mode == 'kers':
-        kers_n = ndn.networks[0].layers[1].num_filters
+    if sub_indxs is None:
+        sub_indxs = np.arange(subs_n)
 
-        for which_ker in range(kers_n):
-            tmp = deepcopy(ndn.networks[0].layers[1].weights[:, which_ker])
-            k = np.reshape(tmp, (width_y, width_x, tbasis_n))
+    # make sep kers
+    sep_s = np.zeros((width_y, width_x, len(sub_indxs)))
+    sep_t = np.zeros((nlags, len(sub_indxs)))
+
+    for indx, which_sub in enumerate(sub_indxs):
+        k = np.reshape(subs[:, which_sub], (width_y, width_x, tbasis_n))
+        k = np.matmul(k, tbasis.T)
+
+        sep_s[..., indx] = np.max(abs(k), axis=2)
+        for lag in range(nlags):
+            sep_t[lag, indx] = max(k[..., lag].flatten(),
+                                        key=abs) / np.max(abs(sep_s))
+        bst_lag = np.argmax(abs(sep_t[:, indx]))
+        sep_s[..., indx] = k[..., bst_lag]
+
+    # plot ser kers
+    # space
+    fig_s = make_spatial_plot(sep_s,
+                              dims=[len(sub_indxs)],
+                              fig_sz=fig_sz_sep_s)
+    fig_s.suptitle('Spatial part of %s_layer:%s\nas if they were separable (at best lag)'
+                   % (mode, layer), fontsize = 15 + len(sub_indxs) // 10)
+    pp.savefig(fig_s, orientation='horizontal')
+    plt.close()
+    # time
+    fig_t = make_temporal_plot(sep_t,
+                               dims=[nlags,  len(sub_indxs)],
+                               fig_sz=fig_sz_sep_t)
+    fig_t.suptitle('Temporal part of %s_layer:%s\nas if they were separable'
+                   % (mode, layer), fontsize = 15 + len(sub_indxs) // 10)
+    pp.savefig(fig_t, orientation='horizontal')
+    plt.close()
+
+    if not only_sep_plot:
+        # plot the most general nonsep form
+        for indx, which_sub in enumerate(sub_indxs):
+            k = np.reshape(subs[:, which_sub], (width_y, width_x, tbasis_n))
             k = np.matmul(k, tbasis.T)
 
-            fig = make_plot(k, dims=[nlags, width_x, width_y], fig_sz=fig_sz)
-            fig.suptitle('Kernels,  #  %s' % which_ker, fontsize=30)
+            fig = make_nonsep_plot(k, dims=[nlags, width_x, width_y], fig_sz=fig_sz_nonsep)
+            fig.suptitle('%s_layer:%s,  indx_%s.  # %s'
+                         % (mode, layer, indx, which_sub), fontsize=30)
             pp.savefig(fig, orientation='horizontal')
             plt.close()
-        pp.close()
+    pp.close()
 
-    elif mode == 'subs_1':
-        # TODO: if mod_width > 1 then generate subs in a different way
-        subs = np.matmul(ndn.networks[0].layers[1].weights,
-                         ndn.networks[0].layers[2].weights)
-        subs_n = ndn.networks[0].layers[2].num_filters
+    print('...plotting done, %s.pdf saved at %s\n' % (mode, save_dir))
 
-        for which_sub in range(subs_n):
-            tmp = deepcopy(subs[:, which_sub])
-            k = np.reshape(tmp, (width_y, width_x, tbasis_n))
-            k = np.matmul(k, tbasis.T)
-
-            fig = make_plot(k, dims=[nlags, width_x, width_y], fig_sz=fig_sz)
-            fig.suptitle('1st Hidden Subunits,  #  %s' % which_sub, fontsize=30)
-            pp.savefig(fig, orientation='horizontal')
-            plt.close()
-        pp.close()
-
-    elif mode == 'subs_2':
-        # TODO: if mod_width > 1 then generate subs in a different way
-        subs = np.matmul(
-            np.matmul(ndn.networks[0].layers[1].weights,
-                         ndn.networks[0].layers[2].weights),
-            ndn.networks[0].layers[3].weights)
-        subs_n = ndn.networks[0].layers[3].num_filters
-
-        for which_sub in range(subs_n):
-            tmp = deepcopy(subs[:, which_sub])
-            k = np.reshape(tmp, (width_y, width_x, tbasis_n))
-            k = np.matmul(k, tbasis.T)
-
-            fig = make_plot(k, dims=[nlags, width_x, width_y], fig_sz=fig_sz)
-            fig.suptitle('2nd Hidden Subunits,  #  %s' % which_sub, fontsize=30)
-            pp.savefig(fig, orientation='horizontal')
-            plt.close()
-        pp.close()
-
-    elif mode == 'cells':
-        print('under construction')
+#    return sep_t, sep_s
 
 
-def make_plot(k, dims, fig_sz):
-    nlags, x_width, y_width = dims
+def make_spatial_plot(s, dims, fig_sz):
+    [subs_n] = dims
+    fig_s = plt.figure(figsize=fig_sz)
+
+    for i in range(subs_n):
+        plt.subplot(subs_n // 10 + 1, 10, i + 1)
+        k = s[..., i]
+        plt.imshow(k, cmap='Greys',
+                   vmin=-np.max(abs(k.flatten())),
+                   vmax=np.max(abs(k.flatten())))
+        plt.axis('off')
+    return fig_s
+
+def make_temporal_plot(t, dims, fig_sz):
+    [nlags, subs_n] = dims
+    fig_t = plt.figure(figsize=fig_sz)
+    for i in range(subs_n):
+        plt.subplot(subs_n // 10 + 1, 10, i + 1)
+        plt.plot(t[:, i], color='b', linewidth=5)
+        plt.plot([0, nlags - 1], [0, 0], 'r--')
+        plt.xticks([], [])
+        plt.yticks([], [])
+        if i + 1 > min(subs_n - subs_n % 10, subs_n - 10):
+            plt.xticks([0, nlags // 2, nlags],
+                       ['-%.0f ms' % (nlags * 1000 / 30),
+                        '-%.0f ms' % (nlags // 2 * 1000 / 30), '0'])
+    return fig_t
+
+def make_nonsep_plot(k, dims, fig_sz):
+    [nlags, x_width, y_width] = dims
     nrows, ncols = 3, max(dims)
-
 
     fig = plt.figure(figsize=fig_sz)
     for ll in range(nlags):
@@ -263,4 +307,3 @@ def make_plot(k, dims, fig_sz):
             plt.ylabel('time')
 
     return fig
-
