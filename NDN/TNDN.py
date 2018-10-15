@@ -984,7 +984,7 @@ class TNDN(NDN):
                     pred[small_intvl, :] = pred_tmp[self.time_spread:
                                                     self.time_spread + len(small_intvl) + 1, :]
 
-            print('WARNING: discard the first tau time points when single_batch=False... (tau = self.time_spread)')
+            print('WARNING: discard the first self.time_spread time points when single_batch is False...')
 
         # change the batch_size back to its original value
         self._set_batch_size(original_batch_sz)

@@ -9,6 +9,37 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 import math
 from matplotlib.backends.backend_pdf import PdfPages
+from prettytable import PrettyTable
+
+
+
+def r_squared(true, pred, data_indxs=None):
+    """
+    START.
+
+    :param true: vector containing true values
+    :param pred: vector containing predicted (modeled) values
+    :param data_indxs: obv.
+    :return: R^2
+
+    It is assumed that vectors are organized in columns
+
+    END.
+    """
+
+    assert true.shape == pred.shape, 'true and prediction vectors should have the same shape'
+
+    if data_indxs is None:
+        dim = true.shape[0]
+        data_indxs = np.arange(dim)
+    else:
+        dim = len(data_indxs)
+
+    ss_res = np.sum(np.square(true[data_indxs, :] - pred[data_indxs, :]), axis=0) / dim
+    ss_tot = np.var(true[data_indxs, :], axis=0)
+
+    return 1 - ss_res/ss_tot
+
 
 
 def crop(input_k, input_dims, x_range, y_range):
@@ -110,7 +141,6 @@ def get_gaussian_filter(spatial_dims, sigmas_dict, centers_dict=None, alpha=0.4,
 
     return filts
 
-import numpy as np
 
 
 def space_embedding(k, dims, x_rng, y_rng):
@@ -155,6 +185,7 @@ def space_embedding(k, dims, x_rng, y_rng):
         k_embedded[big_intvl, :] = k[small_intvl, :]
 
     return k_embedded
+
 
 
 def subunit_plots(ndn, mode='kers', layer=1, sub_indxs=None, only_sep_plot=True,
@@ -237,7 +268,6 @@ def subunit_plots(ndn, mode='kers', layer=1, sub_indxs=None, only_sep_plot=True,
 
     print('...plotting done, %s.pdf saved at %s\n' % (mode, save_dir))
 
-#    return sep_t, sep_s
 
 
 def make_spatial_plot(s, dims, fig_sz):
@@ -307,3 +337,300 @@ def make_nonsep_plot(k, dims, fig_sz):
             plt.ylabel('time')
 
     return fig
+
+
+def xv_retina(ndn, stim, robs, data_indxs=None):
+    if data_indxs is None:
+        data_indxs = np.arange(robs.shape[0])
+
+    if robs is list:
+        nc = 0
+        for tmp_robs in robs:
+            nc += tmp_robs.shape[1]
+    else:
+        nc = robs.shape[1]
+
+    out = ndn.generate_prediction(stim[data_indxs, :])
+    r2 = r_squared(true=robs[data_indxs, :], pred=out)
+
+    null_adj_nll = ndn.eval_models(input_data=stim,
+                                   output_data=robs,
+                                   data_indxs=data_indxs,
+                                   nulladjusted=True,
+                                   use_gpu=True)
+    print('\n\nr2:')
+    print('    --> mean: %.4f' % np.mean(r2))
+    print('    --> median: %.4f\n' % np.median(r2))
+
+    print('null_adj_NLL:')
+    print('    --> mean: %.4f' % np.mean(null_adj_nll))
+    print('    --> median: %.4f' % np.median(null_adj_nll))
+
+    plt.figure(figsize=(15, 3))
+    plt.subplot(121)
+    plt.plot(r2)
+    plt.plot([0, nc], [0, 0], 'r--',
+             [0, nc], [1, 1], 'g--')
+    plt.xlabel('Neurons')
+    plt.ylabel('$R^2$')
+    plt.title('Fraction of explained variance (on test indices)')
+
+    plt.subplot(122)
+    plt.plot(null_adj_nll)
+    plt.plot([0, nc], [0, 0], 'r--',
+             [0, nc], [np.mean(null_adj_nll), np.mean(null_adj_nll)], 'g--')
+    plt.xlabel('Neurons')
+    plt.xlabel('null adj NLL')
+    plt.title('Null adjusted negative log-likelihood (on test indices)')
+    plt.show()
+
+    return [r2, null_adj_nll]
+
+
+
+def display_layer_info(ndn, pretty_table=True):
+    normalization_info = {}
+    pos_constraint_info = {}
+    partial_fit_info = {}
+
+    for ll, layer_type in enumerate(ndn.network_list[0]['layer_types']):
+        # get normalization info
+        normalization_val = ndn.networks[0].layers[ll].normalize_weights
+        if layer_type in ['sep', 'convsep']:
+            if normalization_val == 0:
+                normalization_str = '1st part (filter)'
+            elif normalization_val == 1:
+                normalization_str = '2nd part (spatial)'
+            elif normalization_val == 2:
+                normalization_str = 'Both (filter + spatial)'
+            else:
+                normalization_str = 'No normalization'
+        else:
+            if normalization_val:
+                normalization_str = 'N'
+            else:
+                normalization_str = 'No normalization'
+
+        # get positive constraint info
+        pos_constraint_val = ndn.networks[0].layers[ll].pos_constraint
+        if layer_type in ['sep', 'convsep']:
+            if pos_constraint_val == 0:
+                pos_constraint_str = '1st part (filter)'
+            elif pos_constraint_val == 1:
+                pos_constraint_str = '2nd part (spatial)'
+            elif pos_constraint_val == 2:
+                pos_constraint_str = 'Both (filter + spatial)'
+            else:
+                pos_constraint_str = 'None'
+        else:
+            if pos_constraint_val:
+                pos_constraint_str = '+'
+            else:
+                pos_constraint_str = 'None'
+
+        if layer_type in ['sep', 'convsep']:
+            partial_fit_val = ndn.networks[0].layers[ll].partial_fit
+            if partial_fit_val == 0:
+                partial_fit_str = '1st part (filter)'
+            elif partial_fit_val == 1:
+                partial_fit_str = '2nd part (spatial)'
+            else:
+                partial_fit_str = 'Everything'
+        else:
+            partial_fit_str = '---'
+
+        # prepare dicts for printing
+        my_str = str(normalization_val) + '  -->   ' + normalization_str
+        item = str(ll) + '_' + layer_type
+        normalization_info.update({item: normalization_str})
+        pos_constraint_info.update({item: pos_constraint_str})
+        partial_fit_info.update({item: partial_fit_str})
+
+    if pretty_table:
+        t = PrettyTable(['Layer', 'Normalization', 'Positive Constraint', 'Partial Fit'])
+        for lbl, val in sorted(normalization_info.iteritems()):
+            t.add_row([lbl, val, pos_constraint_info[lbl], partial_fit_info[lbl]])
+        print(t)
+    else:
+        print("{:<12} {:<30} {:<30} {:<20}\n".format('Layers:',
+                                                   'Normalization:',
+                                                   'Positive Constraint:',
+                                                   'Partial Fit:'))
+        for label, val in sorted(normalization_info.iteritems()):
+            print("{:<12} {:<30} {:<30} {:<20}".format(label,
+                                                       val,
+                                                       pos_constraint_info[label],
+                                                       partial_fit_info[label]))
+    print('\n')
+
+
+
+def display_model(ndn):
+
+    nlags, tbasis_n = ndn.networks[0].layers[0].weights.shape
+
+    sker_width = ndn.networks[0].layers[1].filter_dims[1]
+
+    num_conv_kers = ndn.networks[0].layers[1].num_filters
+    num_neurons = ndn.networks[-1].layers[-1].num_filters
+
+    num_rows = int(np.ceil(num_conv_kers / 2))
+    num_cols = 3
+
+    num_conv_hidden = len(np.where(ndn.network_list[0]['layer_types'][2:] == 'conv'))
+
+    # Plot the model
+    # ____________________________________________________________________________________
+    # plotting temporal basis
+    tbasis = ndn.networks[0].layers[0].weights
+    plt.figure(figsize=(6, 2))
+    plt.plot(tbasis)
+    plt.plot([0, nlags - 1], [0, 0], 'r--')
+    plt.yticks([], [])
+    plt.xticks([0, nlags // 2, nlags],
+               ['-%.0f ms' % (nlags * 1000 / 30),
+                '-%.0f ms' % (nlags // 2 * 1000 / 30), '0'])
+    plt.show()
+
+    # plotting conv kernels
+    print('_______________________________________________________________________________________________________________')
+    print('--->    plotting ConvSepLayer:')
+
+    tkers = np.matmul(tbasis, ndn.networks[0].layers[1].weights[:tbasis_n, :])
+    skers = ndn.networks[0].layers[1].weights[tbasis_n:, :]
+
+    fig = plt.figure(figsize=(8 * num_cols, 3 * num_rows))
+    for i in range(num_rows):
+        fig.add_subplot(num_rows, num_cols, (i * num_cols) + 1)
+        plt.plot(tkers[:, 2*i], label='# %d' % (2*i))
+        if 2*i + 1 < num_conv_kers:
+            plt.plot(tkers[:, 2*i + 1], label='# %d' % (2*i + 1))
+        plt.title('t_kers')
+        plt.legend(loc='best')
+
+        k = np.reshape(skers[:, 2*i], [sker_width, sker_width])
+        fig.add_subplot(num_rows, num_cols, (i * num_cols) + 2)
+        plt.imshow(k, cmap='Greys',
+                   vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+        plt.colorbar()
+        plt.title('s_ker # %d' % (2*i))
+
+        if 2*i + 1 < num_conv_kers:
+            k = np.reshape(skers[:, 2*i + 1], [sker_width, sker_width])
+            fig.add_subplot(num_rows, num_cols, (i * num_cols) + 3)
+            plt.imshow(k, cmap='Greys',
+                       vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+            plt.colorbar()
+            plt.title('s_ker # %d' % (2*i + 1))
+    plt.show()
+
+    # Plotting the rest of the model
+    if num_conv_hidden == 0:
+        print('\n--->    plotting readout layer:')
+
+        plt.figure(figsize=(16, 2))
+        plt.subplot(121)
+        plt.imshow(ndn.networks[0].layers[2].weights[:num_conv_kers, :],
+                   cmap='Greys', vmin=-1, vmax=1, aspect=num_neurons/num_conv_kers)
+        plt.colorbar(aspect='1')
+
+        plt.subplot(122)
+        plt.plot(
+            np.sum(ndn.networks[0].layers[2].weights[num_conv_kers:, :],
+                   axis=1))
+        plt.show()
+
+    elif num_conv_hidden == 1:
+        print('\n--->    plotting ModLayer, readout layer:')
+
+        mod_n = ndn.networks[0].layers[2].num_filters
+
+        plt.figure(figsize=(18, 3))
+        plt.subplot(131)
+        k = ndn.networks[0].layers[2].weights
+        if (ndn.network_list[0]['pos_constraints'][2] and
+                ndn.network_list[0]['normalize_weights'][2]):
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=0, vmax=1)
+        elif (ndn.network_list[0]['pos_constraints'][2] is None and
+                ndn.network_list[0]['normalize_weights'][2]):
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=-1, vmax=1)
+        else:
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0],
+                       vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+        plt.title('mod layer')
+        plt.xlabel('Mods.')
+        plt.ylabel('Kernels.')
+        plt.colorbar()
+
+        plt.subplot(132)
+        k = ndn.networks[0].layers[3].weights[:mod_n, :]
+        plt.imshow(k, cmap='Greys', aspect=num_neurons/mod_n,
+                   vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+        plt.title('readout layer: mod part')
+        plt.colorbar()
+        plt.xlabel('Neurons.')
+        plt.ylabel('Mods.')
+
+        plt.subplot(133)
+        plt.plot(np.sum(ndn.networks[0].layers[3].weights[mod_n:, :], axis=1))
+        plt.title('readout layer: spatial part')
+        plt.show()
+
+    elif num_conv_hidden == 2:
+        print('\n--->    plotting ModLayers:')
+
+        plt.figure(figsize=(18, 3))
+
+        k = ndn.networks[0].layers[2].weights
+        plt.subplot(121)
+        if (ndn.network_list[0]['pos_constraints'][2] and
+                ndn.network_list[0]['normalize_weights'][2]):
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=0, vmax=1)
+            plt.ylabel('Kernels.')
+        elif (ndn.network_list[0]['pos_constraints'][2] is None and
+                ndn.network_list[0]['normalize_weights'][2]):
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=-1, vmax=1)
+            plt.ylabel('Kernels.')
+        else:
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0],
+                       vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+            plt.ylabel('Kernels.')
+        plt.title('1st mod layer')
+        plt.colorbar()
+
+        k = ndn.networks[0].layers[3].weights
+        plt.subplot(122)
+        if (ndn.network_list[0]['pos_constraints'][3] and
+                ndn.network_list[0]['normalize_weights'][3]):
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=0, vmax=1)
+            plt.xlabel('Mods.')
+        elif (ndn.network_list[0]['pos_constraints'][3] is None and
+                ndn.network_list[0]['normalize_weights'][3] == 1):
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=-1, vmax=1)
+            plt.xlabel('Mods.')
+        else:
+            plt.imshow(k, aspect=k.shape[1]/k.shape[0],
+                       vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+            plt.xlabel('Mods.')
+        plt.title('2nd mod layer')
+        plt.colorbar()
+        plt.show()
+
+        print('\n--->    plotting readout layer:')
+
+        mod_n = ndn.networks[0].layers[3].num_filters
+
+        plt.figure(figsize=(14, 2))
+        plt.subplot(121)
+        plt.imshow(ndn.networks[0].layers[4].weights[:mod_n, :], cmap='Greys',
+                   vmin=-1, vmax=1, aspect=num_neurons/mod_n)
+        plt.title('readout layer: mod part')
+        plt.colorbar()
+        plt.xlabel('Neurons')
+        plt.ylabel('Mods')
+
+        plt.subplot(122)
+        plt.plot(np.sum(ndn.networks[0].layers[4].weights[mod_n:, :], axis=1))
+        plt.title('readout layer: spatial part')
+        plt.show()
+    # ____________________________________________________________________________________
