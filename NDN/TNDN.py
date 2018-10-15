@@ -295,7 +295,7 @@ class TNDN(NDN):
             test_indxs=None,
             fit_variables=None,
             data_filters=None,
-            learning_alg='lbfgs',
+            learning_alg='adam',
             opt_params=None,
             output_dir=None):
         """Network training function
@@ -317,7 +317,7 @@ class TNDN(NDN):
                 output_data that zeros out predictions where data is absent
             learning_alg (str, optional): algorithm used for learning
                 parameters.
-                ['lbfgs'] | 'adam'
+                'lbfgs' | ['adam']
             opt_params: dictionary with optimizer-specific parameters; see
                 network.optimizer_defaults method for valid key-value pairs and
                 corresponding default values.

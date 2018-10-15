@@ -8,6 +8,7 @@ import numpy as np
 from copy import deepcopy
 import matplotlib.pyplot as plt
 import math
+import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from prettytable import PrettyTable
 
@@ -215,7 +216,9 @@ def subunit_plots(ndn, mode='kers', layer=1, sub_indxs=None, only_sep_plot=True,
 
     subs_n = ndn.networks[0].layers[layer].num_filters
 
-    pp = PdfPages(save_dir + '%s.pdf' % mode)
+    d, h, m = datetime.datetime.now().day, datetime.datetime.now().hour, datetime.datetime.now().minute
+    file_name = '%s,%s:%s_%s.pdf' % (d, h, m, mode)
+    pp = PdfPages(save_dir + file_name)
 
     if sub_indxs is None:
         sub_indxs = np.arange(subs_n)
@@ -266,7 +269,7 @@ def subunit_plots(ndn, mode='kers', layer=1, sub_indxs=None, only_sep_plot=True,
             plt.close()
     pp.close()
 
-    print('...plotting done, %s.pdf saved at %s\n' % (mode, save_dir))
+    print('...plotting done, %s.pdf saved at %s\n' % (file_name, save_dir))
 
 
 
