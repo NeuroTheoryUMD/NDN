@@ -218,7 +218,7 @@ class NDN(Network):
             self,
             learning_alg='adam',
             opt_params=None,
-            variable_list=None):
+            fit_variables=None):
         """NDN._build_graph"""
 
         # Take care of optimize parameters if necessary
@@ -294,7 +294,7 @@ class NDN(Network):
                 self._define_loss()
 
             # Define optimization routine
-            var_list = self._build_fit_variable_list(variable_list)
+            var_list = self._build_fit_variable_list(fit_variables)
 
             with tf.variable_scope('optimizer'):
                 self._define_optimizer(

@@ -19,7 +19,7 @@ def reg_path(
         layer_target=0,
         data_filters=None,
         opt_params=None,
-        variable_list=None):
+        fit_variables=None):
 
     """perform regularization over reg_vals to determine optimal cross-validated loss
 
@@ -54,7 +54,7 @@ def reg_path(
         test_mod.set_regularization(reg_type, reg_vals[nn], ffnet_target, layer_target)
         test_mod.train(input_data=input_data, output_data=output_data,
                        train_indxs=train_indxs, test_indxs=test_indxs,
-                       data_filters=data_filters, fit_variables=variable_list,
+                       data_filters=data_filters, fit_variables=fit_variables,
                        learning_alg='adam', opt_params=opt_params)
         LLxs[nn] = np.mean(
             test_mod.eval_models(input_data=input_data, output_data=output_data,
@@ -172,11 +172,11 @@ def spatial_spread(filters, axis=0):
 # END spatial_spread
 
 
-def plot_filters(ndn_mod):
+def plot_filters(ndn_mod, layer_target=0):
 
     import matplotlib.pyplot as plt  # plotting
 
-    ks = ndn_mod.networks[0].layers[0].weights
+    ks = ndn_mod.networks[0].layers[layer_target].weights
     num_filters = ks.shape[1]
     #num_lags = ndn_mod.network_list[0]['input_dims'][0]
     #filter_width = ks.shape[0] // num_lags

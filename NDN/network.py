@@ -346,7 +346,7 @@ class Network(object):
         self._build_graph(
             learning_alg=learning_alg,
             opt_params=opt_params,
-            variable_list=fit_variables)
+            fit_variables=fit_variables)
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
