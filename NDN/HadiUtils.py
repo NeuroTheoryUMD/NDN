@@ -13,7 +13,6 @@ from matplotlib.backends.backend_pdf import PdfPages
 from prettytable import PrettyTable
 
 
-
 def r_squared(true, pred, data_indxs=None):
     """
     START.
@@ -42,7 +41,6 @@ def r_squared(true, pred, data_indxs=None):
     return 1 - ss_res/ss_tot
 
 
-
 def crop(input_k, input_dims, x_range, y_range):
     """
     START.
@@ -68,7 +66,6 @@ def crop(input_k, input_dims, x_range, y_range):
 
     out = input_k[interval, :]
     return out
-
 
 
 def get_gaussian_filter(spatial_dims, sigmas_dict, centers_dict=None, alpha=0.4,
@@ -143,7 +140,6 @@ def get_gaussian_filter(spatial_dims, sigmas_dict, centers_dict=None, alpha=0.4,
     return filts
 
 
-
 def space_embedding(k, dims, x_rng, y_rng):
     """
     :param k: vector with first dim as space
@@ -186,7 +182,6 @@ def space_embedding(k, dims, x_rng, y_rng):
         k_embedded[big_intvl, :] = k[small_intvl, :]
 
     return k_embedded
-
 
 
 def subunit_plots(ndn, mode='kers', layer=1, sub_indxs=None, only_sep_plot=True,
@@ -272,7 +267,6 @@ def subunit_plots(ndn, mode='kers', layer=1, sub_indxs=None, only_sep_plot=True,
     print('...plotting done, %s.pdf saved at %s\n' % (file_name, save_dir))
 
 
-
 def make_spatial_plot(s, dims, fig_sz):
     [subs_n] = dims
     fig_s = plt.figure(figsize=fig_sz)
@@ -285,6 +279,8 @@ def make_spatial_plot(s, dims, fig_sz):
                    vmax=np.max(abs(k.flatten())))
         plt.axis('off')
     return fig_s
+
+
 
 def make_temporal_plot(t, dims, fig_sz):
     [nlags, subs_n] = dims
@@ -300,6 +296,7 @@ def make_temporal_plot(t, dims, fig_sz):
                        ['-%.0f ms' % (nlags * 1000 / 30),
                         '-%.0f ms' % (nlags // 2 * 1000 / 30), '0'])
     return fig_t
+
 
 def make_nonsep_plot(k, dims, fig_sz):
     [nlags, x_width, y_width] = dims
@@ -342,7 +339,7 @@ def make_nonsep_plot(k, dims, fig_sz):
     return fig
 
 
-def xv_retina(ndn, stim, robs, data_indxs=None):
+def xv_retina(ndn, stim, robs, data_indxs=None, plot=True):
     if data_indxs is None:
         data_indxs = np.arange(robs.shape[0])
 
@@ -369,26 +366,26 @@ def xv_retina(ndn, stim, robs, data_indxs=None):
     print('    --> mean: %.4f' % np.mean(null_adj_nll))
     print('    --> median: %.4f' % np.median(null_adj_nll))
 
-    plt.figure(figsize=(15, 3))
-    plt.subplot(121)
-    plt.plot(r2)
-    plt.plot([0, nc], [0, 0], 'r--',
-             [0, nc], [1, 1], 'g--')
-    plt.xlabel('Neurons')
-    plt.ylabel('$R^2$')
-    plt.title('Fraction of explained variance (on test indices)')
+    if plot:
+        plt.figure(figsize=(15, 3))
+        plt.subplot(121)
+        plt.plot(r2)
+        plt.plot([0, nc], [0, 0], 'r--',
+                 [0, nc], [1, 1], 'g--')
+        plt.xlabel('Neurons')
+        plt.ylabel('$R^2$')
+        plt.title('Fraction of explained variance (on test indices)')
 
-    plt.subplot(122)
-    plt.plot(null_adj_nll)
-    plt.plot([0, nc], [0, 0], 'r--',
-             [0, nc], [np.mean(null_adj_nll), np.mean(null_adj_nll)], 'g--')
-    plt.xlabel('Neurons')
-    plt.xlabel('null adj NLL')
-    plt.title('Null adjusted negative log-likelihood (on test indices)')
-    plt.show()
+        plt.subplot(122)
+        plt.plot(null_adj_nll)
+        plt.plot([0, nc], [0, 0], 'r--',
+                 [0, nc], [np.mean(null_adj_nll), np.mean(null_adj_nll)], 'g--')
+        plt.xlabel('Neurons')
+        plt.xlabel('null adj NLL')
+        plt.title('Null adjusted negative log-likelihood (on test indices)')
+        plt.show()
 
     return [r2, null_adj_nll]
-
 
 
 def display_layer_info(ndn, pretty_table=True):
@@ -467,7 +464,6 @@ def display_layer_info(ndn, pretty_table=True):
     print('\n')
 
 
-
 def display_model(ndn):
 
     nlags, tbasis_n = ndn.networks[0].layers[0].weights.shape
@@ -480,7 +476,7 @@ def display_model(ndn):
     num_rows = int(np.ceil(num_conv_kers / 2))
     num_cols = 3
 
-    num_conv_hidden = len(np.where(ndn.network_list[0]['layer_types'][2:] == 'conv'))
+    num_conv_hidden = ndn.network_list[0]['layer_types'][2:].count('conv')
 
     # Plot the model
     # ____________________________________________________________________________________

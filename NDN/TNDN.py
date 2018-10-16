@@ -57,8 +57,6 @@ class TNDN(NDN):
                 of `network_list`
 
         """
-
-      #  self.batch_size = batch_size
         self.time_spread = time_spread
 
         if network_list is None:
@@ -118,7 +116,6 @@ class TNDN(NDN):
                 if hasattr(self.networks[nn].layers[mm], 'time_spread'):
                     self.networks[nn].layers[mm].time_spread = new_time_spread
     # END TNDN._set_time_spread
-
 
     def _define_network(self):
         # This code clipped from NDN, where TFFNetworks has to be added
@@ -813,9 +810,6 @@ class TNDN(NDN):
         return epoch
         # END TNDN._train_adam
 
-    # todo: copy generate prediction here and modify it in such a way that's compatible with TNDNs
-    # or maybe just edit that... yeah just edit the generate_prediction function so that it checks if it is NDN or TNDN
-    # in case of TNDN it edits the self.batch_size to be equal to data_indxs so that it can generate what we want.
 
     def generate_prediction(self, input_data, data_indxs=None,
                             use_gpu=True, single_batch=False,
@@ -992,12 +986,13 @@ class TNDN(NDN):
         return pred
     # END TNDN.generate_prediction
 
+
     def copy_model(self, tf_seed=0):
         """Makes an exact copy of model without further elaboration."""
 
         # Assemble network_list
         target = TNDN(self.network_list, ffnet_out=self.ffnet_out, time_spread=self.time_spread,
-                     noise_dist=self.noise_dist, batch_size=self.batch_size, tf_seed=tf_seed)
+                      noise_dist=self.noise_dist, batch_size=self.batch_size, tf_seed=tf_seed)
 
         target.poisson_unit_norm = self.poisson_unit_norm
         target.data_pipe_type = self.data_pipe_type

@@ -328,3 +328,5 @@ def time_expand(inputs, batch_sz, nlags):
         expanded_inputs = tf.reshape(expanded_inputs_tr, (batch_sz, -1))
 
     return expanded_inputs
+
+# define readout_computation here
