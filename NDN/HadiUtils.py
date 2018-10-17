@@ -544,12 +544,17 @@ def display_model(ndn):
             bst_lag = np.argmax(abs(sep_tkers[:, which_ker]))
             sep_skers[..., which_ker] = k[..., bst_lag]
 
-        fig = plt.figure(figsize=(8 * num_cols, 3 * num_rows))
+        fig = plt.figure(figsize=(9 * num_cols, 3 * num_rows))
         for i in range(num_rows):
             fig.add_subplot(num_rows, num_cols, (i * num_cols) + 1)
             plt.plot(sep_tkers[:, 2*i], label='# %d' % (2*i))
             if 2*i + 1 < num_conv_kers:
                 plt.plot(sep_tkers[:, 2*i + 1], label='# %d' % (2*i + 1))
+            plt.plot([0, nlags - 1], [0, 0], 'r--')
+            plt.yticks([], [])
+            plt.xticks([0, nlags // 2, nlags],
+                       ['-%.0f ms' % (nlags * 1000 / 30),
+                        '-%.0f ms' % (nlags // 2 * 1000 / 30), '0'])
             plt.title('t_kers')
             plt.legend(loc='best')
 
@@ -557,7 +562,8 @@ def display_model(ndn):
             fig.add_subplot(num_rows, num_cols, (i * num_cols) + 2)
             plt.imshow(k, cmap='Greys',
                        vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
-            plt.colorbar()
+            plt.xticks([], [])
+            plt.yticks([], [])
             plt.title('s_ker # %d' % (2*i))
 
             if 2*i + 1 < num_conv_kers:
@@ -565,7 +571,8 @@ def display_model(ndn):
                 fig.add_subplot(num_rows, num_cols, (i * num_cols) + 3)
                 plt.imshow(k, cmap='Greys',
                            vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
-                plt.colorbar()
+                plt.xticks([], [])
+                plt.yticks([], [])
                 plt.title('s_ker # %d' % (2*i + 1))
         plt.show()
 
