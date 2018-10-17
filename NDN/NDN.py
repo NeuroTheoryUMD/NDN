@@ -211,7 +211,6 @@ class NDN(Network):
             ffnet_n = self.ffnet_out[nn]
             self.output_sizes[nn] = \
                 self.networks[ffnet_n].layers[-1].weights.shape[1]
-
     # END NDN._define_network
 
     def _build_graph(

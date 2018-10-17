@@ -393,58 +393,58 @@ def display_layer_info(ndn, pretty_table=True):
     pos_constraint_info = {}
     partial_fit_info = {}
 
-    for ll, layer_type in enumerate(ndn.network_list[0]['layer_types']):
-        # get normalization info
-        normalization_val = ndn.networks[0].layers[ll].normalize_weights
-        if layer_type in ['sep', 'convsep']:
-            if normalization_val == 0:
-                normalization_str = '1st part (filter)'
-            elif normalization_val == 1:
-                normalization_str = '2nd part (spatial)'
-            elif normalization_val == 2:
-                normalization_str = 'Both (filter + spatial)'
+    for nn in range(len(ndn.network_list)):
+        for ll, layer_type in enumerate(ndn.network_list[nn]['layer_types']):
+            # get normalization info
+            normalization_val = ndn.networks[nn].layers[ll].normalize_weights
+            if layer_type in ['sep', 'convsep']:
+                if normalization_val == 0:
+                    normalization_str = '1st part (filter)'
+                elif normalization_val == 1:
+                    normalization_str = '2nd part (spatial)'
+                elif normalization_val == 2:
+                    normalization_str = 'Both (filter + spatial)'
+                else:
+                    normalization_str = 'No normalization'
             else:
-                normalization_str = 'No normalization'
-        else:
-            if normalization_val:
-                normalization_str = 'N'
-            else:
-                normalization_str = 'No normalization'
+                if normalization_val:
+                    normalization_str = 'N'
+                else:
+                    normalization_str = 'No normalization'
 
-        # get positive constraint info
-        pos_constraint_val = ndn.networks[0].layers[ll].pos_constraint
-        if layer_type in ['sep', 'convsep']:
-            if pos_constraint_val == 0:
-                pos_constraint_str = '1st part (filter)'
-            elif pos_constraint_val == 1:
-                pos_constraint_str = '2nd part (spatial)'
-            elif pos_constraint_val == 2:
-                pos_constraint_str = 'Both (filter + spatial)'
+            # get positive constraint info
+            pos_constraint_val = ndn.networks[nn].layers[ll].pos_constraint
+            if layer_type in ['sep', 'convsep']:
+                if pos_constraint_val == 0:
+                    pos_constraint_str = '1st part (filter)'
+                elif pos_constraint_val == 1:
+                    pos_constraint_str = '2nd part (spatial)'
+                elif pos_constraint_val == 2:
+                    pos_constraint_str = 'Both (filter + spatial)'
+                else:
+                    pos_constraint_str = 'None'
             else:
-                pos_constraint_str = 'None'
-        else:
-            if pos_constraint_val:
-                pos_constraint_str = '+'
-            else:
-                pos_constraint_str = 'None'
+                if pos_constraint_val:
+                    pos_constraint_str = '+'
+                else:
+                    pos_constraint_str = 'None'
 
-        if layer_type in ['sep', 'convsep']:
-            partial_fit_val = ndn.networks[0].layers[ll].partial_fit
-            if partial_fit_val == 0:
-                partial_fit_str = '1st part (filter)'
-            elif partial_fit_val == 1:
-                partial_fit_str = '2nd part (spatial)'
+            if layer_type in ['sep', 'convsep']:
+                partial_fit_val = ndn.networks[nn].layers[ll].partial_fit
+                if partial_fit_val == 0:
+                    partial_fit_str = '1st part (filter)'
+                elif partial_fit_val == 1:
+                    partial_fit_str = '2nd part (spatial)'
+                else:
+                    partial_fit_str = 'Everything'
             else:
-                partial_fit_str = 'Everything'
-        else:
-            partial_fit_str = '---'
+                partial_fit_str = '---'
 
-        # prepare dicts for printing
-        my_str = str(normalization_val) + '  -->   ' + normalization_str
-        item = str(ll) + '_' + layer_type
-        normalization_info.update({item: normalization_str})
-        pos_constraint_info.update({item: pos_constraint_str})
-        partial_fit_info.update({item: partial_fit_str})
+            # prepare dicts for printing
+            _key = 'net' + str(nn) + 'L' + str(ll) + '_' + layer_type
+            normalization_info.update({_key: normalization_str})
+            pos_constraint_info.update({_key: pos_constraint_str})
+            partial_fit_info.update({_key: partial_fit_str})
 
     if pretty_table:
         t = PrettyTable(['Layer', 'Normalization', 'Positive Constraint', 'Partial Fit'])
@@ -493,35 +493,81 @@ def display_model(ndn):
 
     # plotting conv kernels
     print('_______________________________________________________________________________________________________________')
-    print('--->    plotting ConvSepLayer:')
 
-    tkers = np.matmul(tbasis, ndn.networks[0].layers[1].weights[:tbasis_n, :])
-    skers = ndn.networks[0].layers[1].weights[tbasis_n:, :]
+    if ndn.network_list[0]['layer_types'][1] == 'convsep':
+        print('--->    plotting ConvSepLayer:')
 
-    fig = plt.figure(figsize=(8 * num_cols, 3 * num_rows))
-    for i in range(num_rows):
-        fig.add_subplot(num_rows, num_cols, (i * num_cols) + 1)
-        plt.plot(tkers[:, 2*i], label='# %d' % (2*i))
-        if 2*i + 1 < num_conv_kers:
-            plt.plot(tkers[:, 2*i + 1], label='# %d' % (2*i + 1))
-        plt.title('t_kers')
-        plt.legend(loc='best')
+        tkers = np.matmul(tbasis, ndn.networks[0].layers[1].weights[:tbasis_n, :])
+        skers = ndn.networks[0].layers[1].weights[tbasis_n:, :]
 
-        k = np.reshape(skers[:, 2*i], [sker_width, sker_width])
-        fig.add_subplot(num_rows, num_cols, (i * num_cols) + 2)
-        plt.imshow(k, cmap='Greys',
-                   vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
-        plt.colorbar()
-        plt.title('s_ker # %d' % (2*i))
+        fig = plt.figure(figsize=(8 * num_cols, 3 * num_rows))
+        for i in range(num_rows):
+            fig.add_subplot(num_rows, num_cols, (i * num_cols) + 1)
+            plt.plot(tkers[:, 2*i], label='# %d' % (2*i))
+            if 2*i + 1 < num_conv_kers:
+                plt.plot(tkers[:, 2*i + 1], label='# %d' % (2*i + 1))
+            plt.title('t_kers')
+            plt.legend(loc='best')
 
-        if 2*i + 1 < num_conv_kers:
-            k = np.reshape(skers[:, 2*i + 1], [sker_width, sker_width])
-            fig.add_subplot(num_rows, num_cols, (i * num_cols) + 3)
+            k = np.reshape(skers[:, 2*i], [sker_width, sker_width])
+            fig.add_subplot(num_rows, num_cols, (i * num_cols) + 2)
             plt.imshow(k, cmap='Greys',
                        vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
             plt.colorbar()
-            plt.title('s_ker # %d' % (2*i + 1))
-    plt.show()
+            plt.title('s_ker # %d' % (2*i))
+
+            if 2*i + 1 < num_conv_kers:
+                k = np.reshape(skers[:, 2*i + 1], [sker_width, sker_width])
+                fig.add_subplot(num_rows, num_cols, (i * num_cols) + 3)
+                plt.imshow(k, cmap='Greys',
+                           vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+                plt.colorbar()
+                plt.title('s_ker # %d' % (2*i + 1))
+        plt.show()
+    else:
+        print('--->    plotting nonsep-ConvLayer (generated at best lag):')
+
+        nonsep_kers = deepcopy(ndn.networks[0].layers[1].weights)
+
+        # make sep kers
+        sep_skers = np.zeros((sker_width, sker_width, num_conv_kers))
+        sep_tkers = np.zeros((nlags, num_conv_kers))
+
+        for which_ker in range(num_conv_kers):
+            k = np.reshape(nonsep_kers[:, which_ker], (sker_width, sker_width, tbasis_n))
+            k = np.matmul(k, tbasis.T)
+
+            sep_skers[..., which_ker] = np.max(abs(k), axis=2)
+            for lag in range(nlags):
+                sep_tkers[lag, which_ker] = max(k[..., lag].flatten(),
+                                                key=abs) / np.max(abs(sep_skers))
+            bst_lag = np.argmax(abs(sep_tkers[:, which_ker]))
+            sep_skers[..., which_ker] = k[..., bst_lag]
+
+        fig = plt.figure(figsize=(8 * num_cols, 3 * num_rows))
+        for i in range(num_rows):
+            fig.add_subplot(num_rows, num_cols, (i * num_cols) + 1)
+            plt.plot(sep_tkers[:, 2*i], label='# %d' % (2*i))
+            if 2*i + 1 < num_conv_kers:
+                plt.plot(sep_tkers[:, 2*i + 1], label='# %d' % (2*i + 1))
+            plt.title('t_kers')
+            plt.legend(loc='best')
+
+            k = sep_skers[..., 2*i]
+            fig.add_subplot(num_rows, num_cols, (i * num_cols) + 2)
+            plt.imshow(k, cmap='Greys',
+                       vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+            plt.colorbar()
+            plt.title('s_ker # %d' % (2*i))
+
+            if 2*i + 1 < num_conv_kers:
+                k = sep_skers[..., 2*i + 1]
+                fig.add_subplot(num_rows, num_cols, (i * num_cols) + 3)
+                plt.imshow(k, cmap='Greys',
+                           vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+                plt.colorbar()
+                plt.title('s_ker # %d' % (2*i + 1))
+        plt.show()
 
     # Plotting the rest of the model
     if num_conv_hidden == 0:
@@ -633,3 +679,31 @@ def display_model(ndn):
         plt.title('readout layer: spatial part')
         plt.show()
     # ____________________________________________________________________________________
+
+def xv_v1(ndn, stim, robs, test_indxs, train_indxs, plot=True):
+
+    out = ndn.generate_prediction(stim, use_gpu=True)
+    r2_tst = r_squared(true=robs, pred=out, data_indxs=test_indxs) * 100
+    r2_trn = r_squared(true=robs, pred=out, data_indxs=train_indxs) * 100
+
+    print('\n\ntest r2:')
+    print('    --> mean: %.4f %s' % (np.mean(r2_tst), '%'))
+    print('    --> median: %.4f %s\n' % (np.median(r2_tst), '%'))
+
+    if plot:
+        nc = robs.shape[1]
+
+        plt.figure(figsize=(14, 3.5))
+        plt.subplot(121)
+        plt.plot(r2_tst)
+        plt.plot([0, nc-1], [0, 0], 'r--')
+        plt.title('test $r^2$   ...   mean = %0.2f %s' % (np.mean(r2_tst), '%'))
+
+
+        plt.subplot(122)
+        plt.plot(r2_trn)
+        plt.plot([0, nc - 1], [0, 0], 'r--')
+        plt.title('train $r^2$   ...   mean = %0.2f %s' % (np.mean(r2_trn), '%'))
+        plt.show()
+
+    return out

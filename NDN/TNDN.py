@@ -851,6 +851,10 @@ class TNDN(NDN):
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
 
+        # change data_pipe_type to feed_dict
+        original_pipe_type = deepcopy(self.data_pipe_type)
+        self.data_pipe_type = 'feed_dict'
+
         # keep original batch size just in case
         original_batch_sz = deepcopy(self.batch_size)
 
@@ -913,7 +917,7 @@ class TNDN(NDN):
 
                 pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
                                 feed_dict=feed_dict)
-        else:
+        else: #  = if not single_batch...
             data_indxs_sz = len(data_indxs)
             pred = np.zeros((data_indxs_sz, temp_num_outputs), dtype='float32')
 
@@ -938,7 +942,7 @@ class TNDN(NDN):
                     elif self.data_pipe_type == 'feed_dict':
                         feed_dict = self._get_feed_dict(
                             input_data=input_data,
-                            batch_indxs=batch_indxs)
+                            batch_indxs=data_indxs[big_intvl])
                     elif self.data_pipe_type == 'iterator':
                         # get string handle of iterator
                         iter_handle = sess.run(iterator.string_handle())
@@ -967,7 +971,7 @@ class TNDN(NDN):
                     elif self.data_pipe_type == 'feed_dict':
                         feed_dict = self._get_feed_dict(
                             input_data=input_data,
-                            batch_indxs=batch_indxs)
+                            batch_indxs=data_indxs[big_intvl])
                     elif self.data_pipe_type == 'iterator':
                         # get string handle of iterator
                         iter_handle = sess.run(iterator.string_handle())
@@ -980,6 +984,8 @@ class TNDN(NDN):
 
             print('WARNING: discard the first self.time_spread time points when single_batch is False...')
 
+        # change the data_pipe_type to original
+        self.data_pipe_type = original_pipe_type
         # change the batch_size back to its original value
         self._set_batch_size(original_batch_sz)
 
