@@ -785,6 +785,10 @@ class NDN(Network):
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
 
+        # change data_pipe_type to feed_dict
+        original_pipe_type = deepcopy(self.data_pipe_type)
+        self.data_pipe_type = 'feed_dict'
+
         # Generate fake_output data and take care of data-filtering, in case
         # necessary
         self.filter_data = False
@@ -837,6 +841,9 @@ class NDN(Network):
             pred = sess.run(
                 self.networks[ffnet_target].layers[layer_target].outputs,
                 feed_dict=feed_dict)
+
+        # change the data_pipe_type to original
+        self.data_pipe_type = original_pipe_type
 
         return pred
     # END generate_prediction
