@@ -713,4 +713,4 @@ def xv_v1(ndn, stim, robs, test_indxs, train_indxs, plot=True):
         plt.title('train $r^2$   ...   mean = %0.2f %s' % (np.mean(r2_trn), '%'))
         plt.show()
 
-    return out
+    return [out, r2_tst, r2_trn]
