@@ -758,7 +758,7 @@ class NDN(Network):
             use_gpu (True or False): Obvious
             ffnet_target (int, optional): index into `network_list` that specifies
                 which FFNetwork to generate the prediction from
-            layer (int, optional): index into layers of network_list[ffnet_target]
+            layer_target (int, optional): index into layers of network_list[ffnet_target]
                 that specifies which layer to generate prediction from
 
         Returns:
@@ -787,17 +787,16 @@ class NDN(Network):
 
         # change data_pipe_type to feed_dict
         original_pipe_type = deepcopy(self.data_pipe_type)
-        self.data_pipe_type = 'feed_dict'
+        self.data_pipe_type = 'data_as_var'
 
-        # Generate fake_output data and take care of data-filtering, in case
-        # necessary
+        # Generate fake_output data and take care of data-filtering, in case necessary
         self.filter_data = False
         num_outputs = len(self.ffnet_out)
         output_data = [None] * num_outputs
         for nn in range(num_outputs):
             output_data[nn] = np.zeros(
                 [self.num_examples,
-                 self.networks[ffnet_target].layers[layer_target].weights.shape[1]],
+                 self.networks[self.ffnet_out[nn]].layers[-1].weights.shape[1]],
                 dtype='float32')
 
         # build datasets if using 'iterator' pipeline
