@@ -795,23 +795,13 @@ class NDN(Network):
         output_data = [None] * num_outputs
         for nn in range(num_outputs):
             output_data[nn] = np.zeros(
-                [self.num_examples,
-                 self.networks[self.ffnet_out[nn]].layers[-1].weights.shape[1]],
+                [self.num_examples, self.networks[self.ffnet_out[nn]].layers[-1].weights.shape[1]],
                 dtype='float32')
 
-        # build datasets if using 'iterator' pipeline
-        if self.data_pipe_type == 'iterator':
-            dataset = self._build_dataset(
-                input_data=input_data,
-                output_data=output_data,
-                indxs=data_indxs,
-                training_dataset=False,
-                batch_size=self.num_examples)
-            # store info on dataset for buiding data pipeline
-            self.dataset_types = dataset.output_types
-            self.dataset_shapes = dataset.output_shapes
-            # build iterator object to access elements from dataset
-            iterator = dataset.make_one_shot_iterator()
+        if self.batch_size is not None:
+            num_batches_test = data_indxs.shape[0] // self.batch_size
+        else:
+            num_batches_test = 1
 
         # Place graph operations on CPU
         if not use_gpu:
@@ -826,20 +816,18 @@ class NDN(Network):
 
             self._restore_params(sess, input_data, output_data)
 
-            if self.data_pipe_type == 'data_as_var':
-                feed_dict = {self.indices: data_indxs}
-            elif self.data_pipe_type == 'feed_dict':
-                feed_dict = self._get_feed_dict(
-                    input_data=input_data,
-                    batch_indxs=data_indxs)
-            elif self.data_pipe_type == 'iterator':
-                # get string handle of iterator
-                iter_handle = sess.run(iterator.string_handle())
-                feed_dict = {self.iterator_handle: iter_handle}
+            for batch_test in range(num_batches_test):
+                batch_indxs_test = data_indxs[batch_test * self.batch_size:(batch_test + 1) * self.batch_size]
+                feed_dict = {self.indices: batch_indxs_test}
 
-            pred = sess.run(
-                self.networks[ffnet_target].layers[layer_target].outputs,
-                feed_dict=feed_dict)
+                if batch_test == 0:
+                    pred = sess.run(
+                        self.networks[ffnet_target].layers[layer_target].outputs,
+                        feed_dict=feed_dict)
+                else:
+                    pred = np.concatenate( (pred, sess.run(
+                        self.networks[ffnet_target].layers[layer_target].outputs,
+                        feed_dict=feed_dict)), axis=0)
 
         # change the data_pipe_type to original
         self.data_pipe_type = original_pipe_type
