@@ -339,6 +339,47 @@ def make_nonsep_plot(k, dims, fig_sz):
     return fig
 
 
+def plot_pred_vs_true(ndn, stim, robs, which_cell,
+                      test_indxs, train_indxs, fr_address=[0, 3],
+                      rng_width=500, rows_n=2, cols_n=2, save_dir='./plots/'):
+    num_pages = nt // (rows_n * cols_n * rng_width) + 1
+
+    out_fr = ndn.generate_prediction(stim, ffnet_n=fr_address[0], layer=fr_address[1])
+    [out_ca, tst, trn] = xv_v1(ndn, stim, robs, test_indxs, train_indxs, plot=False)
+
+    pp = PdfPages(save_dir + 'pvt_cell:%s.pdf' % which_cell)
+
+    for page in range(num_pages):
+        fig = plt.figure(figsize=(40, 20))
+        for ii in range(cols_n * rows_n):
+            page_starting_point = page * cols_n * rows_n * rng_width
+            end_point = min(nt, page_starting_point + (ii + 1) * rng_width + 1)
+            intvl = range(page_starting_point + ii * rng_width, end_point)
+
+            if end_point == nt:
+                continue
+
+            plt.subplot(rows_n, cols_n, ii + 1)
+            plt.plot(intvl, robs[intvl, which_cell], label='robs', color='g', linewidth=4)
+            plt.plot(intvl, out_ca[intvl, which_cell], label='ca', color='b', linestyle='dashdot', linewidth=4)
+            plt.plot(intvl, out_fr[intvl, which_cell], label='fr', color='r', linestyle='dashed', linewidth=3)
+            plt.ylim(-max(abs(robs[:, which_cell])), max(abs(robs[:, which_cell])))
+            plt.title('$r^2$ here: %0.2f %s'
+                      % (r_squared(pred=out_ca[intvl, which_cell][:, np.newaxis],
+                                   true=robs[intvl, which_cell][:, np.newaxis]) * 100, '%'))
+            plt.legend()
+        plt.suptitle(
+            'Cell # %s     |     ...  $r^2$_tst: %0.2f %s,  $r^2$_trn: %0.2f %s   ...     |     intvl: [%d,  %d]'
+            % (which_cell, tst[which_cell], '%', trn[which_cell], '%',
+               page_starting_point,
+               page_starting_point + (ii + 1) * rng_width), fontsize=40)
+        pp.savefig(fig, orientation='horizontal')
+        plt.close()
+    pp.close()
+
+    return [out_fr, out_ca]
+
+
 def xv_retina(ndn, stim, robs, data_indxs=None, plot=True):
     if data_indxs is None:
         data_indxs = np.arange(robs.shape[0])
