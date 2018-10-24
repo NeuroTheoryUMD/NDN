@@ -755,3 +755,28 @@ def xv_v1(ndn, stim, robs, test_indxs, train_indxs, plot=True):
         plt.show()
 
     return [out, r2_tst, r2_trn]
+
+
+def get_ftvr(ndn, weights_to_fit=None, biases_to_fit=None):
+    _ftvr = ndn.fit_variables(fit_biases=False)
+    num_net = len(_ftvr)
+
+    for nn in range(num_net):
+        for ll in weights_to_skip[nn]:
+            _ftvr[nn][ll]['weights'] = False
+
+    if weights_to_fit is not None:
+        assert len(weights_to_fit) == num_net, 'must be a list with len num_net'
+
+        for nn in range(num_net):
+            for ll in weights_to_fit[nn]:
+                _ftvr[nn][ll]['weights'] = True
+
+    if biases_to_fit is not None:
+        assert len(biases_to_fit) == num_net, 'must be a list with len num_net'
+
+        for nn in range(num_net):
+            for ll in biases_to_fit[nn]:
+                _ftvr[nn][ll]['biases'] = True
+
+    return _ftvr
