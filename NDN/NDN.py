@@ -798,10 +798,10 @@ class NDN(Network):
                 [self.num_examples, self.networks[self.ffnet_out[nn]].layers[-1].weights.shape[1]],
                 dtype='float32')
 
-        if self.batch_size is not None:
-            num_batches_test = data_indxs.shape[0] // self.batch_size
-        else:
-            num_batches_test = 1
+        if self.batch_size is None:
+            self.batch_size = data_indxs.shape[0]
+
+        num_batches_test = data_indxs.shape[0] // self.batch_size
 
         # Place graph operations on CPU
         if not use_gpu:

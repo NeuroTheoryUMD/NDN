@@ -178,10 +178,7 @@ def plot_filters(ndn_mod, layer_target=0):
 
     ks = ndn_mod.networks[0].layers[layer_target].weights
     num_filters = ks.shape[1]
-    #num_lags = ndn_mod.network_list[0]['input_dims'][0]
-    #filter_width = ks.shape[0] // num_lags
-    filter_width = ndn_mod.network_list[0]['input_dims'][1]*ndn_mod.network_list[0]['input_dims'][2]
-    num_lags = ks.shape[0] // filter_width
+    num_lags, filter_width = ndn_mod.networks[0].layers[0].filter_dims[:2]
 
     if num_filters/10 == num_filters//10:
         cols = 10
