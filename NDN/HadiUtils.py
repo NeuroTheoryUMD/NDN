@@ -759,10 +759,10 @@ def xv_v1(ndn, stim, robs, test_indxs, train_indxs, plot=True):
 
 def get_ftvr(ndn, weights_to_fit=None, biases_to_fit=None):
     _ftvr = ndn.fit_variables(fit_biases=False)
-    num_net = len(_ftvr)
+    num_net = len(ndn.network_list)
 
     for nn in range(num_net):
-        for ll in weights_to_skip[nn]:
+        for ll in range(len(ndn.network_list[nn]['layer_sizes'])):
             _ftvr[nn][ll]['weights'] = False
 
     if weights_to_fit is not None:
