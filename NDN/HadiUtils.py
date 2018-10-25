@@ -340,8 +340,10 @@ def make_nonsep_plot(k, dims, fig_sz):
 
 
 def plot_pred_vs_true(ndn, stim, robs, which_cell,
-                      test_indxs, train_indxs, fr_address=[0, 3],
+                      test_indxs, train_indxs, fr_address,
                       rng_width=500, rows_n=2, cols_n=2, save_dir='./plots/'):
+
+    nt = len(train_indxs) + len(test_indxs)
     num_pages = nt // (rows_n * cols_n * rng_width) + 1
 
     out_fr = ndn.generate_prediction(stim, ffnet_n=fr_address[0], layer=fr_address[1])
