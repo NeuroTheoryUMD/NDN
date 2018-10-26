@@ -1625,3 +1625,475 @@ class BiConvLayer(ConvLayer):
             tf.summary.histogram('act_post', post)
     # END BiConvLayer.build_graph
 
+
+class GaborLayer(Layer):
+    """Implementation of separable neural network layer; see
+    http://papers.nips.cc/paper/6942-neural-system-identification-for-large-populations-separating-what-and-where
+    for more info
+    """
+
+    def __init__(
+            self,
+            scope=None,
+            nlags=None,
+            input_dims=None,    # this can be a list up to 3-dimensions
+            num_filters=None,
+            filter_dims=None,  # this can be a list up to 3-dimensions
+            shift_spacing=1,
+            # output_dims=None,
+            activation_func='relu',
+            normalize_weights=None,
+            weights_initializer='trunc_normal',
+            biases_initializer='zeros',
+            reg_initializer=None,
+            num_inh=0,
+            pos_constraint=None,
+            log_activations=False):
+        """Constructor for sepLayer class
+
+        Args:
+            scope (str): name scope for variables and operations in layer
+            input_dims (int): dimensions of input data
+            output_dims (int): dimensions of output data
+            activation_func (str, optional): pointwise function applied to
+                output of affine transformation
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+                'elu' | 'quad'
+            normalize_weights (int): type of normalization to apply to the
+                weights. Default [0] is to normalize across the first dimension
+                (time/filters), but '1' will normalize across spatial
+                dimensions instead, and '2' will normalize both
+            weights_initializer (str, optional): initializer for the weights
+                ['trunc_normal'] | 'normal' | 'zeros'
+            biases_initializer (str, optional): initializer for the biases
+                'trunc_normal' | 'normal' | ['zeros']
+            reg_initializer (dict, optional): see Regularizer docs for info
+            num_inh (int, optional): number of inhibitory units in layer
+            pos_constraint (None, Valued, optional): True to constrain layer weights to
+                be positive
+            log_activations (bool, optional): True to use tf.summary on layer
+                activations
+
+        """
+
+        # Process stim and filter dimensions
+        # (potentially both passed in as num_inputs list)
+        if isinstance(input_dims, list):
+            while len(input_dims) < 3:
+                input_dims.append(1)
+        else:
+            input_dims = [1, input_dims, 1]  # assume 1-dimensional (space)
+
+        if filter_dims is None:
+            filter_dims = input_dims
+        else:
+            if isinstance(filter_dims, list):
+                while len(filter_dims) < 3:
+                    filter_dims.extend(1)
+            else:
+                filter_dims = [filter_dims, 1, 1]
+
+        if nlags is not None:
+            filter_dims[0] *= nlags
+        # Determine filter dimensions (first dim + space_dims)
+        num_space = filter_dims[1]*filter_dims[2]
+        num_input_dims_convsep = filter_dims[0]+num_space
+
+        # If output dimensions already established, just strip out num_filters
+        if isinstance(num_filters, list):
+            num_filters = num_filters[0]
+
+        # Calculate number of shifts (for output)
+        num_shifts = [1, 1]
+        if input_dims[1] > 1:
+            num_shifts[0] = int(np.floor(input_dims[1]/shift_spacing))
+        if input_dims[2] > 1:
+            num_shifts[1] = int(np.floor(input_dims[2]/shift_spacing))
+
+        super(GaborLayer, self).__init__(
+                scope=scope,
+                nlags=nlags,
+                input_dims=input_dims,
+                filter_dims=filter_dims,
+                output_dims=num_filters,     # ! check this out... output_dims=num_filters?
+                my_num_inputs=num_input_dims_convsep,
+                activation_func=activation_func,
+                normalize_weights=normalize_weights,
+                weights_initializer=weights_initializer,
+                biases_initializer=biases_initializer,
+                reg_initializer=reg_initializer,
+                num_inh=num_inh,
+                pos_constraint=pos_constraint,
+                log_activations=log_activations)
+
+        self.partial_fit = None
+        self.gabor_params_to_fit = [0, 1, 2, 3, 4]
+
+        # TODO: how to initialize these params?
+        # possibly use width fomr self.filter_dims to djust lambda, gamma, and sigma
+        # this will be found with a lot of experimentation
+
+        _pi = 3.1415926535
+
+        self.gabor_params = np.zeros((5, self.num_filters), dtype='float32')
+        self.gabor_params[0, :] = 20
+        self.gabor_params[1, :] = 45 * (_pi / 180)
+        self.gabor_params[2, :] = 90 * (_pi / 180)
+        self.gabor_params[3, :] = 10
+        self.gabor_params[4, :] = 1
+
+        # override self.weights
+#        self.weights = np.random.rand((num_input_dims_convsep, self.num_filters)).astype('float32') - 0.5
+        self.weights[self.input_dims[0]:, :] = self._build_gabor(params=self.gabor_params, mode='np')
+        if self.normalize_weights == 1:
+            self.weights[self.input_dims[0]:, :] /= np.linalg.norm(self.weights[self.input_dims[0]:, :], axis=0)
+
+        # TODO: make a function for this layer: self.set_params_to_fit that gets list of
+        # TODO: strings and sets self.gabor_params_to_fit...
+        # provide this params_to_fit to the layer somehow
+        params_to_fit = ['lambda', 'theta', 'phi', 'sigma', 'gamma']
+        _params_dict = {'lambda': 0, 'theta': 1, 'phi': 2, 'sigma': 3, 'gamma': 4}
+        self.params_to_fit = [_params_dict[key] for key in params_to_fit]
+
+        # Redefine specialized Regularization object to overwrite default
+  #      self.reg = SepRegularization(
+  #          input_dims=filter_dims,
+  #          num_outputs=self.num_filters,
+  #          vals=reg_initializer)
+
+        # ConvLayer-specific properties
+        self.shift_spacing = shift_spacing
+        self.num_shifts = num_shifts
+        # Changes in properties from Layer - note this is implicitly
+        # multi-dimensional
+        self.output_dims = [num_filters] + num_shifts[:]
+    # END ConvSepLayer.__init__
+
+    def _build_gabor(self, params, mode):
+        _pi = 3.1415926535
+
+        width = self.filter_dims[1]
+        ctr = width // 2
+
+        if mode == 'np':
+            rng = np.arange(width**2)
+
+            yy = rng // width - ctr
+            xx = rng % width - ctr
+
+            xx_prime = (np.matmul(yy[:, np.newaxis], np.sin(params[1, :][np.newaxis, :]))
+                        + np.matmul(xx[:, np.newaxis], np.cos(params[1, :][np.newaxis, :])))
+            yy_prime = (np.matmul(yy[:, np.newaxis], np.cos(params[1, :][np.newaxis, :]))
+                        - np.matmul(xx[:, np.newaxis], np.sin(params[1, :][np.newaxis, :])))
+
+            exp = np.exp(-(xx_prime ** 2 + (params[4, :] * yy_prime) ** 2) / (2 * params[3, :] ** 2))
+            gabor = exp * np.sin(2 * _pi * xx_prime / params[0, :] + params[2, :])
+
+        elif mode == 'tf':
+            rng = tf.range(0, width ** 2, 1)
+
+            yy_int = rng // width - ctr
+            xx_int = rng % width - ctr
+
+            yy = tf.expand_dims(tf.cast(yy_int, dtype=tf.float32), 1)
+            xx = tf.expand_dims(tf.cast(xx_int, dtype=tf.float32), 1)
+
+            xx_prime = (tf.matmul(yy, tf.expand_dims(tf.sin(params[1, :]), 0))
+                        + tf.matmul(xx, tf.expand_dims(tf.cos(params[1, :]), 0)))
+            yy_prime = (tf.matmul(yy, tf.expand_dims(tf.cos(params[1, :]), 0))
+                        - tf.matmul(xx, tf.expand_dims(tf.sin(params[1, :]), 0)))
+
+            exp = tf.exp(-(xx_prime ** 2 + (params[4, :] * yy_prime) ** 2) / (2 * params[3, :] ** 2))
+            gabor = exp * tf.sin(2 * _pi * xx_prime / params[0, :] + params[2, :])
+
+        else:
+            raise ValueError('Invalid mode (must be either "np" or "tf"')
+
+        return gabor
+
+
+    def _define_layer_variables(self):
+        # Define tensor-flow versions of variables (placeholder and variables)
+
+        if self.partial_fit == 0:
+            wt = self.weights[:self.input_dims[0], :]
+            with tf.name_scope('weights_init'):
+                self.weights_ph = tf.placeholder_with_default(
+                    wt, shape=wt.shape, name='wt_ph')
+                self.weights_var = tf.Variable(
+                    self.weights_ph, dtype=tf.float32, name='wt_var')
+        elif self.partial_fit == 1:
+            gabor_params = self.gabor_params
+            with tf.name_scope('weights_init'):
+                self.weights_ph = tf.placeholder_with_default(
+                    gabor_params, shape=gabor_params.shape, name='gabor_params_ph')
+                self.weights_var = tf.Variable(
+                    self.weights_ph, dtype=tf.float32, name='gabor_params_var')
+        else:
+            wt = self.weights[:self.input_dims[0], :]
+            gabor_params = self.gabor_params
+            weights_params = np.concatenate((wt, gabor_params), axis=0)
+            with tf.name_scope('weights_init'):
+                self.weights_ph = tf.placeholder_with_default(
+                    weights_params,
+                    shape=weights_params.shape,
+                    name='weights_ph')
+                self.weights_var = tf.Variable(
+                    self.weights_ph,
+                    dtype=tf.float32,
+                    name='weights_params_var')
+
+        # Initialize biases placeholder/variable
+        with tf.name_scope('biases_init'):
+            self.biases_ph = tf.placeholder_with_default(
+                self.biases,
+                shape=self.biases.shape,
+                name='biases_ph')
+            self.biases_var = tf.Variable(
+                self.biases_ph,
+                dtype=tf.float32,
+                name='biases_var')
+
+        # Check for need of ei_mask
+        if np.sum(self.ei_mask) < len(self.ei_mask):
+            self.ei_mask_var = tf.constant(
+                self.ei_mask, dtype=tf.float32, name='ei_mask')
+        else:
+            self.ei_mask_var = None
+    # END SepLayer._define_layer_variables
+
+    def assign_layer_params(self, sess):
+        """Read weights/biases in numpy arrays into tf Variables"""
+        if self.partial_fit == 0:
+            wt = self.weights[:self.input_dims[0], :]
+            sess.run(
+                [self.weights_var.initializer, self.biases_var.initializer],
+                feed_dict={self.weights_ph: wt, self.biases_ph: self.biases})
+        elif self.partial_fit == 1:
+            gabor_params = self.gabor_params
+            sess.run(
+                [self.weights_var.initializer, self.biases_var.initializer],
+                feed_dict={self.weights_ph: gabor_params, self.biases_ph: self.biases})
+        else:
+            wt = self.weights[:self.input_dims[0], :]
+            gabor_params = self.gabor_params
+            weights_params = np.concatenate((wt, gabor_params), axis=0)
+            sess.run(
+                [self.weights_var.initializer, self.biases_var.initializer],
+                feed_dict={self.weights_ph: weights_params, self.biases_ph: self.biases})
+    # END SepLayer.assign_layer_params
+
+    def write_layer_params(self, sess):
+        """Write weights/biases in tf Variables to numpy arrays"""
+
+        # rebuild self.weights
+        if self.partial_fit == 0:
+            wt = sess.run(self.weights_var)
+            ws = self._build_gabor(params=self.gabor_params, mode='np')
+            self.weights = np.concatenate((wt, ws), axis=0)
+        elif self.partial_fit == 1:
+            wt = deepcopy(self.weights[:self.input_dims[0], :])
+            self.gabor_params = sess.run(self.weights_var)
+            ws = self._build_gabor(params=self.gabor_params, mode='np')
+            self.weights = np.concatenate((wt, ws), axis=0)
+        else:
+            _weights_var_run = sess.run(self.weights_var)
+            wt = _weights_var_run[:self.input_dims[0], :]
+            self.gabor_params = _weights_var_run[self.input_dims[0]:, :]
+            ws = self._build_gabor(params=self.gabor_params, mode='np')
+            self.weights = np.concatenate((wt, ws), axis=0)
+
+        # get the temporal and spatial parts (generic)
+        wt = deepcopy(self.weights[:self.input_dims[0], :])
+        ws = deepcopy(self.weights[self.input_dims[0]:, :])
+
+        # Normalize weights (one or both dimensions)
+        if self.normalize_weights == 0:
+            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
+            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
+            ws_n = ws
+        elif self.normalize_weights == 1:
+            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
+            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
+            wt_n = wt
+        elif self.normalize_weights == 2:
+            wnorms_t = np.sqrt(np.sum(np.square(wt), axis=0))
+            wnorms_s = np.sqrt(np.sum(np.square(ws), axis=0))
+            wt_n = np.divide(wt, np.maximum(wnorms_t, 1e-6))
+            ws_n = np.divide(ws, np.maximum(wnorms_s, 1e-6))
+        else:
+            wt_n = wt
+            ws_n = ws
+
+        if self.pos_constraint == 0:
+            wt_np = np.maximum(0.0, wt_n)
+            ws_np = ws_n
+        elif self.pos_constraint == 1:
+            ws_np = np.maximum(0.0, ws_n)
+            wt_np = wt_n
+        elif self.pos_constraint == 2:
+            wt_np = np.maximum(0.0, wt_n)
+            ws_np = np.maximum(0.0, ws_n)
+        else:
+            wt_np = wt_n
+            ws_np = ws_n
+
+        self.weights[:self.input_dims[0], :] = wt_np
+        self.weights[self.input_dims[0]:, :] = ws_np
+
+        self.biases = sess.run(self.biases_var)
+    # END SepLayer.write_layer_params
+
+
+    def define_regularization_loss(self):
+        """overloaded function to handle different normalization in SepLayer"""
+        with tf.name_scope(self.scope):
+            # Section weights into first dimension and space
+            if self.partial_fit == 0:
+                kt = self.weights_var
+                ks = tf.constant(self.weights[self.input_dims[0]:, :], dtype=tf.float32)
+            elif self.partial_fit == 1:
+                kt = tf.constant(self.weights[:self.input_dims[0], :], dtype=tf.float32)
+                ks = self.weights_var
+            else:
+                kt = tf.slice(self.weights_var, [0, 0],
+                              [self.input_dims[0], self.num_filters])
+                ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
+                              [self.filter_dims[1] * self.filter_dims[2], self.num_filters])
+
+            # Normalize weights (one or both dimensions)
+            if self.normalize_weights == 0:
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = ks
+            elif self.normalize_weights == 1:
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+                kt_n = kt
+            elif self.normalize_weights == 2:
+                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+            else:
+                kt_n = kt
+                ks_n = ks
+
+            if self.pos_constraint == 0:
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = ks_n
+            elif self.pos_constraint == 1:
+                ks_np = tf.maximum(0.0, ks_n)
+                kt_np = kt_n
+            elif self.pos_constraint == 2:
+                kt_np = tf.maximum(0.0, kt_n)
+                ks_np = tf.maximum(0.0, ks_n)
+            else:
+                kt_np = kt_n
+                ks_np = ks_n
+
+            if self.partial_fit == 0:
+                return self.reg.define_reg_loss(kt_np)
+            elif self.partial_fit == 1:
+                return self.reg.define_reg_loss(ks_np)
+            else:
+                return self.reg.define_reg_loss(tf.concat([kt_np, ks_np], 0))
+
+
+    def _separate_weights(self):
+        # Section weights into first dimension and space
+        if self.partial_fit == 0:
+            kt = self.weights_var
+            ks = tf.constant(self._build_gabor(params=self.gabor_params, mode='np'), dtype=tf.float32)
+        elif self.partial_fit == 1:
+            kt = tf.constant(self.weights[:self.input_dims[0], :], dtype=tf.float32)
+            ks = self._build_gabor(params=self.weights_var, mode='tf')
+        else:
+            kt = tf.slice(self.weights_var, [0, 0],
+                          [self.input_dims[0], self.num_filters])
+            params = tf.slice(self.weights_var, [self.input_dims[0], 0],
+                              [self.filter_dims[1] * self.filter_dims[2], self.num_filters])
+            ks = self._build_gabor(params=params, mode='tf')
+
+        # Normalize weights (one or both dimensions)
+        if self.normalize_weights == 0:
+            wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+            kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+            ks_n = ks
+        elif self.normalize_weights == 1:
+            wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+            ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+            kt_n = kt
+        elif self.normalize_weights == 2:
+            wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
+            wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
+            kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-6))
+            ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-6))
+        else:
+            kt_n = kt
+            ks_n = ks
+
+        if self.pos_constraint == 0:
+            kt_np = tf.maximum(0.0, kt_n)
+            ks_np = ks_n
+        elif self.pos_constraint == 1:
+            ks_np = tf.maximum(0.0, ks_n)
+            kt_np = kt_n
+        elif self.pos_constraint == 2:
+            kt_np = tf.maximum(0.0, kt_n)
+            ks_np = tf.maximum(0.0, ks_n)
+        else:
+            kt_np = kt_n
+            ks_np = ks_n
+
+        w_full = tf.transpose(tf.reshape(tf.matmul(
+            tf.expand_dims(tf.transpose(ks_np), 2),
+            tf.expand_dims(tf.transpose(kt_np), 1)),
+            [self.num_filters, np.prod(self.filter_dims)]))
+
+        return w_full
+
+    def build_graph(self, inputs, params_dict=None):
+        with tf.name_scope(self.scope):
+            self._define_layer_variables()
+
+            weights_full = self._separate_weights()
+
+            # now conv part of the computation begins:
+            # Reshape of inputs (4-D):
+            input_dims = [-1, self.input_dims[2], self.input_dims[1],
+                          self.input_dims[0]]
+            shaped_input = tf.reshape(inputs, input_dims)
+
+            # Reshape weights (4:D:
+            conv_filter_dims = [self.filter_dims[2], self.filter_dims[1],
+                                self.filter_dims[0], self.num_filters]
+            ws_conv = tf.reshape(weights_full, conv_filter_dims)
+
+            # Make strides list
+            strides = [1, 1, 1, 1]
+            if conv_filter_dims[0] > 1:
+                strides[1] = self.shift_spacing
+            if conv_filter_dims[1] > 1:
+                strides[2] = self.shift_spacing
+
+            if self.pos_constraint:
+                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides,
+                                   padding='SAME')
+            else:
+                pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+
+            if self.ei_mask_var is not None:
+                post = tf.multiply(
+                    self.activation_func(tf.add(pre, self.biases_var)),
+                    self.ei_mask_var)
+            else:
+                post = self.activation_func(tf.add(pre, self.biases_var))
+
+            self.outputs = tf.reshape(
+                post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
+
+        if self.log:
+            tf.summary.histogram('act_pre', pre)
+            tf.summary.histogram('act_post', post)
+    # END GaborLayer._build_layer

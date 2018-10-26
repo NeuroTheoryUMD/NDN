@@ -440,7 +440,7 @@ def display_layer_info(ndn, pretty_table=True):
         for ll, layer_type in enumerate(ndn.network_list[nn]['layer_types']):
             # get normalization info
             normalization_val = ndn.networks[nn].layers[ll].normalize_weights
-            if layer_type in ['sep', 'convsep']:
+            if layer_type in ['sep', 'convsep', 'gabor']:
                 if normalization_val == 0:
                     normalization_str = '1st part (filter)'
                 elif normalization_val == 1:
@@ -457,7 +457,7 @@ def display_layer_info(ndn, pretty_table=True):
 
             # get positive constraint info
             pos_constraint_val = ndn.networks[nn].layers[ll].pos_constraint
-            if layer_type in ['sep', 'convsep']:
+            if layer_type in ['sep', 'convsep', 'gabor']:
                 if pos_constraint_val == 0:
                     pos_constraint_str = '1st part (filter)'
                 elif pos_constraint_val == 1:
@@ -472,7 +472,7 @@ def display_layer_info(ndn, pretty_table=True):
                 else:
                     pos_constraint_str = 'None'
 
-            if layer_type in ['sep', 'convsep']:
+            if layer_type in ['sep', 'convsep', 'gabor']:
                 partial_fit_val = ndn.networks[nn].layers[ll].partial_fit
                 if partial_fit_val == 0:
                     partial_fit_str = '1st part (filter)'
