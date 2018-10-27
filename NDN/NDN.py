@@ -798,8 +798,11 @@ class NDN(Network):
                 [self.num_examples, self.networks[self.ffnet_out[nn]].layers[-1].weights.shape[1]],
                 dtype='float32')
 
-        if self.batch_size is None:
+        if (self.batch_size is None) or (self.batch_size > data_indxs.shape[0]):
+            batch_size_save = self.batch_size
             self.batch_size = data_indxs.shape[0]
+        else:
+            batch_size_save = None
 
         num_batches_test = data_indxs.shape[0] // self.batch_size
 
@@ -817,6 +820,7 @@ class NDN(Network):
             self._restore_params(sess, input_data, output_data)
 
             for batch_test in range(num_batches_test):
+
                 batch_indxs_test = data_indxs[batch_test * self.batch_size:(batch_test + 1) * self.batch_size]
                 feed_dict = {self.indices: batch_indxs_test}
 
@@ -831,6 +835,8 @@ class NDN(Network):
 
         # change the data_pipe_type to original
         self.data_pipe_type = original_pipe_type
+        if batch_size_save is not None:
+            self.batch_size = batch_size_save
 
         return pred
     # END generate_prediction

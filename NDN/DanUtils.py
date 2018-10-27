@@ -172,13 +172,22 @@ def spatial_spread(filters, axis=0):
 # END spatial_spread
 
 
-def plot_filters(ndn_mod, layer_target=0):
+def plot_filters(ndn_mod):
 
     import matplotlib.pyplot as plt  # plotting
 
-    ks = ndn_mod.networks[0].layers[layer_target].weights
+    # Check to see if there is a temporal layer first
+    if np.prod(ndn_mod.networks[0].layers[0].filter_dims[1:]) == 1:
+        ks = tbasis_recover_filters(ndn_mod)
+        plt.plot(ndn_mod.networks[0].layers[0].weights)
+        plt.title('Temporal basis')
+        num_lags = ndn_mod.networks[0].layers[0].filter_dims[0]
+        filter_width = ndn_mod.networks[0].layers[1].filter_dims[1]
+    else:
+        ks = ndn_mod.networks[0].layers[0].weights
+        num_lags, filter_width = ndn_mod.networks[0].layers[0].filter_dims[:2]
+
     num_filters = ks.shape[1]
-    num_lags, filter_width = ndn_mod.networks[0].layers[0].filter_dims[:2]
 
     if num_filters/10 == num_filters//10:
         cols = 10
@@ -295,7 +304,7 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     return ws
 
 
-def side_network_properties(side_ndn):
+def side_network_properties(side_ndn, norm_type=0):
 
     ws = side_network_analyze(side_ndn)
     wside = side_ndn.networks[-1].layers[-1].weights
@@ -324,14 +333,24 @@ def side_network_properties(side_ndn):
                 NE = ws[ll].shape[1] - num_inh[ll]
                 elocs = range(NE)
                 ilocs = range(NE, ws[ll].shape[1])
-                EIspatial[0, ll, :, :] = np.sum(ws[ll][:, elocs, :], axis=1)
-                EIspatial[1, ll, :, :] = np.sum(ws[ll][:, ilocs, :], axis=1)
-                EIlayer[:, ll, :] = np.sum(EIspatial[:, ll, :, :], axis=1)
+                if norm_type == 0:
+                    EIspatial[0, ll, :, :] = np.sum(ws[ll][:, elocs, :], axis=1)
+                    EIspatial[1, ll, :, :] = np.sum(ws[ll][:, ilocs, :], axis=1)
+                    EIlayer[:, ll, :] = np.sum(EIspatial[:, ll, :, :], axis=1)
+                else:
+                    EIspatial[0, ll, :, :] = np.sqrt(np.sum(np.square(ws[ll][:, elocs, :]), axis=1))
+                    EIspatial[1, ll, :, :] = np.sqrt(np.sum(np.square(ws[ll][:, ilocs, :]), axis=1))
+                    EIlayer[:, ll, :] = np.sqrt(np.sum(np.square(EIspatial[:, ll, :, :]), axis=1))
+
         else:
             layer_weights[ll, :] = np.sqrt(np.sum(np.square(ws[ll]), axis=0)) / cell_nrms
 
     if np.sum(num_inh) > 0:
-        Enorm = np.sum(EIlayer[0, :, :], axis=0)
+        if norm_type == 0:
+            Enorm = np.sum(EIlayer[0, :, :], axis=0)
+        else:
+            Enorm = np.sqrt(np.sum(np.square(EIlayer[0, :, :]), axis=0))
+
         EIlayer = np.divide(EIlayer, Enorm)
         EIspatial = np.divide(EIspatial, Enorm)
 
@@ -721,3 +740,23 @@ def matlab_export(filename, variable_list):
 
     sio.savemat(filename, matdata)
 
+
+def tbasis_recover_filters(ndn_mod):
+
+    assert np.prod(ndn_mod.networks[0].layers[0].filter_dims[1:]) == 1, 'only works with temporal-only basis'
+
+    idims = ndn_mod.networks[0].layers[1].filter_dims
+    nlags = ndn_mod.networks[0].layers[0].filter_dims[0]
+    num_filts = ndn_mod.networks[0].layers[1].weights.shape[1]
+    tkerns = ndn_mod.networks[0].layers[0].weights
+
+    ks = np.zeros([idims[1]*idims[2]*nlags, num_filts])
+    for nn in range(num_filts):
+        w = np.reshape(ndn_mod.networks[0].layers[1].weights[:, nn], [idims[2], idims[1], idims[0]])
+        k = np.zeros([idims[2], idims[1], nlags])
+        for yy in range(idims[2]):
+            for xx in range(idims[1]):
+                k[yy, xx, :] = np.matmul(tkerns, w[yy, xx, :])
+        ks[:, nn] = np.reshape(k, idims[1]*idims[2]*nlags)
+
+    return ks
