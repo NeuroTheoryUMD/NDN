@@ -833,6 +833,13 @@ class NDN(Network):
                         self.networks[ffnet_target].layers[layer_target].outputs,
                         feed_dict=feed_dict)), axis=0)
 
+            # Add last fraction (if batches did not include all data
+            if pred.shape[0] < data_indxs.shape[0]:
+                batch_indxs_test = data_indxs[num_batches_test * self.batch_size:data_indxs.shape[0]]
+                feed_dict = {self.indices: batch_indxs_test}
+                pred = np.concatenate((pred, sess.run(
+                    self.networks[ffnet_target].layers[layer_target].outputs, feed_dict=feed_dict)), axis=0)
+
         # change the data_pipe_type to original
         self.data_pipe_type = original_pipe_type
         if batch_size_save is not None:
