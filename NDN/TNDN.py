@@ -869,127 +869,117 @@ class TNDN(NDN):
         self.filter_data = False
         num_outputs = len(self.ffnet_out)
         output_data = [None] * num_outputs
+        pred_all = [None] * num_outputs
         for nn in range(num_outputs):
             if type(self.networks[ffnet_n].layers[layer]) is CaTentLayer or TLayer:
                 temp_num_outputs = np.prod(self.networks[ffnet_n].layers[layer].output_dims)
             else:
                 temp_num_outputs = self.networks[ffnet_n].layers[layer].weights.shape[1]
-            output_data[nn] = np.zeros([self.num_examples, temp_num_outputs], dtype='float32')
 
-        # build datasets if using 'iterator' pipeline
-        if self.data_pipe_type == 'iterator':
-            dataset = self._build_dataset(
-                input_data=input_data,
-                output_data=output_data,
-                indxs=data_indxs,
-                training_dataset=False,
-                batch_size=self.num_examples)
-            # store info on dataset for buiding data pipeline
-            self.dataset_types = dataset.output_types
-            self.dataset_shapes = dataset.output_shapes
-            # build iterator object to access elements from dataset
-            iterator = dataset.make_one_shot_iterator()
+            fake_num_outputs = np.prod(self.networks[ffnet_n].layers[-1].output_dims)
+            output_data[nn] = np.zeros([self.num_examples, fake_num_outputs], dtype='float32')
 
-        # Place graph operations on CPU
-        if not use_gpu:
-            temp_config = tf.ConfigProto(device_count={'GPU': 0})
-            with tf.device('/cpu:0'):
-                self._build_graph()
-        else:
-            temp_config = tf.ConfigProto(device_count={'GPU': 1})
-            self._build_graph()
-
-        if single_batch:
-            with tf.Session(graph=self.graph, config=temp_config) as sess:
-
-                self._restore_params(sess, input_data, output_data)
-
-                if self.data_pipe_type == 'data_as_var':
-                    feed_dict = {self.indices: data_indxs}
-                elif self.data_pipe_type == 'feed_dict':
-                    feed_dict = self._get_feed_dict(
-                        input_data=input_data,
-                        batch_indxs=data_indxs)
-                elif self.data_pipe_type == 'iterator':
-                    # get string handle of iterator
-                    iter_handle = sess.run(iterator.string_handle())
-                    feed_dict = {self.iterator_handle: iter_handle}
-
-                pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
-                                feed_dict=feed_dict)
-        else: #  = if not single_batch...
-            data_indxs_sz = len(data_indxs)
-            pred = np.zeros((data_indxs_sz, temp_num_outputs), dtype='float32')
-
-            # this is the effective batch size with useful info in pred
-            _b_tau = original_batch_sz - self.time_spread
-
-            with tf.Session(graph=self.graph, config=temp_config) as sess:
-                self._restore_params(sess, input_data, output_data)
-                for nn in range(data_indxs_sz//_b_tau + 1):
-
-                    big_end = min(nn*_b_tau + original_batch_sz, data_indxs_sz)
-                    small_end = min(self.time_spread + (nn + 1)*_b_tau, data_indxs_sz)
-
-                    big_intvl = np.arange(nn*_b_tau, big_end)
-                    small_intvl = np.arange(self.time_spread + nn*_b_tau, small_end)
-
-                    if len(big_intvl) != original_batch_sz:
-                        continue
-
-                    if self.data_pipe_type == 'data_as_var':
-                        feed_dict = {self.indices: data_indxs[big_intvl]}
-                    elif self.data_pipe_type == 'feed_dict':
-                        feed_dict = self._get_feed_dict(
-                            input_data=input_data,
-                            batch_indxs=data_indxs[big_intvl])
-                    elif self.data_pipe_type == 'iterator':
-                        # get string handle of iterator
-                        iter_handle = sess.run(iterator.string_handle())
-                        feed_dict = {self.iterator_handle: iter_handle}
-
-                    pred_tmp = sess.run(
-                        self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
-                    pred[small_intvl, :] = pred_tmp[self.time_spread:, :]
-
-            # now do the last remaining part
-            if len(big_intvl) - self.time_spread > 1:
-                self._set_batch_size(len(big_intvl))
-                if not use_gpu:
-                    temp_config = tf.ConfigProto(device_count={'GPU': 0})
-                    with tf.device('/cpu:0'):
-                        self._build_graph()
-                else:
-                    temp_config = tf.ConfigProto(device_count={'GPU': 1})
+            # Place graph operations on CPU
+            if not use_gpu:
+                temp_config = tf.ConfigProto(device_count={'GPU': 0})
+                with tf.device('/cpu:0'):
                     self._build_graph()
+            else:
+                temp_config = tf.ConfigProto(device_count={'GPU': 1})
+                self._build_graph()
 
+            if single_batch:
                 with tf.Session(graph=self.graph, config=temp_config) as sess:
+
                     self._restore_params(sess, input_data, output_data)
 
                     if self.data_pipe_type == 'data_as_var':
-                        feed_dict = {self.indices: data_indxs[big_intvl]}
+                        feed_dict = {self.indices: data_indxs}
                     elif self.data_pipe_type == 'feed_dict':
                         feed_dict = self._get_feed_dict(
                             input_data=input_data,
-                            batch_indxs=data_indxs[big_intvl])
-                    elif self.data_pipe_type == 'iterator':
-                        # get string handle of iterator
-                        iter_handle = sess.run(iterator.string_handle())
-                        feed_dict = {self.iterator_handle: iter_handle}
+                            batch_indxs=data_indxs)
+                    else:
+                        raise ValueError('not implemented yet')
 
-                    pred_tmp = sess.run(
-                        self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
-                    pred[small_intvl, :] = pred_tmp[self.time_spread:
-                                                    self.time_spread + len(small_intvl) + 1, :]
+                    pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
+                                    feed_dict=feed_dict)
+            else: #  = if not single_batch...
+                data_indxs_sz = len(data_indxs)
+                pred = np.zeros((data_indxs_sz, temp_num_outputs), dtype='float32')
 
-            print('WARNING: discard the first self.time_spread time points when single_batch is False...')
+                # this is the effective batch size with useful info in pred
+                _b_tau = original_batch_sz - self.time_spread
+
+                with tf.Session(graph=self.graph, config=temp_config) as sess:
+                    self._restore_params(sess, input_data, output_data)
+                    for mm in range(data_indxs_sz//_b_tau + 1):
+
+                        big_end = min(mm*_b_tau + original_batch_sz, data_indxs_sz)
+                        small_end = min(self.time_spread + (mm + 1)*_b_tau, data_indxs_sz)
+
+                        big_intvl = np.arange(mm*_b_tau, big_end)
+                        small_intvl = np.arange(self.time_spread + mm*_b_tau, small_end)
+
+                        if len(big_intvl) != original_batch_sz:
+                            continue
+
+                        if self.data_pipe_type == 'data_as_var':
+                            feed_dict = {self.indices: data_indxs[big_intvl]}
+                        elif self.data_pipe_type == 'feed_dict':
+                            feed_dict = self._get_feed_dict(
+                                input_data=input_data,
+                                batch_indxs=data_indxs[big_intvl])
+                        elif self.data_pipe_type == 'iterator':
+                            # get string handle of iterator
+                            iter_handle = sess.run(iterator.string_handle())
+                            feed_dict = {self.iterator_handle: iter_handle}
+
+                        pred_tmp = sess.run(
+                            self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
+                        pred[small_intvl, :] = pred_tmp[self.time_spread:, :]
+
+                # now do the last remaining part
+                if len(big_intvl) - self.time_spread > 1:
+                    self._set_batch_size(len(big_intvl))
+                    if not use_gpu:
+                        temp_config = tf.ConfigProto(device_count={'GPU': 0})
+                        with tf.device('/cpu:0'):
+                            self._build_graph()
+                    else:
+                        temp_config = tf.ConfigProto(device_count={'GPU': 1})
+                        self._build_graph()
+
+                    with tf.Session(graph=self.graph, config=temp_config) as sess:
+                        self._restore_params(sess, input_data, output_data)
+
+                        if self.data_pipe_type == 'data_as_var':
+                            feed_dict = {self.indices: data_indxs[big_intvl]}
+                        elif self.data_pipe_type == 'feed_dict':
+                            feed_dict = self._get_feed_dict(
+                                input_data=input_data,
+                                batch_indxs=data_indxs[big_intvl])
+                        else:
+                            raise ValueError('not implemented yet')
+
+                        pred_tmp = sess.run(
+                            self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
+                        pred[small_intvl, :] = pred_tmp[self.time_spread:
+                                                        self.time_spread + len(small_intvl) + 1, :]
+
+                print('WARNING: discard the first self.time_spread time points when single_batch is False...')
+
+            pred_all[nn] = pred
 
         # change the data_pipe_type to original
         self.data_pipe_type = original_pipe_type
         # change the batch_size back to its original value
         self._set_batch_size(original_batch_sz)
 
-        return pred
+        if len(pred_all) == 1:
+            return pred_all[0]
+        else:
+            return pred_all
     # END TNDN.generate_prediction
 
 

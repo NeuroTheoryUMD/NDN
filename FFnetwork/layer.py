@@ -362,6 +362,7 @@ class ConvLayer(Layer):
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
             shift_spacing=1,
+            xy_out=None,
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='trunc_normal',
@@ -452,7 +453,11 @@ class ConvLayer(Layer):
         self.num_shifts = num_shifts
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
-        self.output_dims = [num_filters] + num_shifts[:]
+        self.xy_out = xy_out
+        if self.xy_out is None:
+            self.output_dims = [num_filters] + num_shifts[:]
+        else:
+            self.output_dims = [num_filters, 1, 1]
 
     # END ConvLayer.__init__
 
@@ -488,21 +493,13 @@ class ConvLayer(Layer):
                 # this is reverse-order from Matlab:
                 # [space-2, space-1, lags] and num_filters is explicitly last dim
 
-            # Make strides list
-            # check back later (this seems to not match with conv_filter_dims)
+            # yaeh this should be the case:
             strides = [1, 1, 1, 1]
-            if conv_filter_dims[1] > 1:
+            if conv_filter_dims[0] > 1:
                 strides[1] = self.shift_spacing
-            if conv_filter_dims[2] > 1:
+            if conv_filter_dims[1] > 1:
                 strides[2] = self.shift_spacing
 
-            # yaeh this should be the case:
-            # strides = [1, 1, 1, 1]
-            # if conv_filter_dims[0] > 1:
-                # strides[1] = self.shift_spacing
-            # if conv_filter_dims[1] > 1:
-                # strides[2] = self.shift_spacing
-            # possibly different strides for x,y
 
             if self.pos_constraint is not None:
                 pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
@@ -516,8 +513,12 @@ class ConvLayer(Layer):
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            self.outputs = tf.reshape(
-                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+            # reminder: self.xy_out = centers[which_cell] = [ctr_x, ctr_y]
+            if self.xy_out is None:
+                self.outputs = tf.reshape(
+                    post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+            else:
+                self.outputs = post[:, self.xy_out[1], self.xy_out[0], :]
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
