@@ -813,7 +813,7 @@ class TNDN(NDN):
 
     def generate_prediction(self, input_data, data_indxs=None,
                             use_gpu=True, single_batch=False,
-                            ffnet_n=-1, layer=-1):
+                            ffnet_target=-1, layer_target=-1):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -846,7 +846,7 @@ class TNDN(NDN):
                 raise ValueError(
                     'Input data dims must match across input_data.')
 
-        if layer >= len(self.networks[ffnet_n].layers):
+        if layer_target >= len(self.networks[ffnet_target].layers):
             ValueError('This layer does not exist.')
         if data_indxs is None:
             data_indxs = np.arange(self.num_examples)
@@ -871,12 +871,12 @@ class TNDN(NDN):
         output_data = [None] * num_outputs
         pred_all = [None] * num_outputs
         for nn in range(num_outputs):
-            if type(self.networks[ffnet_n].layers[layer]) is CaTentLayer or TLayer:
-                temp_num_outputs = np.prod(self.networks[ffnet_n].layers[layer].output_dims)
+            if type(self.networks[ffnet_target].layers[layer_target]) is CaTentLayer or TLayer:
+                temp_num_outputs = np.prod(self.networks[ffnet_target].layers[layer_target].output_dims)
             else:
-                temp_num_outputs = self.networks[ffnet_n].layers[layer].weights.shape[1]
+                temp_num_outputs = self.networks[ffnet_target].layers[layer_target].weights.shape[1]
 
-            fake_num_outputs = np.prod(self.networks[ffnet_n].layers[-1].output_dims)
+            fake_num_outputs = np.prod(self.networks[ffnet_target].layers[-1].output_dims)
             output_data[nn] = np.zeros([self.num_examples, fake_num_outputs], dtype='float32')
 
             # Place graph operations on CPU
@@ -902,7 +902,7 @@ class TNDN(NDN):
                     else:
                         raise ValueError('not implemented yet')
 
-                    pred = sess.run(self.networks[ffnet_n].layers[layer].outputs,
+                    pred = sess.run(self.networks[ffnet_target].layers[layer_target].outputs,
                                     feed_dict=feed_dict)
             else: #  = if not single_batch...
                 data_indxs_sz = len(data_indxs)
@@ -936,7 +936,7 @@ class TNDN(NDN):
                             feed_dict = {self.iterator_handle: iter_handle}
 
                         pred_tmp = sess.run(
-                            self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
+                            self.networks[ffnet_target].layers[layer_target].outputs, feed_dict=feed_dict)
                         pred[small_intvl, :] = pred_tmp[self.time_spread:, :]
 
                 # now do the last remaining part
@@ -963,7 +963,7 @@ class TNDN(NDN):
                             raise ValueError('not implemented yet')
 
                         pred_tmp = sess.run(
-                            self.networks[ffnet_n].layers[layer].outputs, feed_dict=feed_dict)
+                            self.networks[ffnet_target].layers[layer_target].outputs, feed_dict=feed_dict)
                         pred[small_intvl, :] = pred_tmp[self.time_spread:
                                                         self.time_spread + len(small_intvl) + 1, :]
 

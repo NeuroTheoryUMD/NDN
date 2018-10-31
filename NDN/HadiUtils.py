@@ -11,6 +11,7 @@ import math
 import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from prettytable import PrettyTable
+from matplotlib.animation import FuncAnimation
 
 
 def r_squared(true, pred, data_indxs=None):
@@ -342,6 +343,9 @@ def make_nonsep_plot(k, dims, fig_sz):
 def plot_pred_vs_true(ndn, stim, robs, which_cell,
                       test_indxs, train_indxs, fr_address,
                       rng_width=500, rows_n=2, cols_n=2, save_dir='./plots/'):
+
+    if not os.path.isdir(os.path.dirname(save_dir)):
+        os.makedirs(os.path.dirname(save_dir))
 
     nt = len(train_indxs) + len(test_indxs)
     num_pages = nt // (rows_n * cols_n * rng_width) + 1
@@ -782,3 +786,113 @@ def get_ftvr(ndn, weights_to_fit=None, biases_to_fit=None):
                 _ftvr[nn][ll]['biases'] = True
 
     return _ftvr
+
+
+def make_gif(data_to_plot, frames=np.arange(10), interval=120, fig_sz=(8, 6), dpi=100,
+             cmap='Greys', mode='stim', file_name=None, save_dir='./gifs/'):
+
+    if not os.path.isdir(os.path.dirname(save_dir)):
+        os.makedirs(os.path.dirname(save_dir))
+
+    if file_name is None:
+        file_name = mode + '.gif'
+
+
+    if mode=='stim':
+        # start the fig
+        fig, _ax = plt.subplots()
+        fig.set_size_inches(fig_sz)
+       # fig.set_tight_layout(True)
+
+        # find absmax for vmin/vmax and plot the first frame
+        _abs_max = np.max(abs(data_to_plot))
+        _plt = _ax.imshow(data_to_plot[0, ...],
+                          cmap=cmap, vmin=-_abs_max, vmax=_abs_max)
+        fig.colorbar(_plt)
+
+        # start anim object
+        anim = FuncAnimation(fig, _gif_update, fargs=[_plt, _ax, data_to_plot, mode],
+                             frames=frames, interval=interval)
+        anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
+
+    elif mode=='subs':
+        width_y, width_x, nlags, ker_n = data_to_plot.shape
+        col_n = int(np.ceil(np.sqrt(ker_n)))
+        row_n = int(np.ceil(ker_n / col_n))
+
+        _plt_dict = {}
+
+        fig, axes = plt.subplots(row_n, col_n)
+        fig.set_size_inches((col_n * 2, row_n * 2))
+
+        _abs_max = np.max(abs(data_to_plot))
+        for ii in range(row_n):
+            for jj in range(col_n):
+                which_sub = ii * col_n + jj
+                if which_sub >= ker_n:
+                    continue
+
+                axes[ii, jj].xaxis.set_ticks([])
+                axes[ii, jj].yaxis.set_ticks([])
+                tmp_plt = axes[ii, jj].imshow(data_to_plot[..., 0, which_sub], cmap='Greys',
+                                              vmin=-_abs_max, vmax=_abs_max)
+                _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
+
+        # start anim object
+        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, mode],
+                             frames=np.arange(nlags), interval=interval)
+        anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
+
+    else:
+        raise ValueError, 'Not implemented yet.'
+
+    plt.close()
+    print('...your GIF is done! "%s" was saved at %s.' % (file_name, save_dir))
+
+def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, mode='stim'):
+    lbl = 'time {0}'.format(tt)
+
+    if mode=='stim':
+        _plt, _ax = _fig_or_plt_like, _ax_like
+
+        _plt.set_data(data_to_plot[tt, :])
+        _ax.set_xlabel(lbl)
+
+        return _plt, _ax
+
+    elif mode=='subs':
+        ker_n = data_to_plot.shape[3]
+
+        col_n = int(np.ceil(np.sqrt(ker_n)))
+        row_n = int(np.ceil(ker_n / col_n))
+
+        _fig, _plt_dict = _fig_or_plt_like, _ax_like
+
+        for ii in range(row_n):
+            for jj in range(col_n):
+                which_sub = ii * col_n + jj
+                if which_sub >= ker_n:
+                    continue
+                k = data_to_plot[..., tt, which_sub]
+                _plt_dict['ax_%s_%s' % (ii, jj)].set_data(k)
+        _fig.suptitle(lbl, fontsize=50)
+
+        return _plt_dict, _fig
+    else:
+        raise ValueError, 'Not implemented yet.'
+
+
+def get_st_subs(ndn):
+    tbasis = ndn.networks[0].layers[0].weights
+    nlags, tbasis_n = tbasis.shape
+    stkers = ndn.networks[0].layers[1].weights
+    [_, width_x, width_y] = ndn.networks[0].layers[1].filter_dims
+    ker_n = stkers.shape[1]
+
+    st_subs = np.zeros((width_y, width_x, nlags, ker_n))
+
+    for which_sub in range(ker_n):
+        k = np.reshape(stkers[:, which_sub], (width_y, width_x, tbasis_n))
+        st_subs[..., which_sub] = np.matmul(k, tbasis.T)
+
+    return st_subs
