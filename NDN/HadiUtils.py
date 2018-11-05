@@ -896,3 +896,40 @@ def get_st_subs(ndn):
         st_subs[..., which_sub] = np.matmul(k, tbasis.T)
 
     return st_subs
+
+
+def make_synth_stim(lambdas, thetas, omega, frames_n, width):
+    gabors_n = len(lambdas) * len(thetas)
+    params = np.zeros((2, gabors_n))
+
+    # make params
+    for ii in range(gabors_n):
+        ss = ii // len(thetas)
+        oo = ii % len(thetas)
+
+        params[0, ii] = lambdas[ss]
+        params[1, ii] = thetas[oo]
+
+    # make gabors
+    ctr = width // 2
+    _pi = np.math.pi
+
+    rng = np.arange(width ** 2)
+
+    yy = rng // width - ctr
+    xx = rng % width - ctr
+
+    xx_prime = (np.matmul(yy[:, np.newaxis], np.sin(params[1, :][np.newaxis, :]))
+                + np.matmul(xx[:, np.newaxis], np.cos(params[1, :][np.newaxis, :])))
+
+    omega_rad = np.radians(omega)
+    synth_stim = np.zeros((frames_n, width, width, gabors_n))
+
+    # start gabors and evolve in time
+    for tt in range(1, frames_n):
+        tmp_gabors = np.sin(2 * _pi * xx_prime / params[0, :] + omega_rad * tt)
+        tmp_gabors -= np.mean(tmp_gabors, axis=0)
+        tmp_gabors /= np.std(tmp_gabors[:, 0], axis=0)
+        synth_stim[tt, ...] = np.reshape(tmp_gabors, (width, width, -1))
+
+    return synth_stim
