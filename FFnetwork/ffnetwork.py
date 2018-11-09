@@ -461,7 +461,7 @@ class SideNetwork(FFNetwork):
         """
 
         _conv_types = ['conv', 'convsep', 'biconv']
-
+        isbinocular = False
         # Determine dimensions of input and pass into regular network initializer
         input_layer_sizes = input_network_params['layer_sizes'][:]
         # Check if entire network is convolutional (then will have spatial input dims)
@@ -474,6 +474,10 @@ class SideNetwork(FFNetwork):
                 if input_network_params['layer_types'][nn] in _conv_types:
                     nonconv_inputs[nn] = input_layer_sizes[nn] * input_network_params['input_dims'][1] *\
                                          input_network_params['input_dims'][2]
+                    if input_network_params['layer_types'][nn] == 'biconv':
+                        isbinocular = True
+                        # then twice as many outputs as filters
+                        nonconv_inputs[nn] *= 2
                 else:
                     all_convolutional = False
                     print(nn)
@@ -483,16 +487,22 @@ class SideNetwork(FFNetwork):
 
         if all_convolutional:
             nx_ny = input_network_params['input_dims'][1:]
-            if input_network_params['layer_types'][0] == 'biconv':
-                nx_ny[0] = int(nx_ny[0]/2)
-                input_layer_sizes[0] = input_layer_sizes[0]*2
+            if isbinocular:
+                nx_ny[0] = int(nx_ny[0] / 2)
+
+                if input_network_params['layer_types'][0] == 'biconv':
+                    input_layer_sizes[0] = input_layer_sizes[0]*2
+                elif input_network_params['layer_types'][1] == 'biconv':
+                    input_layer_sizes[0] = input_layer_sizes[0] * 2
+                    input_layer_sizes[1] = input_layer_sizes[1] * 2
             #input_dims = [max(input_layer_sizes)*len(input_layer_sizes), nx_ny[0], nx_ny[1]]
+
             input_dims = [np.sum(input_layer_sizes), nx_ny[0], nx_ny[1]]
         else:
             nx_ny = [1, 1]
             #input_dims = [len(input_layer_sizes), max(nonconv_inputs), 1]
             input_dims = [np.sum(nonconv_inputs), 1, 1]
-
+        
         super(SideNetwork, self).__init__(
             scope=scope,
             input_dims=input_dims,
