@@ -717,13 +717,12 @@ class SepLayer(Layer):
             num_inh=0,
             pos_constraint=None,
             log_activations=False):
-        """Constructor for sepLayer class
+        """Constructor for SepLayer class
 
         Args:
             scope (str): name scope for variables and operations in layer
             input_dims (int): dimensions of input data
             output_dims (int): dimensions of output data
-            partial_fit (0, 1, or None): ???
             activation_func (str, optional): pointwise function applied to
                 output of affine transformation
                 ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 
@@ -1718,7 +1717,6 @@ class BiConvLayer(ConvLayer):
 
         # BiConvLayer-specific modifications
         self.num_shifts[0] = self.num_shifts[0]
-        #self.num_filters = self.num_filters
         self.output_dims[0] = self.num_filters*2
         self.output_dims[1] = int(self.num_shifts[0]/2)
     # END BiConvLayer.__init__
@@ -1795,6 +1793,81 @@ class BiConvLayer(ConvLayer):
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END BiConvLayer.build_graph
+
+
+class ReadoutLayer(Layer):
+    """Implementation of readout layer, with main difference being regularization on neuron-by-neuron basis
+    """
+
+    def __init__(
+            self,
+            scope=None,
+            nlags=None,
+            input_dims=None,    # this can be a list up to 3-dimensions
+            output_dims=None,
+            activation_func='relu',
+            normalize_weights=0,
+            weights_initializer='trunc_normal',
+            biases_initializer='zeros',
+            reg_initializer=None,
+            num_inh=0,
+            pos_constraint=None,
+            log_activations=False):
+        """Constructor for ReadoutLayer class
+
+        Args:
+            scope (str): name scope for variables and operations in layer
+            input_dims (int): dimensions of input data
+            output_dims (int): dimensions of output data
+            activation_func (str, optional): pointwise function applied to
+                output of affine transformation
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+                'elu' | 'quad'
+            normalize_weights (int): type of normalization to apply to the
+                weights. Default [0] is to normalize across the first dimension
+                (time/filters), but '1' will normalize across spatial
+                dimensions instead, and '2' will normalize both
+            weights_initializer (str, optional): initializer for the weights
+                ['trunc_normal'] | 'normal' | 'zeros'
+            biases_initializer (str, optional): initializer for the biases
+                'trunc_normal' | 'normal' | ['zeros']
+            reg_initializer (dict, optional): see Regularizer docs for info
+            num_inh (int, optional): number of inhibitory units in layer
+            pos_constraint (None, valued, optional): True to constrain layer weights to
+                be positive
+            log_activations (bool, optional): True to use tf.summary on layer
+                activations
+
+        """
+
+        # Process stim and filter dimensions (potentially both passed in as num_inputs list)
+        if isinstance(input_dims, list):
+            while len(input_dims) < 3:
+                input_dims.append(1)
+        else:
+            input_dims = [1, input_dims, 1]  # assume 1-dimensional (space)
+
+        super(ReadoutLayer, self).__init__(
+                scope=scope,
+                nlags=nlags,
+                input_dims=input_dims,
+                filter_dims=input_dims,
+                output_dims=output_dims,
+                activation_func=activation_func,
+                normalize_weights=normalize_weights,
+                weights_initializer=weights_initializer,
+                biases_initializer=biases_initializer,
+                reg_initializer=reg_initializer,
+                num_inh=num_inh,
+                pos_constraint=pos_constraint,
+                log_activations=log_activations)
+
+        # Redefine specialized Regularization object to overwrite default
+        self.reg = UnitRegularization(
+            input_dims=input_dims,
+            num_outputs=self.reg.num_outputs,
+            vals=reg_initializer)
+    # END ReadoutLayer.__init_
 
 
 class GaborLayer(Layer):

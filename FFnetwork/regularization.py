@@ -3,6 +3,7 @@
 from __future__ import print_function
 from __future__ import division
 
+import numpy as np
 import tensorflow as tf
 import FFnetwork.create_reg_matrices as get_rmats
 
@@ -360,7 +361,6 @@ class SepRegularization(Regularization):
             num_outputs (int): number of outputs (for normalization in norm2)
             vals (dict, optional): key-value pairs specifying value for each
                 type of regularization
-            partial_fit (0, 1, or None): ???
         """
 
         super(SepRegularization, self).__init__(
@@ -585,3 +585,133 @@ class SepRegularization(Regularization):
             self.blocks.append(filter_range)
     # END SepRegularization.scaffold_setup
 # END SepRegularization
+
+
+class UnitRegularization(Regularization):
+    """Child class that adjusts regularization for separable layers"""
+
+    def __init__(self,
+                 input_dims=None,
+                 num_outputs=None,
+                 vals=None):
+        """Constructor for UnitRegularization object
+
+        Args:
+            input_dims (int): dimension of input size (for building reg mats)
+            num_outputs (int): number of outputs (for normalization in norm2)
+            vals (dict, optional): key-value pairs specifying value for each
+                type of regularization
+        """
+
+        super(UnitRegularization, self).__init__(
+            input_dims=input_dims,
+            num_outputs=num_outputs,
+            vals=vals)
+
+    # END UnitRegularization.__init__
+
+    def set_reg_val(self, reg_type, reg_vals):
+        """Set regularization value in self.vals dict (doesn't affect a tf
+        Graph until a session is run and `assign_reg_vals` is called)
+
+        Args:
+            reg_type (str): see `_allowed_reg_types` for options
+            reg_val (float): value of regularization parameter
+
+        Returns:
+            bool: True if `reg_type` has not been previously set
+
+        Raises:
+            ValueError: If `reg_type` is not a valid regularization type
+            ValueError: If `reg_val` is less than 0.0
+
+        """
+
+        # check inputs
+        if reg_type not in self._allowed_reg_types:
+            raise ValueError('Invalid regularization type ''%s''' % reg_type)
+        # Convert reg_vals to array nomatter what
+        reg_vals = np.array(reg_vals, dtype='float32')
+        if len(reg_vals.shape) == 0: # then single number
+            reg_vals = np.array([reg_vals]*self.num_outputs, dtype='float32')
+        else:
+            assert reg_vals.shape[0] == self.num_outputs, 'reg_vals is incorrect length.'
+
+        # determine if this is a new type of regularization
+        if self.vals[reg_type] is None:
+            new_reg_type = True
+        else:
+            new_reg_type = False
+
+        # Check dimensionality of reg
+        self.vals[reg_type] = reg_vals
+
+        return new_reg_type
+    # END UnitRegularization.set_reg_val
+
+    def _calc_reg_penalty(self, reg_type, weights):
+        """Calculate regularization penalty for various reg types in default tf
+        Graph"""
+
+        if reg_type == 'l1':
+            reg_pen = tf.reduce_sum(
+                tf.multiply(self.vals_var['l1'], tf.abs(weights)))
+        elif reg_type == 'l2':
+            reg_pen = tf.reduce_sum(
+                tf.multiply(self.vals_var['l2'], tf.square(weights)))
+        elif reg_type == 'max':
+            w2 = tf.square(weights)
+            reg_pen = tf.trace(tf.matmul(
+                tf.multiply(w2, self.vals_var['max']),
+                tf.matmul(self.mats['max'], w2), transpose_a=True))
+        elif reg_type == 'max_space':
+            w2 = tf.square(weights)
+            reg_pen = tf.trace(tf.matmul(
+                tf.multiply(w2, self.vals_var['max_space']),
+                tf.matmul(self.mats['max_space'], w2), transpose_a=True))
+        elif reg_type == 'max_filt':
+            w2 = tf.square(weights)
+            reg_pen = tf.trace(tf.matmul(
+                tf.multiply(w2, self.vals_var['max_filt']),
+                tf.matmul(self.mats['max_filt'], w2), transpose_a=True))
+        elif reg_type == 'd2t':
+            reg_pen = tf.reduce_sum(tf.multiply(
+                self.vals_var['d2t'], tf.square(
+                    tf.matmul(self.mats['d2t'], weights))))
+        elif reg_type == 'd2x':
+            reg_pen = tf.reduce_sum(tf.multiply(
+                self.vals_var['d2x'], tf.square(
+                    tf.matmul(self.mats['d2x'], weights))))
+        elif reg_type == 'd2xt':
+            reg_pen = tf.reduce_sum(tf.multiply(
+                self.vals_var['d2xt'], tf.square(
+                    tf.matmul(self.mats['d2xt'], weights))))
+        elif reg_type == 'local':
+            w2 = tf.square(weights)
+            reg_pen = tf.trace(tf.matmul(
+                tf.multiply(w2, self.vals_var['local']),
+                tf.matmul(self.mats['local'], w2), transpose_a=True))
+        elif reg_type is 'glocal':
+            w2 = tf.square(weights)
+            reg_pen = tf.trace(tf.matmul(
+                tf.multiply(w2, self.vals_var['glocal']),
+                tf.matmul(self.mats['glocal'], w2), transpose_a=True))
+        elif reg_type == 'max_level':
+            if self.blocks is not None:
+                w2 = tf.square(weights)
+                num_levels = len(self.blocks)
+                level_mags = []
+                for nn in range(num_levels):
+                    # Compute range of indices given 'blocks' represent filters and there is space
+                    level_mags.append(tf.reduce_sum(tf.gather(w2, self.blocks[nn]), axis=0))
+                reg_pen = tf.multiply(
+                    self.vals_var['max_level'][0],
+                    tf.trace(tf.matmul(level_mags,
+                                       tf.matmul(self.mats['max_level'], level_mags),
+                                       transpose_a=True)))
+            else:
+                reg_pen = tf.constant(0.0)
+        else:
+            reg_pen = tf.constant(0.0)
+        return reg_pen
+    # END UnitRegularization._calc_reg_penalty

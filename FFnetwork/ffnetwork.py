@@ -222,6 +222,21 @@ class FFNetwork(object):
                     pos_constraint=network_params['pos_constraints'][nn],
                     log_activations=network_params['log_activations']))
 
+            elif self.layer_types[nn] == 'readout':
+
+                self.layers.append(ReadoutLayer(
+                    scope='sep_layer_%i' % nn,
+                    input_dims=layer_sizes[nn],
+                    output_dims=layer_sizes[nn + 1],
+                    activation_func=network_params['activation_funcs'][nn],
+                    normalize_weights=network_params['normalize_weights'][nn],
+                    weights_initializer=network_params['weights_initializers'][nn],
+                    biases_initializer=network_params['biases_initializers'][nn],
+                    reg_initializer=network_params['reg_initializers'][nn],
+                    num_inh=network_params['num_inh'][nn],
+                    pos_constraint=network_params['pos_constraints'][nn],
+                    log_activations=network_params['log_activations']))
+
             elif self.layer_types[nn] == 'add':
 
                 self.layers.append(AddLayer(
@@ -442,8 +457,7 @@ class SideNetwork(FFNetwork):
                 DEFAULT = 1
             params_dict['binocular'] (boolean): currently doesn't work
                 DEFAULT = FALSE
-            params_dict['layer_sizes'] (list of ints): see FFNetwork 
-                documentation
+            params_dict['layer_sizes'] (list of ints): see FFNetwork documentation
             params_dict['activation_funcs'] (str or list of strs, optional): 
                 see FFNetwork documentation
             params_dict['weights_initializer'] (str or list of strs, optional): 
@@ -502,7 +516,7 @@ class SideNetwork(FFNetwork):
             nx_ny = [1, 1]
             #input_dims = [len(input_layer_sizes), max(nonconv_inputs), 1]
             input_dims = [np.sum(nonconv_inputs), 1, 1]
-        
+
         super(SideNetwork, self).__init__(
             scope=scope,
             input_dims=input_dims,
@@ -515,7 +529,7 @@ class SideNetwork(FFNetwork):
             self.num_units = nonconv_inputs
 
         # Set up potential side_network regularization (in first layer)
-        self.layers[0].reg.scaffold_setup( self.num_units )
+        self.layers[0].reg.scaffold_setup(self.num_units)
     # END SideNetwork.__init__
 
     def build_graph(self, input_network, params_dict=None):
@@ -529,17 +543,22 @@ class SideNetwork(FFNetwork):
             # Assemble network-inputs into the first layer
             for input_nn in range(num_layers):
 
-                new_slice = tf.reshape(input_network.layers[input_nn].outputs,
-                                       [-1, self.num_space, self.num_units[input_nn]])
+                if self.num_space == np.prod(input_network.layers[input_nn].output_dims[1:]):
+                    new_slice = tf.reshape(input_network.layers[input_nn].outputs,
+                                        [-1, self.num_space, self.num_units[input_nn]])
+                else: # spatial positions converted to different filters (binocular)
+                    print('binocular', input_nn)
+                    native_space = np.prod(input_network.layers[input_nn].output_dims[1:])
+                    native_filters = input_network.layers[input_nn].output_dims[0]
+                    tmp = tf.reshape(input_network.layers[input_nn].outputs,
+                                           [-1, 1, native_space, native_filters])
+                    # Reslice into correct spatial arrangement
+                    left_post = tf.slice(tmp, [0, 0, 0, 0], [-1, -1, self.num_space, -1])
+                    right_post = tf.slice(tmp, [0, 0, self.num_space, 0],
+                                          [-1, -1, self.num_space, -1])
 
-                #if max_units-self.num_units[input_nn] > 0:
-                #    layer_padding = tf.constant([
-                #        [0, 0],
-                #        [0, 0],
-                #        [0, (max_units-self.num_units[input_nn])]])
-                #    new_slice_mod = tf.pad(new_slice, layer_padding)
-                #else:
-                #    new_slice_mod = new_slice
+                    new_slice = tf.reshape(tf.concat([left_post, right_post], axis=3),
+                                           [-1, self.num_space, self.num_units[input_nn]])
 
                 if input_nn == 0:
                     inputs_raw = new_slice
