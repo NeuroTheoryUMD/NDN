@@ -127,6 +127,7 @@ def filtered_eval_model(
 
     if data_filters is None:
         inds = test_indxs
+        assert ndn_mod.filter_data is None, 'Must include data_filter given model history.'
     else:
         inds = np.intersect1d(test_indxs, np.where(data_filters[:, int(unit_number)] > 0))
 
@@ -155,6 +156,25 @@ def filtered_eval_model(
 # END filtered_eval_model
 
 
+def spatial_profile_info(xprofile):
+    """Calculate the mean and standard deviation of xprofile along one dimension"""
+    # Calculate mean of filter
+
+    if isinstance(xprofile, list):
+        k = np.square(np.array(xprofile))
+    else:
+        k = np.square(xprofile.copy())
+
+    NX = xprofile.shape[0]
+
+    nrms = np.maximum(np.sum(k), 1e-10)
+    mn_pos = np.divide(np.sum(np.multiply(k, range(NX))), nrms)
+    xs = np.array([range(NX)] * np.ones([NX, 1])) - np.array([mn_pos] * np.ones([NX, 1]))
+    stdev = np.sqrt(np.divide(np.sum(np.multiply(k, np.square(xs))), nrms))
+    return mn_pos, stdev
+# END spatial_profile_info
+
+
 def spatial_spread(filters, axis=0):
     """Calculate the spatial spread of a list of filters along one dimension"""
     # Calculate mean of filter
@@ -170,6 +190,7 @@ def spatial_spread(filters, axis=0):
 
     return stdevs
 # END spatial_spread
+
 
 
 def plot_filters(ndn_mod):
@@ -204,10 +225,12 @@ def plot_filters(ndn_mod):
     fig, ax = plt.subplots(nrows=rows, ncols=cols)
     fig.set_size_inches(18 / 6 * cols, 7 / 4 * rows)
     for nn in range(num_filters):
-        plt.subplot(rows, cols, nn + 1)
+        ax = plt.subplot(rows, cols, nn + 1)
         plt.imshow(np.transpose(np.reshape(ks[:, nn], [filter_width, num_lags])),
                    cmap='Greys', interpolation='none',
                    vmin=-max(abs(ks[:, nn])), vmax=max(abs(ks[:, nn])), aspect='auto')
+        ax.set_yticklabels([])
+        ax.set_xticklabels([])
     plt.show()
 # END plot_filters
 
@@ -760,3 +783,126 @@ def tbasis_recover_filters(ndn_mod):
         ks[:, nn] = np.reshape(k, idims[1]*idims[2]*nlags)
 
     return ks
+
+def side_ei_analyze( side_ndn ):
+
+    num_space = int(side_ndn.networks[0].input_dims[1])
+    num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
+
+    num_units = side_ndn.networks[1].num_units[:]
+    num_layers = len(num_units)
+
+    wside = np.reshape(side_ndn.networks[1].layers[0].weights, [num_space, np.sum(num_units), num_cells])
+    num_inh = side_ndn.network_list[0]['num_inh']
+
+    cell_nrms = np.sum(side_ndn.networks[1].layers[0].weights, axis=0)
+    tlayer_present = side_ndn.networks[0].layers[0].filter_dims[1] == 1
+    if tlayer_present:
+        nlayers = num_layers - 1
+    else:
+        nlayers = num_layers
+    # EIweights = np.zeros([2, nlayers, num_cells])
+    EIprofiles = np.zeros([2, nlayers, num_space, num_cells])
+    num_exc = np.subtract(num_units, num_inh)
+
+    fcount = 0
+    for ll in range(num_layers):
+        ws = wside[:, range(fcount, fcount+num_units[ll]), :].copy()
+        fcount += num_units[ll]
+        if num_inh[ll] == 0:
+            ews = np.maximum(ws, 0)
+            iws = np.minimum(ws, 0)
+        else:
+            ews = ws[:, range(num_exc[ll]), :]
+            iws = ws[:, range(num_exc[ll], num_units[ll]), :]
+        if (ll == 0) or (tlayer_present == False):
+            EIprofiles[0, ll, :, :] = np.divide( np.sum(ews, axis=1), cell_nrms )
+            EIprofiles[1, ll, :, :] = np.divide( np.sum(iws, axis=1), cell_nrms )
+        if tlayer_present:
+            EIprofiles[0, ll-1, :, :] += np.divide( np.sum(ews, axis=1), cell_nrms )
+            EIprofiles[1, ll-1, :, :] += np.divide( np.sum(iws, axis=1), cell_nrms )
+    EIweights = np.sum(EIprofiles, axis=2)
+
+    return EIweights, EIprofiles
+
+
+def scaffold_plot_cell( side_ndn, cell_n, with_inh=True, nolabels=True, skip_first_level=False, linewidth=1):
+    import matplotlib.pyplot as plt  # plotting
+
+    num_space = int(side_ndn.networks[0].input_dims[1])
+    num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
+
+    num_units = side_ndn.networks[1].num_units[:]
+    num_layers = len(num_units)
+
+    cell_nrms = np.max(np.abs(side_ndn.networks[1].layers[0].weights), axis=0)
+    wside = np.reshape(side_ndn.networks[1].layers[0].weights, [num_space, np.sum(num_units), num_cells])
+    num_inh = side_ndn.network_list[0]['num_inh']
+    num_exc = np.subtract(num_units, num_inh)
+    #cell_nrms = np.sum(side_ndn.networks[1].layers[0].weights, axis=0)
+
+    fcount = 0
+    col_mod = 0
+    if skip_first_level:
+        col_mod = 1
+
+    subplot_setup(num_rows=1, num_cols=num_layers-col_mod)
+    plt.rcParams['lines.linewidth'] = linewidth
+    plt.rcParams['axes.linewidth'] = linewidth
+    for ll in range(num_layers):
+        ws = np.divide(wside[:, range(fcount, fcount+num_units[ll]), cell_n].copy(), cell_nrms[cell_n])
+
+        fcount += num_units[ll]
+        if (num_inh[ll] > 0) and with_inh:
+            ws[:, num_exc[ll]:] = np.multiply( ws[:, num_exc[ll]:], -1)
+
+        if not skip_first_level or (ll > 0):
+            ax = plt.subplot(1, num_layers-col_mod, ll+1-col_mod)
+
+            if with_inh:
+                plt.imshow(ws, aspect='auto', interpolation='none', cmap='bwr', vmin=-1, vmax=1)
+            else:
+                plt.imshow(ws, aspect='auto', interpolation='none', cmap='Greys', vmin=0, vmax=1)
+            if num_inh[ll] > 0:
+                plt.plot(np.multiply([1, 1], num_exc[ll]-0.5), [-0.5, num_space-0.5], 'k')
+
+            if ~nolabels:
+                ax.set_xticks([])
+                ax.set_yticks([])
+    plt.show()
+
+
+def plot_2dweights( w, input_dims=None, num_inh=0):
+    """w can be one dimension (in which case input_dims is required) or already shaped. """
+    import matplotlib.pyplot as plt  # plotting
+
+    if input_dims is not None:
+        w = np.reshape(w, [input_dims[1], input_dims[0]])
+    else:
+        input_dims = [w.shape[1], w.shape[0]]
+
+    num_exc = input_dims[0]-num_inh
+    w = np.divide(w, np.max(np.abs(w)))
+
+    fig, ax = plt.subplots(1)
+
+    if num_inh > 0:
+        w[:, num_exc:] = np.multiply(w[:, num_exc:], -1)
+        plt.imshow(w, interpolation='none', cmap='bwr', vmin=-1, vmax=1)
+    else:
+        plt.imshow(w, aspect='auto', interpolation='none', cmap='Greys', vmin=0, vmax=1)
+    if num_inh > 0:
+        plt.plot(np.multiply([1, 1], num_exc-0.5), [-0.5, input_dims[1]-0.5], 'k')
+    ax.set_yticklabels([])
+    ax.set_xticklabels([])
+
+
+def entropy( dist ):
+
+    # normalize distribution
+    dist = np.divide( dist.astype('float32'), np.sum(dist) )
+    # make all zeros 1
+    dist[np.where(dist==0)[0]] = 1
+    H = -np.sum( np.multiply( dist, np.log2(dist)) )
+
+    return H

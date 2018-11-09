@@ -330,8 +330,7 @@ class NDN(Network):
             # define cost function
             if self.noise_dist == 'gaussian':
                 with tf.name_scope('gaussian_loss'):
-                    cost.append(
-                        tf.nn.l2_loss(data_out - pred) / nt)
+                    cost.append(tf.nn.l2_loss(data_out - pred) / nt)
                     unit_cost.append(tf.reduce_mean(tf.square(data_out-pred), axis=0))
 
             elif self.noise_dist == 'poisson':

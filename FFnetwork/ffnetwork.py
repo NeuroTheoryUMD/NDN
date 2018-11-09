@@ -248,7 +248,7 @@ class FFNetwork(object):
                     pos_constraint=network_params['pos_constraints'][nn],
                     log_activations=network_params['log_activations']))
 
-            elif self.layer_types[nn] == 'conv':
+            elif (self.layer_types[nn] == 'conv') or (self.layer_types[nn] == 'conv_xy'):
 
                 if network_params['conv_filter_widths'][nn] is None:
                     conv_filter_size = layer_sizes[nn]
@@ -260,20 +260,36 @@ class FFNetwork(object):
                         conv_filter_size[2] = \
                             network_params['conv_filter_widths'][nn]
 
-                self.layers.append(ConvLayer(
-                    scope='conv_layer_%i' % nn,
-                    input_dims=layer_sizes[nn],
-                    num_filters=layer_sizes[nn+1],
-                    filter_dims=conv_filter_size,
-                    shift_spacing=network_params['shift_spacing'][nn],
-                    activation_func=network_params['activation_funcs'][nn],
-                    normalize_weights=network_params['normalize_weights'][nn],
-                    weights_initializer=network_params['weights_initializers'][nn],
-                    biases_initializer=network_params['biases_initializers'][nn],
-                    reg_initializer=network_params['reg_initializers'][nn],
-                    num_inh=network_params['num_inh'][nn],
-                    pos_constraint=network_params['pos_constraints'][nn],
-                    log_activations=network_params['log_activations']))
+                if self.layer_types[nn] == 'conv':
+                    self.layers.append(ConvLayer(
+                        scope='conv_layer_%i' % nn,
+                        input_dims=layer_sizes[nn],
+                        num_filters=layer_sizes[nn+1],
+                        filter_dims=conv_filter_size,
+                        shift_spacing=network_params['shift_spacing'][nn],
+                        activation_func=network_params['activation_funcs'][nn],
+                        normalize_weights=network_params['normalize_weights'][nn],
+                        weights_initializer=network_params['weights_initializers'][nn],
+                        biases_initializer=network_params['biases_initializers'][nn],
+                        reg_initializer=network_params['reg_initializers'][nn],
+                        num_inh=network_params['num_inh'][nn],
+                        pos_constraint=network_params['pos_constraints'][nn],
+                        log_activations=network_params['log_activations']))
+                else:
+                    self.layers.append(ConvLayerXY(
+                        scope='conv_layer_%i' % nn,
+                        input_dims=layer_sizes[nn],
+                        num_filters=layer_sizes[nn+1],
+                        filter_dims=conv_filter_size,
+                        shift_spacing=network_params['shift_spacing'][nn],
+                        activation_func=network_params['activation_funcs'][nn],
+                        normalize_weights=network_params['normalize_weights'][nn],
+                        weights_initializer=network_params['weights_initializers'][nn],
+                        biases_initializer=network_params['biases_initializers'][nn],
+                        reg_initializer=network_params['reg_initializers'][nn],
+                        num_inh=network_params['num_inh'][nn],
+                        pos_constraint=network_params['pos_constraints'][nn],
+                        log_activations=network_params['log_activations']))
 
                 # Modify output size to take into account shifts
                 if nn < self.num_layers:
