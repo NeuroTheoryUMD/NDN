@@ -547,7 +547,6 @@ class SideNetwork(FFNetwork):
                     new_slice = tf.reshape(input_network.layers[input_nn].outputs,
                                         [-1, self.num_space, self.num_units[input_nn]])
                 else: # spatial positions converted to different filters (binocular)
-                    print('binocular', input_nn)
                     native_space = np.prod(input_network.layers[input_nn].output_dims[1:])
                     native_filters = input_network.layers[input_nn].output_dims[0]
                     tmp = tf.reshape(input_network.layers[input_nn].outputs,
