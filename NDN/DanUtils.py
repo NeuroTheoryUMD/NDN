@@ -19,7 +19,8 @@ def reg_path(
         layer_target=0,
         data_filters=None,
         opt_params=None,
-        fit_variables=None):
+        fit_variables=None,
+        output_dir=None):
 
     """perform regularization over reg_vals to determine optimal cross-validated loss
 
@@ -55,7 +56,7 @@ def reg_path(
         test_mod.train(input_data=input_data, output_data=output_data,
                        train_indxs=train_indxs, test_indxs=test_indxs,
                        data_filters=data_filters, fit_variables=fit_variables,
-                       learning_alg='adam', opt_params=opt_params)
+                       learning_alg='adam', opt_params=opt_params, output_dir=output_dir)
         LLxs[nn] = np.mean(
             test_mod.eval_models(input_data=input_data, output_data=output_data,
                                  data_indxs=test_indxs, data_filters=data_filters))
