@@ -830,11 +830,17 @@ def side_ei_analyze( side_ndn ):
 def scaffold_plot_cell( side_ndn, cell_n, with_inh=True, nolabels=True, skip_first_level=False, linewidth=1):
     import matplotlib.pyplot as plt  # plotting
 
-    num_space = int(side_ndn.networks[0].input_dims[1])
-    num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
+    # validity check
+    assert len(side_ndn.network_list) == 2, 'This does not seem to be a standard scaffold network.'
 
+    num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
     num_units = side_ndn.networks[1].num_units[:]
     num_layers = len(num_units)
+
+    if 'biconv' in side_ndn.network_list[0]['layer_types']:
+        num_space = int(side_ndn.networks[0].input_dims[1])//2
+    else:
+        num_space = int(side_ndn.networks[0].input_dims[1])
 
     cell_nrms = np.max(np.abs(side_ndn.networks[1].layers[0].weights), axis=0)
     wside = np.reshape(side_ndn.networks[1].layers[0].weights, [num_space, np.sum(num_units), num_cells])
@@ -898,12 +904,27 @@ def plot_2dweights( w, input_dims=None, num_inh=0):
     ax.set_xticklabels([])
 
 
-def entropy( dist ):
+def entropy(dist):
 
     # normalize distribution
     dist = np.divide( dist.astype('float32'), np.sum(dist) )
     # make all zeros 1
-    dist[np.where(dist==0)[0]] = 1
+    dist[np.where(dist == 0)[0]] = 1
     H = -np.sum( np.multiply( dist, np.log2(dist)) )
 
     return H
+
+
+def best_val_mat(mat, min_or_max=0):
+
+    # Make sure a matrix (numpy)
+    mat = np.array(mat, dtype='float32')
+    if min_or_max == 0:
+        ax0 = np.min(mat, axis=0)
+        b1 = np.argmin(ax0)
+        b0 = np.argmin(mat[:, b1])
+    else:
+        ax0 = np.max(mat, axis=0)
+        b1 = np.argmax(ax0)
+        b0 = np.argmax(mat[:, b1])
+    return b0, b1
