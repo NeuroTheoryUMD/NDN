@@ -862,7 +862,9 @@ def scaffold_plot_cell( side_ndn, cell_n, with_inh=True, nolabels=True, skip_fir
         fcount += num_units[ll]
         if (num_inh[ll] > 0) and with_inh:
             ws[:, num_exc[ll]:] = np.multiply( ws[:, num_exc[ll]:], -1)
-
+            if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
+                more_inh_range = range(num_units[ll]//2-num_inh[ll], num_units[ll]//2)
+                ws[:, more_inh_range] = np.multiply(ws[:, more_inh_range], -1)
         if not skip_first_level or (ll > 0):
             ax = plt.subplot(1, num_layers-col_mod, ll+1-col_mod)
 
@@ -870,9 +872,12 @@ def scaffold_plot_cell( side_ndn, cell_n, with_inh=True, nolabels=True, skip_fir
                 plt.imshow(ws, aspect='auto', interpolation='none', cmap='bwr', vmin=-1, vmax=1)
             else:
                 plt.imshow(ws, aspect='auto', interpolation='none', cmap='Greys', vmin=0, vmax=1)
+            if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
+                plt.plot(np.multiply([1, 1], num_units[ll]//2 - 0.5), [-0.5, num_space - 0.5], 'k')
             if num_inh[ll] > 0:
                 plt.plot(np.multiply([1, 1], num_exc[ll]-0.5), [-0.5, num_space-0.5], 'k')
-
+                if side_ndn.network_list[0]['layer_types'][ll] == 'biconv':
+                    plt.plot(np.multiply([1, 1], num_exc[ll]-num_units[ll]//2 - 0.5), [-0.5, num_space - 0.5], 'k')
             if ~nolabels:
                 ax.set_xticks([])
                 ax.set_yticks([])
