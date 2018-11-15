@@ -649,6 +649,39 @@ class UnitRegularization(Regularization):
         return new_reg_type
     # END UnitRegularization.set_reg_val
 
+    def define_reg_loss(self, weights):
+        """Define regularization loss in default tf Graph"""
+
+        reg_loss = []
+        # loop through all types of regularization
+        for reg_type, reg_val in self.vals.iteritems():
+            # set up reg val variable if it doesn't already exist
+            if reg_val is not None:
+                with tf.name_scope(reg_type + '_loss'):
+                    # use placeholder to initialize Variable for easy
+                    # reassignment of reg vals
+                    self.vals_ph[reg_type] = tf.placeholder(
+                        shape=self.num_outputs,
+                        dtype=tf.float32,
+                        name=reg_type + '_ph')
+                    self.vals_var[reg_type] = tf.Variable(
+                        self.vals_ph[reg_type],  # initializer for variable
+                        trainable=False,  # no GraphKeys.TRAINABLE_VARS
+                        collections=[],   # no GraphKeys.GLOBAL_VARS
+                        dtype=tf.float32,
+                        name=reg_type + '_param')
+                    self.mats[reg_type] = self._build_reg_mats(reg_type)
+                    self.penalties[reg_type] = \
+                        self._calc_reg_penalty(reg_type, weights)
+                reg_loss.append(self.penalties[reg_type])
+
+        # if no regularization, define regularization loss to be zero
+        if len(reg_loss) == 0:
+            reg_loss.append(tf.constant(0.0, tf.float32, name='zero'))
+
+        return tf.add_n(reg_loss)
+    # END Regularization.define_reg_loss
+
     def _calc_reg_penalty(self, reg_type, weights):
         """Calculate regularization penalty for various reg types in default tf
         Graph"""

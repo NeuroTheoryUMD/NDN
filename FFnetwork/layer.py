@@ -7,6 +7,7 @@ import numpy as np
 import tensorflow as tf
 from .regularization import Regularization
 from .regularization import SepRegularization
+from .regularization import UnitRegularization
 
 from copy import deepcopy
 
