@@ -932,4 +932,7 @@ def best_val_mat(mat, min_or_max=0):
         ax0 = np.max(mat, axis=0)
         b1 = np.argmax(ax0)
         b0 = np.argmax(mat[:, b1])
+
+    b0 = int(b0)
+    b1 = int(b1)
     return b0, b1

@@ -855,6 +855,9 @@ class NDN(Network):
         """Return reg penalties in a dictionary"""
 
         reg_dict = {}
+        if self.graph is None:
+            self._build_graph()
+
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
             # initialize all parameters randomly

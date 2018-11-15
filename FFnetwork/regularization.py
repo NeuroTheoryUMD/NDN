@@ -257,7 +257,7 @@ class Regularization(object):
                 tf.trace(tf.matmul(w2,
                                    tf.matmul(self.mats['local'], w2),
                                    transpose_a=True)))
-        elif reg_type is 'glocal':
+        elif reg_type == 'glocal':
             w2 = tf.square(weights)
             reg_pen = tf.multiply(
                 self.vals_var['glocal'],
