@@ -494,7 +494,6 @@ class SideNetwork(FFNetwork):
                         nonconv_inputs[nn] *= 2
                 else:
                     all_convolutional = False
-                    print(nn)
                     nonconv_inputs[nn] = input_layer_sizes[nn]
         else:
             nonconv_inputs = input_layer_sizes[:]
@@ -543,10 +542,11 @@ class SideNetwork(FFNetwork):
             # Assemble network-inputs into the first layer
             for input_nn in range(num_layers):
 
-                if self.num_space == np.prod(input_network.layers[input_nn].output_dims[1:]):
+                if (self.num_space == 1) or \
+                        self.num_space == np.prod(input_network.layers[input_nn].output_dims[1:]):
                     new_slice = tf.reshape(input_network.layers[input_nn].outputs,
-                                        [-1, self.num_space, self.num_units[input_nn]])
-                else: # spatial positions converted to different filters (binocular)
+                                           [-1, self.num_space, self.num_units[input_nn]])
+                else:  # spatial positions converted to different filters (binocular)
                     native_space = np.prod(input_network.layers[input_nn].output_dims[1:])
                     native_filters = input_network.layers[input_nn].output_dims[0]
                     tmp = tf.reshape(input_network.layers[input_nn].outputs,
@@ -561,13 +561,11 @@ class SideNetwork(FFNetwork):
 
                 if input_nn == 0:
                     inputs_raw = new_slice
-                    # inputs_raw = new_slice_mod
                 else:
                     inputs_raw = tf.concat([inputs_raw, new_slice], 2)
-                    #inputs_raw = tf.concat([inputs_raw, new_slice_mod], 2)
 
             # Need to put layer dimension with the filters as bottom dimension instead of top
-            inputs = tf.reshape(inputs_raw, [-1, np.sum(self.num_units)*self.num_space])
+            inputs = tf.reshape(inputs_raw, [-1, np.sum(self.num_units)*self.num_space] )
             #inputs = tf.reshape(inputs_raw, [-1, num_layers*max_units*self.num_space])
 
             # Now standard graph-build (could just call the parent with inputs)
