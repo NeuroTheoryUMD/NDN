@@ -781,6 +781,7 @@ class TNDN(NDN):
                               'end cost: %04f' % (epoch, cost_test))
                         print('     ---> best epoch: %d,  '
                               'best cost: %04f\n' % (best_epoch, best_cost))
+
                         # restore saved variables into tf Variables
                         if output_dir is not None and chkpted and \
                                 opt_params['early_stop_mode'] > 0:
@@ -823,9 +824,9 @@ class TNDN(NDN):
             use_gpu (True or False): Obvious
             single_batch (True or False): if True, will update the batch_size
                 to be equal to len(data_indxs)
-            ffnet_n (int, optional): index into `network_list` that specifies
+            ffnet_target (int, optional): index into `network_list` that specifies
                 which FFNetwork to generate the prediction from
-            layer (int, optional): index into layers of network_list[ffnet_n]
+            layer_target (int, optional): index into layers of network_list[ffnet_n]
                 that specifies which layer to generate prediction from
 
         Returns:

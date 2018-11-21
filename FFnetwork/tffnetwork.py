@@ -141,7 +141,6 @@ class TFFNetwork(FFNetwork):
                     num_filters=layer_sizes[nn+1],
                     filter_dims=conv_filter_size,
                     shift_spacing=network_params['shift_spacing'][nn],
-                    xy_out=network_params['xy_out'][nn],
                     activation_func=network_params['activation_funcs'][nn],
                     normalize_weights=network_params['normalize_weights'][nn],
                     weights_initializer=network_params['weights_initializers'][nn],

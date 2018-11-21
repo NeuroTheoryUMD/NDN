@@ -350,7 +350,7 @@ def plot_pred_vs_true(ndn, stim, robs, which_cell,
     nt = len(train_indxs) + len(test_indxs)
     num_pages = nt // (rows_n * cols_n * rng_width) + 1
 
-    out_fr = ndn.generate_prediction(stim, ffnet_n=fr_address[0], layer=fr_address[1])
+    out_fr = ndn.generate_prediction(stim, ffnet_target=fr_address[0], layer_target=fr_address[1])
     [out_ca, tst, trn] = xv_v1(ndn, stim, robs, test_indxs, train_indxs, plot=False)
 
     pp = PdfPages(save_dir + 'pvt_cell:%s.pdf' % which_cell)
