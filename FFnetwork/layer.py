@@ -263,34 +263,22 @@ class Layer(object):
 
     # END Layer._define_layer_variables
 
-    def _normalize_weights(self, ws):
-        """"Normalize weights as dictated by normalize_variable"""
-        if self.normalize_weights > 0:
-            wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(ws), axis=0)), 1e-8)
-            ws_norm = tf.divide(ws, wnorms)
-            # another way of doing this: find the norm along axis=0, then find aaa = np.where(ws_norm > 0) and
-            # only divide ws with ws_norm in those indices (because the rest of the indices are zero vectors)
-        else:
-            # ws = tf.identity(self.weights_var)
-            ws_norm = ws
-        return ws_norm
-    # END Layer._normalize_weights
-
     def build_graph(self, inputs, params_dict=None):
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
-            # Define computation
-            ws = self._normalize_weights(self.weights_var)
-
             if self.pos_constraint is not None:
-                pre = tf.add(tf.matmul(
-                    inputs,
-                    tf.maximum(0.0, ws)), self.biases_var)
+                w_p = tf.maximum(self.weights_var, 0.0)
             else:
-                pre = tf.add(
-                    tf.matmul(inputs, ws), self.biases_var)
+                w_p = self.weights_var
+
+            if self.normalize_weights is not None:
+                w_pn = tf.nn.l2_normalize(w_p, axis=0)
+            else:
+                w_pn = w_p
+
+            pre = tf.add(tf.matmul(inputs, w_pn), self.biases_var)
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
@@ -315,14 +303,19 @@ class Layer(object):
     def write_layer_params(self, sess):
         """Write weights/biases in tf Variables to numpy arrays"""
 
-        self.weights = sess.run(self.weights_var)
+        _tmp_weights = sess.run(self.weights_var)
+
         if self.pos_constraint is not None:
-            self.weights = np.maximum(self.weights, 0)
-        if self.normalize_weights > 0:
-            wnorm = np.sqrt(np.sum(np.square(self.weights), axis=0))
-            # wnorm[np.where(wnorm == 0)] = 1
-            # self.weights = np.divide(self.weights, wnorm)
-            self.weights = np.divide(self.weights, np.maximum(wnorm, 1e-8))
+            w_p = np.maximum(_tmp_weights, 0)
+        else:
+            w_p = _tmp_weights
+
+        if self.normalize_weights is not None:
+            w_pn = normalize(w_p, axis=0)
+        else:
+            w_pn = w_p
+
+        self.weights = w_pn
         self.biases = sess.run(self.biases_var)
 
     # END Layer.write_layer_params
@@ -330,8 +323,17 @@ class Layer(object):
     def define_regularization_loss(self):
         """Wrapper function for building regularization portion of graph"""
         with tf.name_scope(self.scope):
-            ws = self._normalize_weights(self.weights_var)
-            return self.reg.define_reg_loss(ws)
+            if self.pos_constraint is not None:
+                w_p = tf.maximum(self.weights_var, 0.0)
+            else:
+                w_p = self.weights_var
+
+            if self.normalize_weights is not None:
+                w_pn = tf.nn.l2_normalize(w_p, axis=0)
+            else:
+                w_pn = w_p
+
+            return self.reg.define_reg_loss(w_pn)
 
     def set_regularization(self, reg_type, reg_val):
         """Wrapper function for setting regularization"""
@@ -479,15 +481,17 @@ class ConvLayer(Layer):
             conv_filter_dims = [filter_size[2], filter_size[1], filter_size[0],
                                 self.num_filters]
 
-            if self.normalize_weights > 0:
-                # ws_conv = tf.reshape(tf.nn.l2_normalize(self.weights_var, axis=0),
-                #                     conv_filter_dims) # this is in tf 1.8
-                wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
-                ws_conv = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filter_dims)
+            if self.pos_constraint is not None:
+                w_p = tf.maximum(self.weights_var, 0.0)
             else:
-                ws_conv = tf.reshape(self.weights_var, conv_filter_dims)
-                # this is reverse-order from Matlab:
-                # [space-2, space-1, lags] and num_filters is explicitly last dim
+                w_p = self.weights_var
+
+            if self.normalize_weights is not None:
+                w_pn = tf.nn.l2_normalize(w_p, axis=0)
+            else:
+                w_pn = w_p
+
+            ws_conv = tf.reshape(w_pn, conv_filter_dims)
 
             # Make strides list
             # check back later (this seems to not match with conv_filter_dims)
@@ -497,10 +501,7 @@ class ConvLayer(Layer):
             if conv_filter_dims[2] > 1:
                 strides[2] = self.shift_spacing
 
-            if self.pos_constraint is not None:
-                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
-            else:
-                pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(
@@ -656,15 +657,17 @@ class ConvLayerXY(Layer):
             conv_filter_dims = [filter_size[2], filter_size[1], filter_size[0],
                                 self.num_filters]
 
-            if self.normalize_weights > 0:
-                # ws_conv = tf.reshape(tf.nn.l2_normalize(self.weights_var, axis=0),
-                #                     conv_filter_dims) # this is in tf 1.8
-                wnorms = tf.maximum(tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0)), 1e-8)
-                ws_conv = tf.reshape(tf.divide(self.weights_var, wnorms), conv_filter_dims)
+            if self.pos_constraint is not None:
+                w_p = tf.maximum(self.weights_var, 0.0)
             else:
-                ws_conv = tf.reshape(self.weights_var, conv_filter_dims)
-                # this is reverse-order from Matlab:
-                # [space-2, space-1, lags] and num_filters is explicitly last dim
+                w_p = self.weights_var
+
+            if self.normalize_weights is not None:
+                w_pn = tf.nn.l2_normalize(w_p, axis=0)
+            else:
+                w_pn = w_p
+
+            ws_conv = tf.reshape(w_pn, conv_filter_dims)
 
             # yaeh this should be the case:
             strides = [1, 1, 1, 1]
@@ -673,10 +676,7 @@ class ConvLayerXY(Layer):
             if conv_filter_dims[1] > 1:
                 strides[2] = self.shift_spacing
 
-            if self.pos_constraint is not None:
-                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
-            else:
-                pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(
@@ -899,55 +899,60 @@ class SepLayer(Layer):
         self.biases = sess.run(self.biases_var)
     # END SepLayer.write_layer_params
 
+    def _separate_weights(self):
+        # Section weights into first dimension and space
+        if self.partial_fit == 0:
+            kt = self.weights_var
+            ks = tf.constant(self.weights[self.input_dims[0]:, :], dtype=tf.float32)
+        elif self.partial_fit == 1:
+            kt = tf.constant(self.weights[:self.input_dims[0], :], dtype=tf.float32)
+            ks = self.weights_var
+        else:
+            kt = tf.slice(self.weights_var, [0, 0],
+                          [self.input_dims[0], self.num_filters])
+            ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
+                          [self.input_dims[1] * self.input_dims[2], self.num_filters])
+
+        if self.pos_constraint == 0:
+            kt_p = tf.maximum(0.0, kt)
+            ks_p = ks
+        elif self.pos_constraint == 1:
+            kt_p = kt
+            ks_p = tf.maximum(0.0, ks)
+        elif self.pos_constraint == 2:
+            kt_p = tf.maximum(0.0, kt)
+            ks_p = tf.maximum(0.0, ks)
+        else:
+            kt_p = kt
+            ks_p = ks
+
+        # Normalize weights (one or both dimensions)
+        if self.normalize_weights == 0:
+            kt_pn = tf.nn.l2_normalize(kt_p, axis=0)
+            ks_pn = ks_p
+        elif self.normalize_weights == 1:
+            kt_pn = kt_p
+            ks_pn = tf.nn.l2_normalize(ks_p, axis=0)
+        elif self.normalize_weights == 2:
+            kt_pn = tf.nn.l2_normalize(kt_p, axis=0)
+            ks_pn = tf.nn.l2_normalize(ks_p, axis=0)
+        else:
+            kt_pn = kt_p
+            ks_pn = ks_p
+
+        w_full = tf.transpose(tf.reshape(tf.matmul(
+            tf.expand_dims(tf.transpose(ks_pn), 2),
+            tf.expand_dims(tf.transpose(kt_pn), 1)),
+            [self.num_filters, np.prod(self.input_dims)]))
+
+        return w_full
+
     def build_graph(self, inputs, params_dict=None):
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
-            # Section weights into first dimension and space
-            if self.partial_fit == 0:
-                kt = self.weights_var
-                ks = tf.constant(self.weights[self.input_dims[0]:, :], dtype=tf.float32)
-            elif self.partial_fit == 1:
-                kt = tf.constant(self.weights[:self.input_dims[0], :], dtype=tf.float32)
-                ks = self.weights_var
-            else:
-                kt = tf.slice(self.weights_var, [0, 0],
-                              [self.input_dims[0], self.num_filters])
-                ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
-                              [self.input_dims[1] * self.input_dims[2], self.num_filters])
-
-            if self.pos_constraint == 0:
-                kt_p = tf.maximum(0.0, kt)
-                ks_p = ks
-            elif self.pos_constraint == 1:
-                kt_p = kt
-                ks_p = tf.maximum(0.0, ks)
-            elif self.pos_constraint == 2:
-                kt_p = tf.maximum(0.0, kt)
-                ks_p = tf.maximum(0.0, ks)
-            else:
-                kt_p = kt
-                ks_p = ks
-
-            # Normalize weights (one or both dimensions)
-            if self.normalize_weights == 0:
-                kt_pn = tf.nn.l2_normalize(kt_p, axis=0)
-                ks_pn = ks_p
-            elif self.normalize_weights == 1:
-                kt_pn = kt_p
-                ks_pn = tf.nn.l2_normalize(ks_p, axis=0)
-            elif self.normalize_weights == 2:
-                kt_pn = tf.nn.l2_normalize(kt_p, axis=0)
-                ks_pn = tf.nn.l2_normalize(ks_p, axis=0)
-            else:
-                kt_pn = kt_p
-                ks_pn = ks_p
-
-            weights_full = tf.transpose(tf.reshape(
-                tf.matmul(tf.expand_dims(tf.transpose(ks_pn), 2),
-                          tf.expand_dims(tf.transpose(kt_pn), 1)),
-                [self.num_filters, np.prod(self.input_dims)]))
+            weights_full = self._separate_weights()
 
             pre = tf.add(tf.matmul(inputs, weights_full), self.biases_var)
 
@@ -1492,28 +1497,26 @@ class AddLayer(Layer):
             self._define_layer_variables()
 
             if self.pos_constraint is not None:
-                ws = tf.maximum(0.0, self.weights_var)
+                w_p = tf.maximum(self.weights_var, 0.0)
             else:
-                ws = self.weights_var
+                w_p = self.weights_var
 
             if num_input_streams == 1:
-                pre = tf.multiply( inputs, ws )
+                _tmp_pre = tf.multiply(inputs, w_p)
             else:
-
-                if self.normalize_weights > 0:
-                    wnorms = tf.sqrt(tf.reduce_sum(tf.square(self.weights_var), axis=0))
-                    ws = tf.divide(self.weights_var, tf.maximum(wnorms, 1e-8))
+                if self.normalize_weights is not None:
+                    w_pn = tf.nn.l2_normalize(w_p, axis=0)
                 else:
-                    ws = self.weights_var
+                    w_pn = w_p
 
-                flattened_weights = tf.reshape(ws, [1, num_input_streams*num_outputs])
+                flattened_weights = tf.reshape(w_pn, [1, num_input_streams*num_outputs])
                 # Define computation -- different from layer in that this is a broadcast-multiply
                 # rather than  matmul
-                pre = tf.multiply(inputs, flattened_weights)
                 # Sum over input streams for given output
-                pre = tf.reduce_sum(tf.reshape(pre, [-1, num_input_streams, num_outputs]), axis=1)
+                _tmp_pre = tf.reduce_sum(tf.reshape(tf.multiply(inputs, flattened_weights),
+                                                    [-1, num_input_streams, num_outputs]), axis=1)
 
-            pre = tf.add(pre, self.biases_var)
+            pre = tf.add(_tmp_pre, self.biases_var)
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
@@ -1526,6 +1529,28 @@ class AddLayer(Layer):
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END AddLayer._build_graph
+
+    def write_layer_params(self, sess):
+        """Write weights/biases in tf Variables to numpy arrays"""
+
+        num_input_streams = self.input_dims[0]
+        num_outputs = self.output_dims[1]
+        _tmp_weights = sess.run(self.weights_var)
+
+        if self.pos_constraint is not None:
+            w_p = np.maximum(_tmp_weights, 0.0)
+        else:
+            w_p = self.weights_var
+
+        if self.normalize_weights is not None and num_input_streams != 1:
+            w_pn = normalize(w_p, axis=0)
+        else:
+            w_pn = w_p
+
+        flattened_weights = np.reshape(w_pn, [1, num_input_streams * num_outputs])
+
+        self.weights = flattened_weights
+        self.biases = sess.run(self.biases_var)
 
 
 class SpikeHistoryLayer(Layer):
