@@ -310,7 +310,7 @@ class Layer(object):
         else:
             w_p = _tmp_weights
 
-        if self.normalize_weights is not None:
+        if self.normalize_weights > 0:
             w_pn = sk_normalize(w_p, axis=0)
         else:
             w_pn = w_p
@@ -328,7 +328,7 @@ class Layer(object):
             else:
                 w_p = self.weights_var
 
-            if self.normalize_weights is not None:
+            if self.normalize_weights > 0:
                 w_pn = tf.nn.l2_normalize(w_p, axis=0)
             else:
                 w_pn = w_p
