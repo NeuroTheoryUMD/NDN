@@ -10,7 +10,7 @@ from .regularization import SepRegularization
 from .regularization import UnitRegularization
 
 from copy import deepcopy
-from sklearn.preprocessing import sk_normalize
+from sklearn.preprocessing import normalize as sk_normalize
 
 
 class Layer(object):
