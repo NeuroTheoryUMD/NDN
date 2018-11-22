@@ -10,7 +10,7 @@ from .regularization import SepRegularization
 from .regularization import UnitRegularization
 
 from copy import deepcopy
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import sk_normalize
 
 
 class Layer(object):
@@ -273,7 +273,7 @@ class Layer(object):
             else:
                 w_p = self.weights_var
 
-            if self.normalize_weights is not None:
+            if self.normalize_weights > 0:
                 w_pn = tf.nn.l2_normalize(w_p, axis=0)
             else:
                 w_pn = w_p
@@ -311,7 +311,7 @@ class Layer(object):
             w_p = _tmp_weights
 
         if self.normalize_weights is not None:
-            w_pn = normalize(w_p, axis=0)
+            w_pn = sk_normalize(w_p, axis=0)
         else:
             w_pn = w_p
 
@@ -486,7 +486,7 @@ class ConvLayer(Layer):
             else:
                 w_p = self.weights_var
 
-            if self.normalize_weights is not None:
+            if self.normalize_weights > 0:
                 w_pn = tf.nn.l2_normalize(w_p, axis=0)
             else:
                 w_pn = w_p
@@ -662,7 +662,7 @@ class ConvLayerXY(Layer):
             else:
                 w_p = self.weights_var
 
-            if self.normalize_weights is not None:
+            if self.normalize_weights > 0:
                 w_pn = tf.nn.l2_normalize(w_p, axis=0)
             else:
                 w_pn = w_p
@@ -881,14 +881,14 @@ class SepLayer(Layer):
 
         # Normalize weights (one or both dimensions)
         if self.normalize_weights == 0:
-            wt_pn = normalize(wt_p, axis=0)
+            wt_pn = sk_normalize(wt_p, axis=0)
             ws_pn = ws_p
         elif self.normalize_weights == 1:
             wt_pn = wt_p
-            ws_pn = normalize(ws_p, axis=0)
+            ws_pn = sk_normalize(ws_p, axis=0)
         elif self.normalize_weights == 2:
-            wt_pn = normalize(wt_p, axis=0)
-            ws_pn = normalize(ws_p, axis=0)
+            wt_pn = sk_normalize(wt_p, axis=0)
+            ws_pn = sk_normalize(ws_p, axis=0)
         else:
             wt_pn = wt_p
             ws_pn = ws_p
@@ -1504,7 +1504,7 @@ class AddLayer(Layer):
             if num_input_streams == 1:
                 _tmp_pre = tf.multiply(inputs, w_p)
             else:
-                if self.normalize_weights is not None:
+                if self.normalize_weights > 0:
                     w_pn = tf.nn.l2_normalize(w_p, axis=0)
                 else:
                     w_pn = w_p
@@ -1542,8 +1542,8 @@ class AddLayer(Layer):
         else:
             w_p = self.weights_var
 
-        if self.normalize_weights is not None and num_input_streams != 1:
-            w_pn = normalize(w_p, axis=0)
+        if (self.normalize_weights > 0) and (num_input_streams != 1):
+            w_pn = sk_normalize(w_p, axis=0)
         else:
             w_pn = w_p
 
