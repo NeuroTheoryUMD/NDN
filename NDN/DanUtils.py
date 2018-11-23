@@ -823,8 +823,49 @@ def side_ei_analyze( side_ndn ):
     return EIweights, EIprofiles
 
 
-def scaffold_plot_cell( side_ndn, cell_n, with_inh=True, nolabels=True, skip_first_level=False, linewidth=1):
+def scaffold_nonconv_plot( side_ndn, with_inh=True, nolabels=True, skip_first_level=False, linewidth=1):
 
+    # validity check
+    assert len(side_ndn.network_list) == 2, 'This does not seem to be a standard scaffold network.'
+
+    num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
+    num_units = side_ndn.networks[1].num_units[:]
+    num_layers = len(num_units)
+    scaff_ws = side_ndn.networks[1].layers[0].weights
+    cell_nrms = np.max(np.abs(side_ndn.networks[1].layers[0].weights), axis=0)
+    num_inh = side_ndn.network_list[0]['num_inh']
+    num_exc = np.subtract(num_units, num_inh)
+
+    fcount = 0
+    col_mod = 0
+    if skip_first_level:
+        col_mod = 1
+
+    subplot_setup(num_rows=1, num_cols=num_layers-col_mod)
+    plt.rcParams['lines.linewidth'] = linewidth
+    plt.rcParams['axes.linewidth'] = linewidth
+    for ll in range(num_layers):
+        ws = np.transpose(np.divide(scaff_ws[range(fcount, fcount+num_units[ll]), :].copy(), cell_nrms))
+
+        fcount += num_units[ll]
+        if (num_inh[ll] > 0) and with_inh:
+            ws[:, num_exc[ll]:] = np.multiply( ws[:, num_exc[ll]:], -1)
+        if not skip_first_level or (ll > 0):
+            ax = plt.subplot(1, num_layers-col_mod, ll+1-col_mod)
+
+            if with_inh:
+                plt.imshow(ws, aspect='auto', interpolation='none', cmap='bwr', vmin=-1, vmax=1)
+            else:
+                plt.imshow(ws, aspect='auto', interpolation='none', cmap='Greys', vmin=0, vmax=1)
+            if num_inh[ll] > 0:
+                plt.plot(np.multiply([1, 1], num_exc[ll]-0.5), [-0.5, num_cells-0.5], 'k')
+            if ~nolabels:
+                ax.set_xticks([])
+                ax.set_yticks([])
+    plt.show()
+
+
+def scaffold_plot_cell( side_ndn, cell_n, with_inh=True, nolabels=True, skip_first_level=False, linewidth=1):
 
     # validity check
     assert len(side_ndn.network_list) == 2, 'This does not seem to be a standard scaffold network.'
