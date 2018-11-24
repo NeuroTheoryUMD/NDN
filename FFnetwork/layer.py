@@ -294,6 +294,14 @@ class Layer(object):
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
+
+        # Adjust weights (pos and normalize) if appropriate
+        if self.pos_constraint is not None:
+            self.weights = np.maximum(self.weights, 0)
+        if self.normalize_weights > 0:
+            self.weights, nrms = sk_normalize(self.weights, axis=0, return_norm=True)
+            self.biases = np.divide(self.biases, nrms)
+
         sess.run(
             [self.weights_var.initializer, self.biases_var.initializer],
             feed_dict={self.weights_ph: self.weights,
@@ -1182,7 +1190,7 @@ class ConvSepLayer(Layer):
                 self.ei_mask, dtype=tf.float32, name='ei_mask')
         else:
             self.ei_mask_var = None
-    # END SepLayer._define_layer_variables
+    # END ConvSepLayer._define_layer_variables
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
@@ -1200,7 +1208,7 @@ class ConvSepLayer(Layer):
             sess.run(
                 [self.weights_var.initializer, self.biases_var.initializer],
                 feed_dict={self.weights_ph: self.weights, self.biases_ph: self.biases})
-    # END SepLayer.assign_layer_params
+    # END ConvSepLayer.assign_layer_params
 
     def write_layer_params(self, sess):
         """Write weights/biases in tf Variables to numpy arrays"""
@@ -1256,8 +1264,7 @@ class ConvSepLayer(Layer):
         self.weights[self.input_dims[0]:, :] = ws_np
 
         self.biases = sess.run(self.biases_var)
-    # END SepLayer.write_layer_params
-
+    # END ConvSepLayer.write_layer_params
 
     def define_regularization_loss(self):
         """overloaded function to handle different normalization in SepLayer"""
@@ -1408,7 +1415,7 @@ class ConvSepLayer(Layer):
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END sepconvLayer._build_layer
+    # END ConvSepLayer._build_layer
 
 
 class AddLayer(Layer):
@@ -2066,7 +2073,6 @@ class GaborLayer(Layer):
 
         return gabor
 
-
     def _define_layer_variables(self):
         # Define tensor-flow versions of variables (placeholder and variables)
 
@@ -2115,7 +2121,7 @@ class GaborLayer(Layer):
                 self.ei_mask, dtype=tf.float32, name='ei_mask')
         else:
             self.ei_mask_var = None
-    # END SepLayer._define_layer_variables
+    # END GaborLayer._define_layer_variables
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
@@ -2136,7 +2142,7 @@ class GaborLayer(Layer):
             sess.run(
                 [self.weights_var.initializer, self.biases_var.initializer],
                 feed_dict={self.weights_ph: weights_params, self.biases_ph: self.biases})
-    # END SepLayer.assign_layer_params
+    # END GaborLayer.assign_layer_params
 
     def write_layer_params(self, sess):
         """Write weights/biases in tf Variables to numpy arrays"""
@@ -2197,8 +2203,7 @@ class GaborLayer(Layer):
         self.weights[self.input_dims[0]:, :] = ws_np
 
         self.biases = sess.run(self.biases_var)
-    # END SepLayer.write_layer_params
-
+    # END GaborLayer.write_layer_params
 
     def define_regularization_loss(self):
         """overloaded function to handle different normalization in SepLayer"""
@@ -2253,7 +2258,6 @@ class GaborLayer(Layer):
                 return self.reg.define_reg_loss(ks_np)
             else:
                 return self.reg.define_reg_loss(tf.concat([kt_np, ks_np], 0))
-
 
     def _separate_weights(self):
         # Section weights into first dimension and space
@@ -2351,4 +2355,4 @@ class GaborLayer(Layer):
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END GaborLayer._build_layer
+    # END GaborLayer.build_graph
