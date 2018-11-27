@@ -268,7 +268,7 @@ class CaTentLayer(Layer):
 
             # this produces shape (batch_size, nc, num_filts)
             if self.num_filters > 1:
-                self.outputs = tf.matrix_diag_part(tf.transpose(tf.squeeze(post, axis=2), [1, 0, 2]))
+                self.outputs = tf.linalg.diag_part(tf.transpose(tf.squeeze(post, axis=2), [1, 0, 2]))
             else:
                 # single filter
                 self.outputs = tf.transpose(tf.squeeze(post, axis=[2, 3]))

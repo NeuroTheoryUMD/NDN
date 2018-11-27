@@ -428,7 +428,7 @@ def xv_retina(ndn, stim, robs, data_indxs=None, plot=True):
         plt.plot([0, nc], [0, 0], 'r--',
                  [0, nc], [np.mean(null_adj_nll), np.mean(null_adj_nll)], 'g--')
         plt.xlabel('Neurons')
-        plt.xlabel('null adj NLL')
+        plt.ylabel('null adj NLL')
         plt.title('Null adjusted negative log-likelihood (on test indices)')
         plt.show()
 
@@ -945,11 +945,8 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
 
     """
 
-    if num_conv_mod_layers is None:
-        num_conv_mod_layers = ndn.network_list[0]['layer_types'][2:].count('conv')
-
     if address_dict is None:
-        address_dict = {'tbasis': [0, 0], 'stkers': [0, 1], 'redout': [0, -1]}
+        address_dict = {'tbasis': [0, 0], 'stkers': [0, 1], 'readout': [0, -1]}
 
     tbasis_address = address_dict['tbasis']
     tbasis = ndn.networks[tbasis_address[0]].layers[tbasis_address[1]].weights
@@ -958,8 +955,11 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
     # kers
     stkers_address = address_dict['stkers']
     stkers = ndn.networks[stkers_address[0]].layers[stkers_address[1]].weights
-    [_, width, _] = ndn.networks[0].layers[1].filter_dims
+    [_, width, _] = ndn.networks[stkers_address[0]].layers[stkers_address[1]].filter_dims
     ker_n = stkers.shape[1]
+
+    if num_conv_mod_layers is None:
+        num_conv_mod_layers = ndn.network_list[stkers_address[0]]['layer_types'][stkers_address[1]+1:].count('conv')
 
     st_subs = np.zeros((width, width, nlags, ker_n))
 
@@ -1007,35 +1007,36 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
 
 
     # cells
-    _key = sorted(out_dict.keys())[-1]
-    _last_st = out_dict[_key]
-    _last_width = _last_st.shape[0]
+    if 'readout' in address_dict:
+        _key = sorted(out_dict.keys())[-1]
+        _last_st = out_dict[_key]
+        _last_width = _last_st.shape[0]
 
-    readout_address = address_dict['redout']
-    mod_n = ndn.networks[readout_address[0]].layers[readout_address[1] - 1].num_filters
-    st_cells = np.matmul(_last_st, ndn.networks[readout_address[0]].layers[readout_address[1]].weights[:mod_n, :])
+        readout_address = address_dict['readout']
+        mod_n = ndn.networks[readout_address[0]].layers[readout_address[1] - 1].num_filters
+        st_cells = np.matmul(_last_st, ndn.networks[readout_address[0]].layers[readout_address[1]].weights[:mod_n, :])
 
-    out_dict.update({'net%dL%d_cells' % (readout_address[0], readout_address[1]): st_cells})
+        out_dict.update({'net%dL%d_cells' % (readout_address[0], readout_address[1]): st_cells})
 
-    nc = ndn.networks[readout_address[0]].layers[readout_address[1]].weights.shape[1]
-    nx, ny = ndn.input_sizes[0][1:]
+        nc = ndn.networks[readout_address[0]].layers[readout_address[1]].weights.shape[1]
+        nx, ny = ndn.input_sizes[0][1:]
 
-    # cells embedded
-    st_cells_embd = np.zeros((ny, nx, nlags, nc))
-    ros = ndn.networks[readout_address[0]].layers[readout_address[1]].weights[mod_n:, :]
+        # cells embedded
+        st_cells_embd = np.zeros((ny, nx, nlags, nc))
+        ros = ndn.networks[readout_address[0]].layers[readout_address[1]].weights[mod_n:, :]
 
-    for mu in range(nc):
-        _tmp_embd = np.zeros((ny*nx, nlags))
-        for ii in range(ny*nx):
-            pos_y, pos_x = np.unravel_index(ii, (ny, nx))
-            _tmp_embd += ros[ii, mu] * space_embedding(
-                np.reshape(st_cells[..., mu], (-1, nlags)),
-                dims=[nx, ny],
-                x_rng=[pos_x - _last_width // 2, pos_x + _last_width // 2 + 1],
-                y_rng=[pos_y - _last_width // 2, pos_y + _last_width // 2 + 1])
+        for mu in range(nc):
+            _tmp_embd = np.zeros((ny*nx, nlags))
+            for ii in range(ny*nx):
+                pos_y, pos_x = np.unravel_index(ii, (ny, nx))
+                _tmp_embd += ros[ii, mu] * space_embedding(
+                    np.reshape(st_cells[..., mu], (-1, nlags)),
+                    dims=[nx, ny],
+                    x_rng=[pos_x - _last_width // 2, pos_x + _last_width // 2 + 1],
+                    y_rng=[pos_y - _last_width // 2, pos_y + _last_width // 2 + 1])
 
-        st_cells_embd[..., mu] = np.reshape(_tmp_embd, (ny, nx, nlags))
+            st_cells_embd[..., mu] = np.reshape(_tmp_embd, (ny, nx, nlags))
 
-    out_dict.update({'net%dL%d_cells_embd' % (readout_address[0], readout_address[1]): st_cells_embd})
+        out_dict.update({'net%dL%d_cells_embd' % (readout_address[0], readout_address[1]): st_cells_embd})
 
     return out_dict
