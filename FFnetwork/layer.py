@@ -105,6 +105,9 @@ class Layer(object):
         self.scope = scope
         self.nlags = nlags
 
+        #
+        self.nl_param = 0.2
+
         # Make input, output, and filter sizes explicit
         if isinstance(input_dims, list):
             while len(input_dims) < 3:
@@ -160,6 +163,7 @@ class Layer(object):
             self.activation_func = tf.nn.elu
         elif activation_func == 'exp':
             self.activation_func = tf.exp
+       ### elif self
         else:
             raise ValueError('Invalid activation function ''%s''' %
                              activation_func)
@@ -584,17 +588,10 @@ class ConvXYLayer(Layer):
             # assume 1-dimensional (space)
             input_dims = [1, input_dims, 1]
 
-        if filter_dims is None:
-            filter_dims = input_dims
-        else:
-            if isinstance(filter_dims, list):
-                while len(filter_dims) < 3:
-                    filter_dims.extend(1)
-            else:
-                filter_dims = [filter_dims, 1, 1]
-
-        if nlags is not None:
-            filter_dims[0] *= nlags
+ #       if xy_out is not None:
+  #          filter_dims = [input_dims[0], 1, 1]
+   #     else:
+    #        filter_dims = None
 
         # If output dimensions already established, just strip out num_filters
         if isinstance(num_filters, list):
@@ -633,29 +630,23 @@ class ConvXYLayer(Layer):
         else:
             self.output_dims = [num_filters, 1, 1]
 
-    # END ConvLayerXY.__init__
+    # END ConvXYLayer.__init__
+
+    def _get_indices(self, batch_sz):
+        nc = self.num_filters
+        space_ind = zip(np.repeat(np.arange(batch_sz), nc),
+                        np.tile(self.xy_out[:, 1], (batch_sz,)),
+                        np.tile(self.xy_out[:, 0], (batch_sz,)),
+                        np.tile(np.arange(nc), (batch_sz,)))
+        return tf.constant(space_ind, dtype=tf.int32)
 
     def build_graph(self, inputs, params_dict=None):
 
         assert params_dict is not None, 'Incorrect siLayer initialization.'
         # Unfold siLayer-specific parameters for building graph
-        filter_size = self.filter_dims
-        num_shifts = self.num_shifts
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
-
-            # Computation performed in the layer
-            # Reshape of inputs (4-D):
-            input_dims = [-1, self.input_dims[2], self.input_dims[1],
-                          self.input_dims[0]]
-            # this is reverse-order from Matlab:
-            # [space-2, space-1, lags, and num_examples]
-            shaped_input = tf.reshape(inputs, input_dims)
-
-            # Reshape weights (4:D:
-            conv_filter_dims = [filter_size[2], filter_size[1], filter_size[0],
-                                self.num_filters]
 
             if self.pos_constraint is not None:
                 w_p = tf.maximum(self.weights_var, 0.0)
@@ -667,16 +658,23 @@ class ConvXYLayer(Layer):
             else:
                 w_pn = w_p
 
-            ws_conv = tf.reshape(w_pn, conv_filter_dims)
+            ws_conv = tf.reshape(w_pn, [self.filter_dims[2], self.filter_dims[1], self.filter_dims[0], self.num_filters])
+            shaped_input = tf.reshape(inputs, [-1, self.input_dims[2], self.input_dims[1], self.input_dims[0]])
 
             # yaeh this should be the case:
             strides = [1, 1, 1, 1]
-            if conv_filter_dims[0] > 1:
+            if self.filter_dims[2] > 1:
                 strides[1] = self.shift_spacing
-            if conv_filter_dims[1] > 1:
+            if self.filter_dims[1] > 1:
                 strides[2] = self.shift_spacing
 
-            pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            pre0 = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+
+            if self.xy_out is not None:
+                indices = self._get_indices(int(shaped_input.shape[0]))
+                pre = tf.reshape(tf.gather_nd(pre0, indices), (-1, self.num_filters))
+            else:
+                pre = pre0
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(
@@ -686,16 +684,16 @@ class ConvXYLayer(Layer):
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
             # reminder: self.xy_out = centers[which_cell] = [ctr_x, ctr_y]
-            if self.xy_out is None:
-                self.outputs = tf.reshape(
-                    post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+            if self.xy_out is not None:
+                self.outputs = post
             else:
-                self.outputs = post[:, self.xy_out[1], self.xy_out[0], :]
+                self.outputs = tf.reshape(
+                    post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
-    # END ConvLayerXY.build_graph
+    # END ConvXYLayer.build_graph
 
 
 class SepLayer(Layer):
