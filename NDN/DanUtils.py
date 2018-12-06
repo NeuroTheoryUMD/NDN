@@ -4,6 +4,7 @@ from __future__ import division
 import numpy as np
 import NDN as NDN
 import NDNutils as NDNutils
+import matplotlib.pyplot as plt
 from copy import deepcopy
 
 
@@ -196,8 +197,6 @@ def spatial_spread(filters, axis=0):
 
 def plot_filters(ndn_mod):
 
-    import matplotlib.pyplot as plt  # plotting
-
     # Check to see if there is a temporal layer first
     if np.prod(ndn_mod.networks[0].layers[0].filter_dims[1:]) == 1:
         ks = tbasis_recover_filters(ndn_mod)
@@ -251,7 +250,7 @@ def side_network_analyze(side_ndn, cell_to_plot=None, plot_aspect='auto'):
     Output:
         returns the weights as organized as descrived above
     """
-    import matplotlib.pyplot as plt  # plotting
+
     if plot_aspect != 'auto':
         plot_aspect = 'equal'
 
@@ -471,8 +470,6 @@ def side_distance_matrix(side_ndn, level=None, EI=None):
 def evaluate_ffnetwork(ffnet, end_weighting=None, to_plot=False, thresh_list=None, percent_drop=None):
     """Analyze FFnetwork nodes to determine their contribution in the big picture.
     thresh_list and percent_drop apply criteria for each layer (one or other) to suggest units to drop"""
-
-    import matplotlib.pyplot as plt  # plotting
 
     num_layers = len(ffnet.layers)
     num_unit_bot = ffnet.layers[-1].weights.shape[1]
@@ -741,7 +738,6 @@ def join_ndns(ndn1, ndn2, units2=None):
 
 
 def subplot_setup(num_rows, num_cols, row_height=2):
-    import matplotlib.pyplot as plt  # plotting
     fig, ax = plt.subplots(nrows=num_rows, ncols=num_cols)
     fig.set_size_inches(16, row_height*num_rows)
 
@@ -827,8 +823,49 @@ def side_ei_analyze( side_ndn ):
     return EIweights, EIprofiles
 
 
+def scaffold_nonconv_plot( side_ndn, with_inh=True, nolabels=True, skip_first_level=False, linewidth=1):
+
+    # validity check
+    assert len(side_ndn.network_list) == 2, 'This does not seem to be a standard scaffold network.'
+
+    num_cells = side_ndn.network_list[1]['layer_sizes'][-1]
+    num_units = side_ndn.networks[1].num_units[:]
+    num_layers = len(num_units)
+    scaff_ws = side_ndn.networks[1].layers[0].weights
+    cell_nrms = np.max(np.abs(side_ndn.networks[1].layers[0].weights), axis=0)
+    num_inh = side_ndn.network_list[0]['num_inh']
+    num_exc = np.subtract(num_units, num_inh)
+
+    fcount = 0
+    col_mod = 0
+    if skip_first_level:
+        col_mod = 1
+
+    subplot_setup(num_rows=1, num_cols=num_layers-col_mod)
+    plt.rcParams['lines.linewidth'] = linewidth
+    plt.rcParams['axes.linewidth'] = linewidth
+    for ll in range(num_layers):
+        ws = np.transpose(np.divide(scaff_ws[range(fcount, fcount+num_units[ll]), :].copy(), cell_nrms))
+
+        fcount += num_units[ll]
+        if (num_inh[ll] > 0) and with_inh:
+            ws[:, num_exc[ll]:] = np.multiply( ws[:, num_exc[ll]:], -1)
+        if not skip_first_level or (ll > 0):
+            ax = plt.subplot(1, num_layers-col_mod, ll+1-col_mod)
+
+            if with_inh:
+                plt.imshow(ws, aspect='auto', interpolation='none', cmap='bwr', vmin=-1, vmax=1)
+            else:
+                plt.imshow(ws, aspect='auto', interpolation='none', cmap='Greys', vmin=0, vmax=1)
+            if num_inh[ll] > 0:
+                plt.plot(np.multiply([1, 1], num_exc[ll]-0.5), [-0.5, num_cells-0.5], 'k')
+            if ~nolabels:
+                ax.set_xticks([])
+                ax.set_yticks([])
+    plt.show()
+
+
 def scaffold_plot_cell( side_ndn, cell_n, with_inh=True, nolabels=True, skip_first_level=False, linewidth=1):
-    import matplotlib.pyplot as plt  # plotting
 
     # validity check
     assert len(side_ndn.network_list) == 2, 'This does not seem to be a standard scaffold network.'
@@ -886,7 +923,6 @@ def scaffold_plot_cell( side_ndn, cell_n, with_inh=True, nolabels=True, skip_fir
 
 def plot_2dweights( w, input_dims=None, num_inh=0):
     """w can be one dimension (in which case input_dims is required) or already shaped. """
-    import matplotlib.pyplot as plt  # plotting
 
     if input_dims is not None:
         w = np.reshape(w, [input_dims[1], input_dims[0]])
@@ -936,3 +972,36 @@ def best_val_mat(mat, min_or_max=0):
     b0 = int(b0)
     b1 = int(b1)
     return b0, b1
+
+
+def ffnet_health(ndn_mod, toplot=True):
+
+    num_nets = len(ndn_mod.networks)
+    whealth = [None]*num_nets
+    bhealth = [None]*num_nets
+    max_layers = 0
+    for nn in range(num_nets):
+        num_layers = len(ndn_mod.networks[nn].layers)
+        whealth[nn] = [None]*num_layers
+        bhealth[nn] = [None]*num_layers
+        if num_layers > max_layers:
+            max_layers = num_layers
+        for ll in range(num_layers):
+            whealth[nn][ll] = np.std(ndn_mod.networks[nn].layers[ll].weights, axis=0)
+            bhealth[nn][ll] = ndn_mod.networks[nn].layers[ll].biases[0, :]
+
+    if toplot:
+        subplot_setup(num_nets * 2, max_layers + 1)
+        for nn in range(num_nets):
+            num_layers = len(ndn_mod.networks[nn].layers)
+            for ll in range(num_layers):
+                plt.subplot(num_nets*2, max_layers, (2*nn)*max_layers+ll+1)
+                _=plt.hist(whealth[nn][ll], 20)
+                plt.title("n%dL%d ws" % (nn, ll))
+                plt.subplot(num_nets*2, max_layers, (2*nn+1)*max_layers+ll+1)
+                _=plt.hist(bhealth[nn][ll], 20)
+                plt.title("n%dL%d bs" % (nn, ll))
+        plt.show()
+
+    return whealth, bhealth
+
