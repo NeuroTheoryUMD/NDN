@@ -408,6 +408,7 @@ class TLayer(Layer):
             shaped_padded_filt = tf.reshape(padded_filt, [2*self.filter_width, 1, 1, self.num_filters])
 
             # convolve
+            strides = [1, 1, 1, 1]
             _pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
             post = self.apply_act_func(pre)
