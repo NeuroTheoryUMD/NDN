@@ -96,6 +96,15 @@ class Layer(object):
 
         """
 
+        _allowed_act_funcs = ['lin', 'relu', 'leaky_relu', 'softplus',
+                              'sigmoid', 'exp', 'tanh', 'quad', 'elu']
+
+        if activation_func in _allowed_act_funcs:
+            self.act_func = activation_func
+            self.nl_param = 0.2    # right now only used for leaky_relu
+        else:
+            raise ValueError('Invalid activation function ''%s''' % activation_func)
+
         # check for required inputs
         if scope is None:
             raise TypeError('Must specify layer scope')
@@ -104,9 +113,6 @@ class Layer(object):
 
         self.scope = scope
         self.nlags = nlags
-
-        # used only for leaky_relu for now
-        self.nl_param = 0.2
 
         # Make input, output, and filter sizes explicit
         if isinstance(input_dims, list):
@@ -143,31 +149,6 @@ class Layer(object):
             num_outputs = my_num_outputs   # this is for convsep
 
         self.num_filters = num_outputs
-
-        # resolve activation function string
-        if activation_func == 'relu':
-            self.activation_func = tf.nn.relu
-        elif activation_func == 'sigmoid':
-            self.activation_func = tf.sigmoid
-        elif activation_func == 'tanh':
-            self.activation_func = tf.tanh
-        elif activation_func == 'lin':
-            self.activation_func = tf.identity
-        elif activation_func == 'linear':
-            self.activation_func = tf.identity
-        elif activation_func == 'softplus':
-            self.activation_func = tf.nn.softplus
-        elif activation_func == 'quad':
-            self.activation_func = tf.square
-        elif activation_func == 'elu':
-            self.activation_func = tf.nn.elu
-        elif activation_func == 'exp':
-            self.activation_func = tf.exp
-        elif activation_func == 'leaky_relu':
-            self.activation_func = tf.nn.leaky_relu
-        else:
-            raise ValueError('Invalid activation function ''%s''' %
-                             activation_func)
 
         # create excitatory/inhibitory mask
         if num_inh > num_outputs:
@@ -281,19 +262,15 @@ class Layer(object):
             else:
                 w_pn = w_p
 
-            pre = tf.add(tf.matmul(inputs, w_pn), self.biases_var)
+            _pre = tf.matmul(inputs, w_pn)
+            pre = tf.add(_pre, self.biases_var)
 
-            if self.activation_func == tf.nn.leaky_relu:
-                post = tf.nn.leaky_relu(pre, self.nl_param)
+            if self.ei_mask_var is None:
+                post = self.apply_act_func(pre)
             else:
-                post = self.activation_func(pre)
+                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
 
-            if self.ei_mask_var is not None:
-                post_ei = tf.multiply(post, self.ei_mask_var)
-            else:
-                post_ei = post
-
-            self.outputs = post_ei
+            self.outputs = post
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -302,6 +279,31 @@ class Layer(object):
 
     def set_nl_param(self, new_val):
         self.nl_param = new_val
+
+    def apply_act_func(self, pre):
+
+        if self.act_func == 'relu':
+            post = tf.nn.relu(pre)
+        elif self.act_func == 'sigmoid':
+            post = tf.sigmoid(pre)
+        elif self.act_func == 'tanh':
+            post = tf.tanh(pre)
+        elif self.act_func == 'lin':
+            post = pre
+        elif self.act_func == 'softplus':
+            post = tf.nn.softplus(pre)
+        elif self.act_func == 'quad':
+            post = tf.square(pre)
+        elif self.act_func == 'elu':
+            post = tf.nn.elu(pre)
+        elif self.act_func == 'exp':
+            post = tf.exp(pre)
+        elif self.act_func == 'leaky_relu':
+            post = tf.nn.leaky_relu(pre, self.nl_param)
+        else:
+            raise ValueEror('act func not defined')
+
+        return post
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
@@ -519,20 +521,16 @@ class ConvLayer(Layer):
             if conv_filter_dims[2] > 1:
                 strides[2] = self.shift_spacing
 
-            pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            pre = tf.add(_pre, self.biases_var)
 
-            if self.activation_func == tf.nn.leaky_relu:
-                post = tf.nn.leaky_relu(tf.add(pre, self.biases_var), self.nl_param)
+            if self.ei_mask_var is None:
+                post = self.apply_act_func(pre)
             else:
-                post = self.activation_func(tf.add(pre, self.biases_var))
+                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
 
-            if self.ei_mask_var is not None:
-                post_ei = tf.multiply(post, self.ei_mask_var)
-            else:
-                post_ei = post
-
-            self.outputs = self.outputs = tf.reshape(
-                post_ei, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+            self.outputs = tf.reshape(
+                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -685,30 +683,27 @@ class ConvXYLayer(Layer):
             if self.filter_dims[1] > 1:
                 strides[2] = self.shift_spacing
 
-            pre0 = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            _pre0 = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
 
             if self.xy_out is not None:
                 indices = self._get_indices(int(shaped_input.shape[0]))
-                pre = tf.reshape(tf.gather_nd(pre0, indices), (-1, self.num_filters))
+                _pre = tf.reshape(tf.gather_nd(_pre0, indices), (-1, self.num_filters))
             else:
-                pre = pre0
+                _pre = _pre0
 
-            if self.activation_func == tf.nn.leaky_relu:
-                post = tf.nn.leaky_relu(tf.add(pre, self.biases_var), self.nl_param)
-            else:
-                post = self.activation_func(tf.add(pre, self.biases_var))
+            pre = tf.add(_pre, self.biases_var)
 
-            if self.ei_mask_var is not None:
-                post_ei = tf.multiply(post, self.ei_mask_var)
+            if self.ei_mask_var is None:
+                post = self.apply_act_func(pre)
             else:
-                post_ei = post
+                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
 
             # reminder: self.xy_out = centers[which_cell] = [ctr_x, ctr_y]
             if self.xy_out is not None:
-                self.outputs = post_ei
+                self.outputs = post
             else:
                 self.outputs = tf.reshape(
-                    post_ei, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
+                    post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -972,19 +967,15 @@ class SepLayer(Layer):
 
             weights_full = self._separate_weights()
 
-            pre = tf.add(tf.matmul(inputs, weights_full), self.biases_var)
+            _pre = tf.matmul(inputs, weights_full)
+            pre = tf.add(_pre, self.biases_var)
 
-            if self.activation_func == tf.nn.leaky_relu:
-                post = tf.nn.leaky_relu(pre, self.nl_param)
+            if self.ei_mask_var is None:
+                post = self.apply_act_func(pre)
             else:
-                post = self.activation_func(pre)
+                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
 
-            if self.ei_mask_var is not None:
-                post_ei = tf.multiply(post, self.ei_mask_var)
-            else:
-                post_ei = post
-
-            self.outputs = post_ei
+            self.outputs = post
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -1411,20 +1402,16 @@ class ConvSepLayer(Layer):
             if conv_filter_dims[1] > 1:
                 strides[2] = self.shift_spacing
 
-            pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            pre = tf.add(_pre, self.biases_var)
 
-            if self.activation_func == tf.nn.leaky_relu:
-                post = tf.nn.leaky_relu(tf.add(pre, self.biases_var), self.nl_param)
+            if self.ei_mask_var is None:
+                post = self.apply_act_func(pre)
             else:
-                post = self.activation_func(tf.add(pre, self.biases_var))
+                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
 
-            if self.ei_mask_var is not None:
-                post_ei = tf.multiply(post, self.ei_mask_var)
-            else:
-                post_ei = post
-
-            self.outputs = self.outputs = tf.reshape(
-                post_ei, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+            self.outputs = tf.reshape(
+                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -1523,7 +1510,7 @@ class AddLayer(Layer):
                 w_p = self.weights_var
 
             if num_input_streams == 1:
-                _tmp_pre = tf.multiply(inputs, w_p)
+                _pre = tf.multiply(inputs, w_p)
             else:
                 if self.normalize_weights > 0:
                     w_pn = tf.nn.l2_normalize(w_p, axis=0)
@@ -1534,22 +1521,17 @@ class AddLayer(Layer):
                 # Define computation -- different from layer in that this is a broadcast-multiply
                 # rather than  matmul
                 # Sum over input streams for given output
-                _tmp_pre = tf.reduce_sum(tf.reshape(tf.multiply(inputs, flattened_weights),
-                                                    [-1, num_input_streams, num_outputs]), axis=1)
+                _pre = tf.reduce_sum(tf.reshape(tf.multiply(inputs, flattened_weights),
+                                                [-1, num_input_streams, num_outputs]), axis=1)
 
-            pre = tf.add(_tmp_pre, self.biases_var)
+            pre = tf.add(_pre, self.biases_var)
 
-            if self.activation_func == tf.nn.leaky_relu:
-                post = tf.nn.leaky_relu(pre, self.nl_param)
+            if self.ei_mask_var is None:
+                post = self.apply_act_func(pre)
             else:
-                post = self.activation_func(pre)
+                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
 
-            if self.ei_mask_var is not None:
-                post_ei = tf.multiply(post, self.ei_mask_var)
-            else:
-                post_ei = post
-
-            self.outputs = post_ei
+            self.outputs = post
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -1667,10 +1649,11 @@ class SpikeHistoryLayer(Layer):
                                 axis=2)
 
             # Dont put in any biases: pre = tf.add( pre, self.biases_var)
-            if self.ei_mask_var is not None:
-                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+
+            if self.ei_mask_var is None:
+                post = self.apply_act_func(pre)
             else:
-                post = self.activation_func(pre)
+                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = post
 
@@ -2355,18 +2338,13 @@ class GaborLayer(Layer):
             if conv_filter_dims[1] > 1:
                 strides[2] = self.shift_spacing
 
-            if self.pos_constraint:
-                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides,
-                                   padding='SAME')
-            else:
-                pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            pre = tf.add(_pre, self.biases_var)
 
-            if self.ei_mask_var is not None:
-                post = tf.multiply(
-                    self.activation_func(tf.add(pre, self.biases_var)),
-                    self.ei_mask_var)
+            if self.ei_mask_var is None:
+                post = self.apply_act_func(pre)
             else:
-                post = self.activation_func(tf.add(pre, self.biases_var))
+                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = tf.reshape(
                 post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
@@ -2377,135 +2355,268 @@ class GaborLayer(Layer):
     # END GaborLayer._build_layer
 
 
-class ConvReadoutLayer(Layer):
-    """Implementation of a readout layer compatible with convolutional layers
-
-    Attributes:
-
-
-    """
-
-    def __init__(
-            self,
-            scope=None,
-            nlags=None,
-            input_dims=None,  # this can be a list up to 3-dimensions
-            num_filters=None,
-            xy_out=None,
-            activation_func='relu',
-            normalize_weights=0,
-            weights_initializer='trunc_normal',
-            biases_initializer='zeros',
-            reg_initializer=None,
-            num_inh=0,
-            pos_constraint=None,
-            log_activations=False):
-        """Constructor for ConvLayer class
-
-        Args:
-            scope (str): name scope for variables and operations in layer
-            input_dims (int or list of ints): dimensions of input data
-            num_filters (int): number of convolutional filters in layer
-            filter_dims (int or list of ints): dimensions of input data
-            shift_spacing (int): stride of convolution operation
-            activation_func (str, optional): pointwise function applied to
-                output of affine transformation
-                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
-                'elu' | 'quad'
-            normalize_weights (int): 1 to normalize weights 0 otherwise
-                [0] | 1
-            weights_initializer (str, optional): initializer for the weights
-                ['trunc_normal'] | 'normal' | 'zeros'
-            biases_initializer (str, optional): initializer for the biases
-                'trunc_normal' | 'normal' | ['zeros']
-            reg_initializer (dict, optional): see Regularizer docs for info
-            num_inh (int, optional): number of inhibitory units in layer
-            pos_constraint (None, valued): True to constrain layer weights to
-                be positive
-            log_activations (bool, optional): True to use tf.summary on layer
-                activations
-
-        Raises:
-            ValueError: If `pos_constraint` is `True`
-
-        """
-
-        if xy_out is not None:
-            filter_dims = [input_dims[0], 1, 1]
-        else:
-            filter_dims = None
-
-        super(ConvReadoutLayer, self).__init__(
-            scope=scope,
-            nlags=nlags,
-            input_dims=input_dims,
-            filter_dims=filter_dims,
-            output_dims=num_filters,  # Note difference from layer
-            activation_func=activation_func,
-            normalize_weights=normalize_weights,
-            weights_initializer=weights_initializer,
-            biases_initializer=biases_initializer,
-            reg_initializer=reg_initializer,
-            num_inh=num_inh,
-            pos_constraint=pos_constraint,  # note difference from layer (not anymore)
-            log_activations=log_activations)
-
-        self.xy_out = xy_out
-        if self.xy_out is None:
-            self.output_dims = [1, num_filters, 1]
-        else:
-            self.output_dims = [num_filters, 1, 1]
-    # END ConvReadoutLayer.__init__
-
-    def _get_indices(self, batch_sz):
-        nc = self.num_filters
-        space_pos = self.xy_out[:, 1] * self.input_dims[1] + self.xy_out[:, 0]
-        space_ind = zip(np.repeat(np.arange(batch_sz), nc),
-                        np.tile(space_pos, (batch_sz,)),
-                        np.tile(np.arange(nc), (batch_sz,)))
-        return tf.constant(space_ind, dtype=tf.int32)
-
-    def build_graph(self, inputs, params_dict=None):
-        with tf.name_scope(self.scope):
-            self._define_layer_variables()
-
-            if self.pos_constraint is not None:
-                w_p = tf.maximum(self.weights_var, 0.0)
-            else:
-                w_p = self.weights_var
-
-            if self.normalize_weights is not None:
-                w_pn = tf.nn.l2_normalize(w_p, axis=0)
-            else:
-                w_pn = w_p
-
-            # shapes:
-            # shaped_inputs -> (b, ny*nx, nf)
-            # ros -> (ny*nx, nc)
-            # inputs_in_place -> (b, nc, nf)
-            # pre0 -> (b, nc, nc)
-            # pre -> (b, nc)
-
-            shaped_inputs = tf.reshape(
-                inputs, (-1, self.input_dims[2] * self.input_dims[1], self.input_dims[0]))
-
-            indices = self._get_indices(int(shaped_inputs.shape[0]))
-
-            if self.xy_out is not None:
-                inputs_dot_w = tf.tensordot(shaped_inputs, w_pn, [-1, 0])
-                pre0 = tf.reshape(tf.gather_nd(inputs_dot_w, indices), (-1, self.num_filters))
-                pre = tf.add(pre0, self.biases_var)
-            else:
-                pre = tf.add(tf.matmul(inputs, w_pn), self.biases_var)
-
-            if self.ei_mask_var is not None:
-                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
-            else:
-                post = self.activation_func(pre)
-
-            self.outputs = post
-
-        if self.log:
-            tf.summary.histogram('act_pre', pre)
-            tf.summary.histogram('act_post', post)
-    # END ConvReadoutLayer.build_graph
+# TODO: deal with this later (if useful at all)
+# class ConvReadoutLayer(Layer):
+#     """Implementation of a readout layer compatible with convolutional layers
+#
+#     Attributes:
+#
+#
+#     """
+#
+#     def __init__(
+#             self,
+#             scope=None,
+#             nlags=None,
+#             input_dims=None,  # this can be a list up to 3-dimensions
+#             num_filters=None,
+#             xy_out=None,
+#             activation_func='relu',
+#             normalize_weights=0,
+#             weights_initializer='trunc_normal',
+#             biases_initializer='zeros',
+#             reg_initializer=None,
+#             num_inh=0,
+#             pos_constraint=None,
+#             log_activations=False):
+#         """Constructor for ConvLayer class
+#
+#         Args:
+#             scope (str): name scope for variables and operations in layer
+#             input_dims (int or list of ints): dimensions of input data
+#             num_filters (int): number of convolutional filters in layer
+#             filter_dims (int or list of ints): dimensions of input data
+#             shift_spacing (int): stride of convolution operation
+#             activation_func (str, optional): pointwise function applied to
+#                 output of affine transformation
+#                 ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+#                 'elu' | 'quad'
+#             normalize_weights (int): 1 to normalize weights 0 otherwise
+#                 [0] | 1
+#             weights_initializer (str, optional): initializer for the weights
+#                 ['trunc_normal'] | 'normal' | 'zeros'
+#             biases_initializer (str, optional): initializer for the biases
+#                 'trunc_normal' | 'normal' | ['zeros']
+#             reg_initializer (dict, optional): see Regularizer docs for info
+#             num_inh (int, optional): number of inhibitory units in layer
+#             pos_constraint (None, valued): True to constrain layer weights to
+#                 be positive
+#             log_activations (bool, optional): True to use tf.summary on layer
+#                 activations
+#
+#         Raises:
+#             ValueError: If `pos_constraint` is `True`
+#
+#         """
+#
+#         if xy_out is not None:
+#             filter_dims = [input_dims[0], 1, 1]
+#         else:
+#             filter_dims = None
+#
+#         super(ConvReadoutLayer, self).__init__(
+#             scope=scope,
+#             nlags=nlags,
+#             input_dims=input_dims,
+#             filter_dims=filter_dims,
+#             output_dims=num_filters,  # Note difference from layer
+#             activation_func=activation_func,
+#             normalize_weights=normalize_weights,
+#             weights_initializer=weights_initializer,
+#             biases_initializer=biases_initializer,
+#             reg_initializer=reg_initializer,
+#             num_inh=num_inh,
+#             pos_constraint=pos_constraint,  # note difference from layer (not anymore)
+#             log_activations=log_activations)
+#
+#         self.xy_out = xy_out
+#         if self.xy_out is None:
+#             self.output_dims = [1, num_filters, 1]
+#         else:
+#             self.output_dims = [num_filters, 1, 1]
+#     # END ConvReadoutLayer.__init__
+#
+#     def _get_indices(self, batch_sz):
+#         nc = self.num_filters
+#         space_pos = self.xy_out[:, 1] * self.input_dims[1] + self.xy_out[:, 0]
+#         space_ind = zip(np.repeat(np.arange(batch_sz), nc),
+#                         np.tile(space_pos, (batch_sz,)),
+#                         np.tile(np.arange(nc), (batch_sz,)))
+#         return tf.constant(space_ind, dtype=tf.int32)
+#
+#     def build_graph(self, inputs, params_dict=None):
+#         with tf.name_scope(self.scope):
+#             self._define_layer_variables()
+#
+#             if self.pos_constraint is not None:
+#                 w_p = tf.maximum(self.weights_var, 0.0)
+#             else:
+#                 w_p = self.weights_var
+#
+#             if self.normalize_weights is not None:
+#                 w_pn = tf.nn.l2_normalize(w_p, axis=0)
+#             else:
+#                 w_pn = w_p
+#
+#             # shapes:
+#             # shaped_inputs -> (b, ny*nx, nf)
+#             # ros -> (ny*nx, nc)
+#             # inputs_in_place -> (b, nc, nf)
+#             # pre0 -> (b, nc, nc)
+#             # pre -> (b, nc)
+#
+#             shaped_inputs = tf.reshape(
+#                 inputs, (-1, self.input_dims[2] * self.input_dims[1], self.input_dims[0]))
+#
+#             indices =# class ConvReadoutLayer(Layer):
+#     """Implementation of a readout layer compatible with convolutional layers
+#
+#     Attributes:
+#
+#
+#     """
+#
+#     def __init__(
+#             self,
+#             scope=None,
+#             nlags=None,
+#             input_dims=None,  # this can be a list up to 3-dimensions
+#             num_filters=None,
+#             xy_out=None,
+#             activation_func='relu',
+#             normalize_weights=0,
+#             weights_initializer='trunc_normal',
+#             biases_initializer='zeros',
+#             reg_initializer=None,
+#             num_inh=0,
+#             pos_constraint=None,
+#             log_activations=False):
+#         """Constructor for ConvLayer class
+#
+#         Args:
+#             scope (str): name scope for variables and operations in layer
+#             input_dims (int or list of ints): dimensions of input data
+#             num_filters (int): number of convolutional filters in layer
+#             filter_dims (int or list of ints): dimensions of input data
+#             shift_spacing (int): stride of convolution operation
+#             activation_func (str, optional): pointwise function applied to
+#                 output of affine transformation
+#                 ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+#                 'elu' | 'quad'
+#             normalize_weights (int): 1 to normalize weights 0 otherwise
+#                 [0] | 1
+#             weights_initializer (str, optional): initializer for the weights
+#                 ['trunc_normal'] | 'normal' | 'zeros'
+#             biases_initializer (str, optional): initializer for the biases
+#                 'trunc_normal' | 'normal' | ['zeros']
+#             reg_initializer (dict, optional): see Regularizer docs for info
+#             num_inh (int, optional): number of inhibitory units in layer
+#             pos_constraint (None, valued): True to constrain layer weights to
+#                 be positive
+#             log_activations (bool, optional): True to use tf.summary on layer
+#                 activations
+#
+#         Raises:
+#             ValueError: If `pos_constraint` is `True`
+#
+#         """
+#
+#         if xy_out is not None:
+#             filter_dims = [input_dims[0], 1, 1]
+#         else:
+#             filter_dims = None
+#
+#         super(ConvReadoutLayer, self).__init__(
+#             scope=scope,
+#             nlags=nlags,
+#             input_dims=input_dims,
+#             filter_dims=filter_dims,
+#             output_dims=num_filters,  # Note difference from layer
+#             activation_func=activation_func,
+#             normalize_weights=normalize_weights,
+#             weights_initializer=weights_initializer,
+#             biases_initializer=biases_initializer,
+#             reg_initializer=reg_initializer,
+#             num_inh=num_inh,
+#             pos_constraint=pos_constraint,  # note difference from layer (not anymore)
+#             log_activations=log_activations)
+#
+#         self.xy_out = xy_out
+#         if self.xy_out is None:
+#             self.output_dims = [1, num_filters, 1]
+#         else:
+#             self.output_dims = [num_filters, 1, 1]
+#     # END ConvReadoutLayer.__init__
+#
+#     def _get_indices(self, batch_sz):
+#         nc = self.num_filters
+#         space_pos = self.xy_out[:, 1] * self.input_dims[1] + self.xy_out[:, 0]
+#         space_ind = zip(np.repeat(np.arange(batch_sz), nc),
+#                         np.tile(space_pos, (batch_sz,)),
+#                         np.tile(np.arange(nc), (batch_sz,)))
+#         return tf.constant(space_ind, dtype=tf.int32)
+#
+#     def build_graph(self, inputs, params_dict=None):
+#         with tf.name_scope(self.scope):
+#             self._define_layer_variables()
+#
+#             if self.pos_constraint is not None:
+#                 w_p = tf.maximum(self.weights_var, 0.0)
+#             else:
+#                 w_p = self.weights_var
+#
+#             if self.normalize_weights is not None:
+#                 w_pn = tf.nn.l2_normalize(w_p, axis=0)
+#             else:
+#                 w_pn = w_p
+#
+#             # shapes:
+#             # shaped_inputs -> (b, ny*nx, nf)
+#             # ros -> (ny*nx, nc)
+#             # inputs_in_place -> (b, nc, nf)
+#             # pre0 -> (b, nc, nc)
+#             # pre -> (b, nc)
+#
+#             shaped_inputs = tf.reshape(
+#                 inputs, (-1, self.input_dims[2] * self.input_dims[1], self.input_dims[0]))
+#
+#             indices = self._get_indices(int(shaped_inputs.shape[0]))
+#
+#             if self.xy_out is not None:
+#                 inputs_dot_w = tf.tensordot(shaped_inputs, w_pn, [-1, 0])
+#                 pre0 = tf.reshape(tf.gather_nd(inputs_dot_w, indices), (-1, self.num_filters))
+#                 pre = tf.add(pre0, self.biases_var)
+#             else:
+#                 pre = tf.add(tf.matmul(inputs, w_pn), self.biases_var)
+#
+#             if self.ei_mask_var is not None:
+#                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+#             else:
+#                 post = self.activation_func(pre)
+#
+#             self.outputs = post
+#
+#         if self.log:
+#             tf.summary.histogram('act_pre', pre)
+#             tf.summary.histogram('act_post', post)
+#     # END ConvReadoutLayer.build_graph
+# self._get_indices(int(shaped_inputs.shape[0]))
+#
+#             if self.xy_out is not None:
+#                 inputs_dot_w = tf.tensordot(shaped_inputs, w_pn, [-1, 0])
+#                 pre0 = tf.reshape(tf.gather_nd(inputs_dot_w, indices), (-1, self.num_filters))
+#                 pre = tf.add(pre0, self.biases_var)
+#             else:
+#                 pre = tf.add(tf.matmul(inputs, w_pn), self.biases_var)
+#
+#             if self.ei_mask_var is not None:
+#                 post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+#             else:
+#                 post = self.activation_func(pre)
+#
+#             self.outputs = post
+#
+#         if self.log:
+#             tf.summary.histogram('act_pre', pre)
+#             tf.summary.histogram('act_post', post)
+#     # END ConvReadoutLayer.build_graph

@@ -439,6 +439,7 @@ def display_layer_info(ndn, pretty_table=True):
     normalization_info = {}
     pos_constraint_info = {}
     partial_fit_info = {}
+    act_func_info = {}
 
     for nn in range(len(ndn.network_list)):
         for ll, layer_type in enumerate(ndn.network_list[nn]['layer_types']):
@@ -487,27 +488,35 @@ def display_layer_info(ndn, pretty_table=True):
             else:
                 partial_fit_str = '---'
 
+            # get act_func info
+            act_func_str = ndn.network_list[nn]['activation_funcs'][ll]
+            if act_func_str == 'leaky_relu':
+                act_func_str = act_func_str + ' (alpha = %s)' % ndn.networks[nn].layers[ll].nl_param
+
             # prepare dicts for printing
             _key = 'net' + str(nn) + 'L' + str(ll) + '_' + layer_type
             normalization_info.update({_key: normalization_str})
             pos_constraint_info.update({_key: pos_constraint_str})
             partial_fit_info.update({_key: partial_fit_str})
+            act_func_info.update({_key: act_func_str})
 
     if pretty_table:
-        t = PrettyTable(['Layer', 'Normalization', 'Positive Constraint', 'Partial Fit'])
+        t = PrettyTable(['Layer', 'Normalization', 'Positive Constraint', 'Partial Fit', 'Activation Func'])
         for lbl, val in sorted(normalization_info.iteritems()):
-            t.add_row([lbl, val, pos_constraint_info[lbl], partial_fit_info[lbl]])
+            t.add_row([lbl, val, pos_constraint_info[lbl], partial_fit_info[lbl], act_func_info[lbl]])
         print(t)
     else:
         print("{:<12} {:<30} {:<30} {:<20}\n".format('Layers:',
-                                                   'Normalization:',
-                                                   'Positive Constraint:',
-                                                   'Partial Fit:'))
+                                                     'Normalization:',
+                                                     'Positive Constraint:',
+                                                     'Partial Fit:',
+                                                     'Activation Func:'))
         for label, val in sorted(normalization_info.iteritems()):
             print("{:<12} {:<30} {:<30} {:<20}".format(label,
                                                        val,
                                                        pos_constraint_info[label],
-                                                       partial_fit_info[label]))
+                                                       partial_fit_info[label],
+                                                       act_func_info[label]))
     print('\n')
 
 
