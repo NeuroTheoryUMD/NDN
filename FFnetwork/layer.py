@@ -266,9 +266,9 @@ class Layer(object):
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
-                post = self.apply_act_func(pre)
+                post = self._apply_act_func(pre)
             else:
-                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = post
 
@@ -280,7 +280,7 @@ class Layer(object):
     def set_nl_param(self, new_val):
         self.nl_param = new_val
 
-    def apply_act_func(self, pre):
+    def _apply_act_func(self, pre):
 
         if self.act_func == 'relu':
             post = tf.nn.relu(pre)
@@ -525,9 +525,9 @@ class ConvLayer(Layer):
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
-                post = self.apply_act_func(pre)
+                post = self._apply_act_func(pre)
             else:
-                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = tf.reshape(
                 post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
@@ -694,9 +694,9 @@ class ConvXYLayer(Layer):
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
-                post = self.apply_act_func(pre)
+                post = self._apply_act_func(pre)
             else:
-                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             # reminder: self.xy_out = centers[which_cell] = [ctr_x, ctr_y]
             if self.xy_out is not None:
@@ -971,9 +971,9 @@ class SepLayer(Layer):
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
-                post = self.apply_act_func(pre)
+                post = self._apply_act_func(pre)
             else:
-                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = post
 
@@ -1406,9 +1406,9 @@ class ConvSepLayer(Layer):
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
-                post = self.apply_act_func(pre)
+                post = self._apply_act_func(pre)
             else:
-                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = tf.reshape(
                 post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
@@ -1527,9 +1527,9 @@ class AddLayer(Layer):
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
-                post = self.apply_act_func(pre)
+                post = self._apply_act_func(pre)
             else:
-                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = post
 
@@ -1651,9 +1651,9 @@ class SpikeHistoryLayer(Layer):
             # Dont put in any biases: pre = tf.add( pre, self.biases_var)
 
             if self.ei_mask_var is None:
-                post = self.apply_act_func(pre)
+                post = self._apply_act_func(pre)
             else:
-                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = post
 
@@ -2342,9 +2342,9 @@ class GaborLayer(Layer):
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
-                post = self.apply_act_func(pre)
+                post = self._apply_act_func(pre)
             else:
-                post = tf.multiply(self.apply_act_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             self.outputs = tf.reshape(
                 post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])

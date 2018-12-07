@@ -262,12 +262,12 @@ class CaTentLayer(Layer):
             strides = [1, 1, 1, 1]
             _pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
-            post = self.apply_act_func(pre)
+            post = self._apply_act_func(pre)
 
        #     if self.ei_mask_var is None:
-       #         post = self.apply_act_func(tf.add(pre, self.biases_var))
+       #         post = self._apply_act_func(tf.add(pre, self.biases_var))
        #     else:
-       #         post = tf.multiply(self.apply_act_func(tf.add(pre, self.biases_var)), self.ei_mask_var)
+       #         post = tf.multiply(self._apply_act_func(tf.add(pre, self.biases_var)), self.ei_mask_var)
 
             # this produces shape (batch_size, nc, num_filts)
             if self.num_filters > 1:
@@ -411,7 +411,7 @@ class TLayer(Layer):
             strides = [1, 1, 1, 1]
             _pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
-            post = self.apply_act_func(pre)
+            post = self._apply_act_func(pre)
 
             self.outputs = tf.reshape(tf.transpose(post, [1, 0, 2, 3]), (self.batch_size, -1))
 
