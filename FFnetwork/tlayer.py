@@ -544,15 +544,17 @@ class TLayer(Layer):
             else:
                 pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
 
-            # from pre to post
-            if self.ei_mask_var is not None:
-                post = tf.multiply(
-                    self.activation_func(tf.add(pre, self.biases_var)),
-                    self.ei_mask_var)
+            if self.activation_func == tf.nn.leaky_relu:
+                post = tf.nn.leaky_relu(tf.add(pre, self.biases_var), self.nl_param)
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            self.outputs = tf.reshape(tf.transpose(post, [1, 0, 2, 3]), (self.batch_size, -1))
+            if self.ei_mask_var is not None:
+                post_ei = tf.multiply(post, self.ei_mask_var)
+            else:
+                post_ei = post
+
+            self.outputs = tf.reshape(tf.transpose(post_ei, [1, 0, 2, 3]), (self.batch_size, -1))
 
         if self.log:
             tf.summary.histogram('act_pre', pre)

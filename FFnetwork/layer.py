@@ -300,7 +300,7 @@ class Layer(object):
             tf.summary.histogram('act_post', post)
     # END Layer.build_graph
 
-    def assign_nl_param(self, new_val):
+    def set_nl_param(self, new_val):
         self.nl_param = new_val
 
     def assign_layer_params(self, sess):
@@ -694,9 +694,9 @@ class ConvXYLayer(Layer):
                 pre = pre0
 
             if self.activation_func == tf.nn.leaky_relu:
-                post = tf.nn.leaky_relu(tf.add(pre0, self.biases_var), self.nl_param)
+                post = tf.nn.leaky_relu(tf.add(pre, self.biases_var), self.nl_param)
             else:
-                post = self.activation_func(tf.add(pre0, self.biases_var))
+                post = self.activation_func(tf.add(pre, self.biases_var))
 
             if self.ei_mask_var is not None:
                 post_ei = tf.multiply(post, self.ei_mask_var)
