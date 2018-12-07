@@ -105,7 +105,7 @@ class Layer(object):
         self.scope = scope
         self.nlags = nlags
 
-        #
+        # used only for leaky_relu for now
         self.nl_param = 0.2
 
         # Make input, output, and filter sizes explicit
@@ -163,7 +163,8 @@ class Layer(object):
             self.activation_func = tf.nn.elu
         elif activation_func == 'exp':
             self.activation_func = tf.exp
-       ### elif self
+        elif activation_func == 'leaky_relu':
+            self.activation_func = tf.nn.leaky_relu
         else:
             raise ValueError('Invalid activation function ''%s''' %
                              activation_func)
@@ -231,7 +232,6 @@ class Layer(object):
         self.biases_ph = None
         self.biases_var = None
         self.outputs = None
-
     # END Layer.__init__
 
     def _define_layer_variables(self):
@@ -264,7 +264,6 @@ class Layer(object):
                 self.ei_mask, dtype=tf.float32, name='ei_mask')
         else:
             self.ei_mask_var = None
-
     # END Layer._define_layer_variables
 
     def build_graph(self, inputs, params_dict=None):
@@ -284,17 +283,25 @@ class Layer(object):
 
             pre = tf.add(tf.matmul(inputs, w_pn), self.biases_var)
 
-            if self.ei_mask_var is not None:
-                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+            if self.activation_func == tf.nn.leaky_relu:
+                post = tf.nn.leaky_relu(pre, self.nl_param)
             else:
                 post = self.activation_func(pre)
 
-            self.outputs = post
+            if self.ei_mask_var is not None:
+                post_ei = tf.multiply(post, self.ei_mask_var)
+            else:
+                post_ei = post
+
+            self.outputs = post_ei
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END Layer.build_graph
+
+    def assign_nl_param(self, new_val):
+        self.nl_param = new_val
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
@@ -303,8 +310,7 @@ class Layer(object):
         if self.pos_constraint is not None:
             self.weights = np.maximum(self.weights, 0)
         if self.normalize_weights > 0:
-            self.weights, nrms = sk_normalize(self.weights, axis=0, return_norm=True)
-            self.biases = np.divide(self.biases, nrms)
+            self.weights = sk_normalize(self.weights, axis=0)
 
         sess.run(
             [self.weights_var.initializer, self.biases_var.initializer],
@@ -515,15 +521,18 @@ class ConvLayer(Layer):
 
             pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
 
-            if self.ei_mask_var is not None:
-                post = tf.multiply(
-                    self.activation_func(tf.add(pre, self.biases_var)),
-                    self.ei_mask_var)
+            if self.activation_func == tf.nn.leaky_relu:
+                post = tf.nn.leaky_relu(tf.add(pre, self.biases_var), self.nl_param)
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            self.outputs = tf.reshape(
-                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+            if self.ei_mask_var is not None:
+                post_ei = tf.multiply(post, self.ei_mask_var)
+            else:
+                post_ei = post
+
+            self.outputs = self.outputs = tf.reshape(
+                post_ei, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -684,19 +693,22 @@ class ConvXYLayer(Layer):
             else:
                 pre = pre0
 
-            if self.ei_mask_var is not None:
-                post = tf.multiply(
-                    self.activation_func(tf.add(pre, self.biases_var)),
-                    self.ei_mask_var)
+            if self.activation_func == tf.nn.leaky_relu:
+                post = tf.nn.leaky_relu(tf.add(pre0, self.biases_var), self.nl_param)
             else:
-                post = self.activation_func(tf.add(pre, self.biases_var))
+                post = self.activation_func(tf.add(pre0, self.biases_var))
+
+            if self.ei_mask_var is not None:
+                post_ei = tf.multiply(post, self.ei_mask_var)
+            else:
+                post_ei = post
 
             # reminder: self.xy_out = centers[which_cell] = [ctr_x, ctr_y]
             if self.xy_out is not None:
-                self.outputs = post
+                self.outputs = post_ei
             else:
                 self.outputs = tf.reshape(
-                    post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
+                    post_ei, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -962,12 +974,17 @@ class SepLayer(Layer):
 
             pre = tf.add(tf.matmul(inputs, weights_full), self.biases_var)
 
-            if self.ei_mask_var is not None:
-                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+            if self.activation_func == tf.nn.leaky_relu:
+                post = tf.nn.leaky_relu(pre, self.nl_param)
             else:
                 post = self.activation_func(pre)
 
-            self.outputs = post
+            if self.ei_mask_var is not None:
+                post_ei = tf.multiply(post, self.ei_mask_var)
+            else:
+                post_ei = post
+
+            self.outputs = post_ei
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -1394,21 +1411,20 @@ class ConvSepLayer(Layer):
             if conv_filter_dims[1] > 1:
                 strides[2] = self.shift_spacing
 
-            if self.pos_constraint:
-                pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides,
-                                   padding='SAME')
-            else:
-                pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
 
-            if self.ei_mask_var is not None:
-                post = tf.multiply(
-                    self.activation_func(tf.add(pre, self.biases_var)),
-                    self.ei_mask_var)
+            if self.activation_func == tf.nn.leaky_relu:
+                post = tf.nn.leaky_relu(tf.add(pre, self.biases_var), self.nl_param)
             else:
                 post = self.activation_func(tf.add(pre, self.biases_var))
 
-            self.outputs = tf.reshape(
-                post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
+            if self.ei_mask_var is not None:
+                post_ei = tf.multiply(post, self.ei_mask_var)
+            else:
+                post_ei = post
+
+            self.outputs = self.outputs = tf.reshape(
+                post_ei, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -1523,12 +1539,17 @@ class AddLayer(Layer):
 
             pre = tf.add(_tmp_pre, self.biases_var)
 
-            if self.ei_mask_var is not None:
-                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+            if self.activation_func == tf.nn.leaky_relu:
+                post = tf.nn.leaky_relu(pre, self.nl_param)
             else:
                 post = self.activation_func(pre)
 
-            self.outputs = post
+            if self.ei_mask_var is not None:
+                post_ei = tf.multiply(post, self.ei_mask_var)
+            else:
+                post_ei = post
+
+            self.outputs = post_ei
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
