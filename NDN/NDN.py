@@ -217,7 +217,8 @@ class NDN(Network):
             self,
             learning_alg='adam',
             opt_params=None,
-            fit_variables=None):
+            fit_variables=None,
+            use_dropout=False):
         """NDN._build_graph"""
 
         # Take care of optimize parameters if necessary
@@ -286,7 +287,8 @@ class NDN(Network):
                                          self.networks[ii].layers[-1].outputs),
                                         axis=1)
 
-                self.networks[nn].build_graph(input_cat, self.network_list[nn])
+                self.networks[nn].build_graph(inputs=input_cat, params_dict=self.network_list[nn],
+                                              use_dropout=use_dropout)
 
             # Define loss function
             with tf.variable_scope('loss'):
@@ -622,7 +624,7 @@ class NDN(Network):
     # END get_LL
 
     def eval_models(self, input_data=None, output_data=None, data_indxs=None,
-                    data_filters=None, nulladjusted=False, use_gpu=False):
+                    data_filters=None, nulladjusted=False, use_gpu=False, use_dropout=False):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -689,9 +691,9 @@ class NDN(Network):
         # Place graph operations on CPU
         if not use_gpu:
             with tf.device('/cpu:0'):
-                self._build_graph()
+                self._build_graph(use_dropout=use_dropout)
         else:
-            self._build_graph()
+            self._build_graph(use_dropout=use_dropout)
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
@@ -751,7 +753,7 @@ class NDN(Network):
     # END get_LL_neuron
 
     def generate_prediction(self, input_data, data_indxs=None, use_gpu=False,
-                            ffnet_target=-1, layer_target=-1):
+                            ffnet_target=-1, layer_target=-1, use_dropout=False):
         """Get cost for each output neuron without regularization terms
 
         Args:
@@ -813,10 +815,10 @@ class NDN(Network):
         if not use_gpu:
             temp_config = tf.ConfigProto(device_count={'GPU': 0})
             with tf.device('/cpu:0'):
-                self._build_graph()
+                self._build_graph(use_dropout=use_dropout)
         else:
             temp_config = tf.ConfigProto(device_count={'GPU': 1})
-            self._build_graph()
+            self._build_graph(use_dropout=use_dropout)
 
         with tf.Session(graph=self.graph, config=temp_config) as sess:
 

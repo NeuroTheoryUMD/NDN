@@ -101,7 +101,7 @@ class Layer(object):
 
         if activation_func in _allowed_act_funcs:
             self.act_func = activation_func
-            self.nl_param = 0.2    # right now only used for leaky_relu
+            self.nl_param = 0.1    # right now only used for leaky_relu
         else:
             raise ValueError('Invalid activation function ''%s''' % activation_func)
 
@@ -247,7 +247,7 @@ class Layer(object):
             self.ei_mask_var = None
     # END Layer._define_layer_variables
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
@@ -479,7 +479,7 @@ class ConvLayer(Layer):
         self.output_dims = [num_filters] + num_shifts[:]
     # END ConvLayer.__init__
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
 
         assert params_dict is not None, 'Incorrect siLayer initialization.'
         # Unfold siLayer-specific parameters for building graph
@@ -655,7 +655,7 @@ class ConvXYLayer(Layer):
                         np.tile(np.arange(nc), (batch_sz,)))
         return tf.constant(space_ind, dtype=tf.int32)
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
 
         assert params_dict is not None, 'Incorrect siLayer initialization.'
         # Unfold siLayer-specific parameters for building graph
@@ -960,7 +960,7 @@ class SepLayer(Layer):
 
         return w_full
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
@@ -1378,7 +1378,7 @@ class ConvSepLayer(Layer):
 
         return w_full
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
@@ -1492,7 +1492,7 @@ class AddLayer(Layer):
 
     # END AddLayer.__init__
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
         """By definition, the inputs will be composed of a number of input streams, given by
         the first dimension of input_dims, and each stream will have the same number of inputs
         as the number of output units."""
@@ -1629,7 +1629,7 @@ class SpikeHistoryLayer(Layer):
 
     # END SpikeHistorylayer.__init__
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
         """By definition, the inputs will be composed of a number of input streams, given by
         the first dimension of input_dims, and each stream will have the same number of inputs
         as the number of output units."""
@@ -1741,7 +1741,7 @@ class BiConvLayer(ConvLayer):
         self.output_dims[1] = int(self.num_shifts[0]/2)
     # END BiConvLayer.__init__
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
 
         assert params_dict is not None, 'Incorrect layer initialization.'
         # Unfold siLayer-specific parameters for building graph
@@ -2314,7 +2314,7 @@ class GaborLayer(Layer):
 
         return w_full
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
@@ -2444,7 +2444,7 @@ class GaborLayer(Layer):
 #                         np.tile(np.arange(nc), (batch_sz,)))
 #         return tf.constant(space_ind, dtype=tf.int32)
 #
-#     def build_graph(self, inputs, params_dict=None):
+#     def build_graph(self, inputs, params_dict=None, use_dropout=False):
 #         with tf.name_scope(self.scope):
 #             self._define_layer_variables()
 #
@@ -2556,7 +2556,7 @@ class GaborLayer(Layer):
 #                         np.tile(np.arange(nc), (batch_sz,)))
 #         return tf.constant(space_ind, dtype=tf.int32)
 #
-#     def build_graph(self, inputs, params_dict=None):
+#     def build_graph(self, inputs, params_dict=None, use_dropout=False):
 #         with tf.name_scope(self.scope):
 #             self._define_layer_variables()
 #

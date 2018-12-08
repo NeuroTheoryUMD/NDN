@@ -89,6 +89,9 @@ def ffnetwork_params(
     if layer_sizes is None:
         raise TypeError('Must specify layer_sizes.')
 
+    if layer_types is None:
+        raise TypeError('Must explicitly specify layer_types.')
+
     if xstim_n is not None:
         if not isinstance(xstim_n, list):
             xstim_n = [xstim_n]

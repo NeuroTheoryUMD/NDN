@@ -428,12 +428,12 @@ class FFNetwork(object):
         return var_list
     # END FFNetwork.build_fit_variable_list
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
         """Build tensorflow graph for this network"""
 
         with tf.name_scope(self.scope):
             for layer in range(self.num_layers):
-                self.layers[layer].build_graph(inputs, params_dict)
+                self.layers[layer].build_graph(inputs, params_dict, use_dropout=use_dropout)
                 inputs = self.layers[layer].outputs
     # END FFNetwork._build_graph
 
@@ -569,7 +569,7 @@ class SideNetwork(FFNetwork):
         self.layers[0].reg.scaffold_setup(self.num_units)
     # END SideNetwork.__init__
 
-    def build_graph(self, input_network, params_dict=None):
+    def build_graph(self, input_network, params_dict=None, use_dropout=False):
         """Note this is different from other network build-graphs in that the 
         whole network graph, rather than just a link to its output, so that it 
         can be assembled here"""

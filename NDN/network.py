@@ -346,7 +346,8 @@ class Network(object):
         self._build_graph(
             learning_alg=learning_alg,
             opt_params=opt_params,
-            fit_variables=fit_variables)
+            fit_variables=fit_variables,
+            use_dropout=True)
 
         with tf.Session(graph=self.graph, config=self.sess_config) as sess:
 
@@ -1083,6 +1084,8 @@ class Network(object):
             opt_params['data_pipe_type'] = 'data_as_var'
         if 'poisson_unit_norm' not in opt_params:
             opt_params['poisson_unit_norm'] = None
+        if 'epochs_ckpt' not in opt_params:
+            opt_params['epochs_ckpt'] = None
 
         if learning_alg is 'adam':
             if 'learning_rate' not in opt_params:
@@ -1091,8 +1094,6 @@ class Network(object):
                 opt_params['batch_size'] = None
             if 'epochs_training' not in opt_params:
                 opt_params['epochs_training'] = 100
-            if 'epochs_ckpt' not in opt_params:
-                opt_params['epochs_ckpt'] = None
             if 'early_stop_mode' not in opt_params:
                 opt_params['early_stop_mode'] = 0
             if 'epochs_summary' not in opt_params:

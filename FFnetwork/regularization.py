@@ -31,7 +31,7 @@ class Regularization(object):
 
     _allowed_reg_types = ['l1', 'l2', 'norm2', 'norm2_space', 'norm2_filt',
                           'd2t', 'd2x', 'd2xt', 'local', 'glocal', 'center',
-                          'max', 'max_filt', 'max_space', 'max_level']
+                          'max', 'max_filt', 'max_space', 'max_level', 'dropout']
 
     def __init__(self, input_dims=None, num_outputs=None, vals=None):
         """Constructor for Regularization class
