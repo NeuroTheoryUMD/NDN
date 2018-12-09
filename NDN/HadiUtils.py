@@ -520,24 +520,45 @@ def display_layer_info(ndn, pretty_table=True):
     print('\n')
 
 
-def display_model(ndn):
+def display_model(ndn, mod_struct='scaff'):
+    """
+    :param ndn: obv.
+    :param mod_struct: allowed_modes = ['scaff', 'ff']
+    :return:
+    """
 
-    nlags, tbasis_n = ndn.networks[0].layers[0].weights.shape
+    if type(mod_struct) == str:
+        if mod_struct == 'scaff':
+            address_dict = {'tbasis': [0, 0], 'stkers': [1, 0], 'readout': [-1, -1]}
+        elif mod_struct == 'ff':
+            address_dict = {'tbasis': [0, 0], 'stkers': [0, 1], 'readout': [-1, -1]}
+        else:
+            raise ValueError('not supported model structure')
+    elif type(mod_struct) == dict:
+        address_dict = mod_struct
+    else:
+        raise ValueError('mod_struct should be either a dict of addresses or a str')
 
-    sker_width = ndn.networks[0].layers[1].filter_dims[1]
+    tbasis_address = address_dict['tbasis']
+    stkers_address = address_dict['stkers']
+    readout_address = address_dict['readout']
 
-    num_conv_kers = ndn.networks[0].layers[1].num_filters
-    num_neurons = ndn.networks[-1].layers[-1].num_filters
+    nlags, tbasis_n = ndn.networks[tbasis_address[0]].layers[tbasis_address[1]].weights.shape
+
+    sker_width = ndn.networks[stkers_address[0]].layers[stkers_address[1]].filter_dims[1]
+
+    num_conv_kers = ndn.networks[stkers_address[0]].layers[stkers_address[1]].num_filters
+    num_neurons = ndn.networks[readout_address[0]].layers[readout_address[1]].num_filters
 
     num_rows = int(np.ceil(num_conv_kers / 2))
     num_cols = 3
 
-    num_conv_hidden = ndn.network_list[0]['layer_types'][2:].count('conv')
+    num_conv_hidden = ndn.network_list[stkers_address[0]]['layer_types'][stkers_address[1]+1:].count('conv')
 
     # Plot the model
     # ____________________________________________________________________________________
     # plotting temporal basis
-    tbasis = ndn.networks[0].layers[0].weights
+    tbasis = ndn.networks[tbasis_address[0]].layers[tbasis_address[1]].weights
     plt.figure(figsize=(6, 2))
     plt.plot(tbasis)
     plt.plot([0, nlags - 1], [0, 0], 'r--')
@@ -550,11 +571,11 @@ def display_model(ndn):
     # plotting conv kernels
     print('_______________________________________________________________________________________________________________')
 
-    if ndn.network_list[0]['layer_types'][1] == 'convsep':
+    if ndn.network_list[stkers_address[0]]['layer_types'][stkers_address[1]] == 'convsep':
         print('--->    plotting ConvSepLayer:')
 
-        tkers = np.matmul(tbasis, ndn.networks[0].layers[1].weights[:tbasis_n, :])
-        skers = ndn.networks[0].layers[1].weights[tbasis_n:, :]
+        tkers = np.matmul(tbasis, ndn.networks[stkers_address[0]].layers[stkers_address[1]].weights[:tbasis_n, :])
+        skers = ndn.networks[stkers_address[0]].layers[stkers_address[1]].weights[tbasis_n:, :]
 
         fig = plt.figure(figsize=(8 * num_cols, 3 * num_rows))
         for i in range(num_rows):
@@ -583,7 +604,7 @@ def display_model(ndn):
     else:
         print('--->    plotting nonsep-ConvLayer (generated at best lag):')
 
-        nonsep_kers = deepcopy(ndn.networks[0].layers[1].weights)
+        nonsep_kers = deepcopy(ndn.networks[stkers_address[0]].layers[stkers_address[1]].weights)
 
         # make sep kers
         sep_skers = np.zeros((sker_width, sker_width, num_conv_kers))
@@ -599,6 +620,11 @@ def display_model(ndn):
                                                 key=abs) / np.max(abs(sep_skers))
             bst_lag = np.argmax(abs(sep_tkers[:, which_ker]))
             sep_skers[..., which_ker] = k[..., bst_lag]
+
+            # take care of ON vs OFF (all spatial > 0)
+            if max(sep_skers[..., which_ker].flatten(), key=abs) < 0:
+                sep_skers[..., which_ker] *= -1
+                sep_tkers[:, which_ker] *= -1
 
         fig = plt.figure(figsize=(9 * num_cols, 3 * num_rows))
         for i in range(num_rows):
@@ -638,29 +664,29 @@ def display_model(ndn):
 
         plt.figure(figsize=(16, 2))
         plt.subplot(121)
-        plt.imshow(ndn.networks[0].layers[2].weights[:num_conv_kers, :],
+        plt.imshow(ndn.networks[readout_address[0]].layers[readout_address[1]].weights[:num_conv_kers, :],
                    cmap='Greys', vmin=-1, vmax=1, aspect=num_neurons/num_conv_kers)
         plt.colorbar(aspect='1')
 
         plt.subplot(122)
         plt.plot(
-            np.sum(ndn.networks[0].layers[2].weights[num_conv_kers:, :],
+            np.sum(ndn.networks[readout_address[0]].layers[readout_address[1]].weights[num_conv_kers:, :],
                    axis=1))
         plt.show()
 
     elif num_conv_hidden == 1:
         print('\n--->    plotting ModLayer, readout layer:')
 
-        mod_n = ndn.networks[0].layers[2].num_filters
+        mod_n = ndn.networks[stkers_address[0]].layers[stkers_address[1]+1].num_filters
 
         plt.figure(figsize=(18, 3))
         plt.subplot(131)
-        k = ndn.networks[0].layers[2].weights
-        if (ndn.network_list[0]['pos_constraints'][2] and
-                ndn.network_list[0]['normalize_weights'][2]):
+        k = ndn.networks[stkers_address[0]].layers[stkers_address[1]+1].weights
+        if (ndn.network_list[stkers_address[0]]['pos_constraints'][stkers_address[1]+1] and
+                ndn.network_list[stkers_address[0]]['normalize_weights'][stkers_address[1]+1]):
             plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=0, vmax=1)
-        elif (ndn.network_list[0]['pos_constraints'][2] is None and
-                ndn.network_list[0]['normalize_weights'][2]):
+        elif (ndn.network_list[stkers_address[0]]['pos_constraints'][stkers_address[1]+1] is None and
+                ndn.network_list[stkers_address[0]]['normalize_weights'][stkers_address[1]+1]):
             plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=-1, vmax=1)
         else:
             plt.imshow(k, aspect=k.shape[1]/k.shape[0],
@@ -671,7 +697,7 @@ def display_model(ndn):
         plt.colorbar()
 
         plt.subplot(132)
-        k = ndn.networks[0].layers[3].weights[:mod_n, :]
+        k = ndn.networks[readout_address[0]].layers[readout_address[1]].weights[:mod_n, :]
         plt.imshow(k, cmap='Greys', aspect=num_neurons/mod_n,
                    vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
         plt.title('readout layer: mod part')
@@ -680,7 +706,7 @@ def display_model(ndn):
         plt.ylabel('Mods.')
 
         plt.subplot(133)
-        plt.plot(np.sum(ndn.networks[0].layers[3].weights[mod_n:, :], axis=1))
+        plt.plot(np.sum(ndn.networks[readout_address[0]].layers[readout_address[1]].weights[mod_n:, :], axis=1))
         plt.title('readout layer: spatial part')
         plt.show()
 
@@ -689,14 +715,14 @@ def display_model(ndn):
 
         plt.figure(figsize=(18, 3))
 
-        k = ndn.networks[0].layers[2].weights
+        k = ndn.networks[stkers_address[0]].layers[stkers_address[1]+1].weights
         plt.subplot(121)
-        if (ndn.network_list[0]['pos_constraints'][2] and
-                ndn.network_list[0]['normalize_weights'][2]):
+        if (ndn.network_list[stkers_address[0]]['pos_constraints'][stkers_address[1]+1] and
+                ndn.network_list[stkers_address[0]]['normalize_weights'][stkers_address[1]+1]):
             plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=0, vmax=1)
             plt.ylabel('Kernels.')
-        elif (ndn.network_list[0]['pos_constraints'][2] is None and
-                ndn.network_list[0]['normalize_weights'][2]):
+        elif (ndn.network_list[stkers_address[0]]['pos_constraints'][stkers_address[1]+1] is None and
+                ndn.network_list[stkers_address[0]]['normalize_weights'][stkers_address[1]+1]):
             plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=-1, vmax=1)
             plt.ylabel('Kernels.')
         else:
@@ -706,14 +732,14 @@ def display_model(ndn):
         plt.title('1st mod layer')
         plt.colorbar()
 
-        k = ndn.networks[0].layers[3].weights
+        k = ndn.networks[stkers_address[0]].layers[stkers_address[1]+2].weights
         plt.subplot(122)
-        if (ndn.network_list[0]['pos_constraints'][3] and
-                ndn.network_list[0]['normalize_weights'][3]):
+        if (ndn.network_list[stkers_address[0]]['pos_constraints'][stkers_address[1]+2] and
+                ndn.network_list[stkers_address[0]]['normalize_weights'][stkers_address[1]+2]):
             plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=0, vmax=1)
             plt.xlabel('Mods.')
-        elif (ndn.network_list[0]['pos_constraints'][3] is None and
-                ndn.network_list[0]['normalize_weights'][3] == 1):
+        elif (ndn.network_list[stkers_address[0]]['pos_constraints'][stkers_address[1]+2] is None and
+                ndn.network_list[stkers_address[0]]['normalize_weights'][stkers_address[1]+2] == 1):
             plt.imshow(k, aspect=k.shape[1]/k.shape[0], vmin=-1, vmax=1)
             plt.xlabel('Mods.')
         else:
@@ -726,7 +752,7 @@ def display_model(ndn):
 
         print('\n--->    plotting readout layer:')
 
-        mod_n = ndn.networks[0].layers[3].num_filters
+        mod_n = ndn.networks[stkers_address[0]].layers[-1].num_filters
 
         plt.figure(figsize=(14, 2))
         plt.subplot(121)
@@ -742,6 +768,7 @@ def display_model(ndn):
         plt.title('readout layer: spatial part')
         plt.show()
     # ____________________________________________________________________________________
+
 
 def xv_v1(ndn, stim, robs, test_indxs, train_indxs, plot=True):
 

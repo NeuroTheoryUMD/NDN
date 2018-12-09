@@ -286,8 +286,9 @@ class NDN(Network):
                                         (input_cat,
                                          self.networks[ii].layers[-1].outputs),
                                         axis=1)
-
-                self.networks[nn].build_graph(inputs=input_cat, params_dict=self.network_list[nn],
+                # first argument for T/FFnetworks is inputs but it is input_network for scaffold
+                # so no keyword argument used below
+                self.networks[nn].build_graph(input_cat, params_dict=self.network_list[nn],
                                               use_dropout=use_dropout)
 
             # Define loss function

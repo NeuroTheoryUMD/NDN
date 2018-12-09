@@ -236,7 +236,7 @@ class CaTentLayer(Layer):
 
     # END CaTentLayer.__init__
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
@@ -384,7 +384,7 @@ class TLayer(Layer):
 
     # END TLayer.__init__
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()

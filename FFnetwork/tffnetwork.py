@@ -371,7 +371,7 @@ class TFFNetwork(FFNetwork):
 
     # END TFFNetwork._define_network
 
-    def build_graph(self, inputs, params_dict=None):
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
         """Build tensorflow graph for this network"""
 
         with tf.name_scope(self.scope):
@@ -383,7 +383,7 @@ class TFFNetwork(FFNetwork):
                     # no need to update input dims because it should be
                     # taken care of somewhere else
                     # self.layers[layer].input_dims = ???
-                self.layers[layer].build_graph(inputs, params_dict)
+                self.layers[layer].build_graph(inputs, params_dict, use_dropout=use_dropout)
                 inputs = self.layers[layer].outputs
     # END TFFNetwork._build_graph
 

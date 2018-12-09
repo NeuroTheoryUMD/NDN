@@ -608,6 +608,6 @@ class SideNetwork(FFNetwork):
 
             # Now standard graph-build (could just call the parent with inputs)
             for layer in range(self.num_layers):
-                self.layers[layer].build_graph(inputs, params_dict)
+                self.layers[layer].build_graph(inputs, params_dict, use_dropout=use_dropout)
                 inputs = self.layers[layer].outputs
     # END SideNetwork.build_graph
