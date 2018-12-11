@@ -473,6 +473,7 @@ class TNDN(NDN):
                         train_indxs=train_indxs,
                         test_indxs=test_indxs,
                         opt_params=opt_params,
+                        use_dropout=use_dropout,
                         output_dir=output_dir)
                 elif learning_alg is 'lbfgs':
                     self.train_step.minimize(
@@ -546,6 +547,7 @@ class TNDN(NDN):
             dataset_tr=None,
             dataset_test=None,
             opt_params=None,
+            use_dropout=True,
             output_dir=None):
         """Training function for adam optimizer to clean up code in `train`"""
 
@@ -557,7 +559,8 @@ class TNDN(NDN):
     #        self.batch_size = opt_params['batch_size']
 
         # print batch size
-        print('\n*** Train initiated, batch size = %s ***\n\n' % self.batch_size)
+        print('\n*** Train initiated, batch size = %s, use_dropout is %s ***\n\n'
+              % (self.batch_size, use_dropout))
 
         if self.data_pipe_type != 'data_as_var':
             assert self.batch_size is not None, 'Need to assign batch_size to train.'

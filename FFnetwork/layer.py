@@ -270,7 +270,8 @@ class Layer(object):
             else:
                 post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
-            self.outputs = post
+            self.outputs = self._apply_dropout(post, use_dropout=use_dropout,
+                                               noise_shape=[1, self.num_filters])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -304,6 +305,12 @@ class Layer(object):
             raise ValueEror('act func not defined')
 
         return post
+
+    def _apply_dropout(self, x, use_dropout, noise_shape):
+        if use_dropout == True and self.reg.vals['dropout'] is not None:
+            return tf.nn.dropout(x, keep_prob=self.reg.vals['dropout'], noise_shape=noise_shape)
+        else:
+            return x
 
     def assign_layer_params(self, sess):
         """Read weights/biases in numpy arrays into tf Variables"""
@@ -483,8 +490,6 @@ class ConvLayer(Layer):
 
         assert params_dict is not None, 'Incorrect siLayer initialization.'
         # Unfold siLayer-specific parameters for building graph
-        filter_size = self.filter_dims
-        num_shifts = self.num_shifts
 
         with tf.name_scope(self.scope):
             self._define_layer_variables()
@@ -498,7 +503,7 @@ class ConvLayer(Layer):
             shaped_input = tf.reshape(inputs, input_dims)
 
             # Reshape weights (4:D:
-            conv_filter_dims = [filter_size[2], filter_size[1], filter_size[0],
+            conv_filter_dims = [self.filter_dims[2], self.filter_dims[1], self.filter_dims[0],
                                 self.num_filters]
 
             if self.pos_constraint is not None:
@@ -529,8 +534,10 @@ class ConvLayer(Layer):
             else:
                 post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
+            post_drpd = self._apply_dropout(post, use_dropout=use_dropout,
+                                            noise_shape=[1, 1, 1, self.num_filters])
             self.outputs = tf.reshape(
-                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+                post_drpd, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -700,10 +707,13 @@ class ConvXYLayer(Layer):
 
             # reminder: self.xy_out = centers[which_cell] = [ctr_x, ctr_y]
             if self.xy_out is not None:
-                self.outputs = post
+                self.outputs = self._apply_dropout(post, use_dropout=use_dropout,
+                                                   noise_shape=[1, self.num_filters])
             else:
+                post_drpd = self._apply_dropout(post, use_dropout=use_dropout,
+                                                noise_shape=[1, 1, 1, self.num_filters])
                 self.outputs = tf.reshape(
-                    post, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
+                    post_drpd, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -975,7 +985,8 @@ class SepLayer(Layer):
             else:
                 post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
-            self.outputs = post
+            self.outputs = self._apply_dropout(post, use_dropout=use_dropout,
+                                               noise_shape=[1, self.num_filters])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -1410,8 +1421,10 @@ class ConvSepLayer(Layer):
             else:
                 post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
+            post_drpd = self._apply_dropout(post, use_dropout=use_dropout,
+                                            noise_shape=[1, 1, 1, self.num_filters])
             self.outputs = tf.reshape(
-                post, [-1, self.num_filters * num_shifts[0] * num_shifts[1]])
+                post_drpd, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -1531,7 +1544,9 @@ class AddLayer(Layer):
             else:
                 post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
-            self.outputs = post
+            self.outputs = self._apply_dropout(post, use_dropout=use_dropout,
+                                               noise_shape=[1, self.num_filters])
+
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
