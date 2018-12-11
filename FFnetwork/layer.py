@@ -1796,14 +1796,6 @@ class BiConvLayer(ConvLayer):
             if conv_filter_dims[2] > 1:
                 strides[2] = self.shift_spacing
 
-            # yaeh this should be the case:
-            # strides = [1, 1, 1, 1]
-            # if conv_filter_dims[0] > 1:
-                # strides[1] = self.shift_spacing
-            # if conv_filter_dims[1] > 1:
-                # strides[2] = self.shift_spacing
-            # possibly different strides for x,y
-
             if self.pos_constraint is not None:
                 pre = tf.nn.conv2d(shaped_input, tf.maximum(0.0, ws_conv), strides, padding='SAME')
             else:
@@ -1811,11 +1803,12 @@ class BiConvLayer(ConvLayer):
 
             if self.ei_mask_var is not None:
                 post = tf.multiply(
-                    self.activation_func(tf.add(pre, self.biases_var)),
+                    #self.activation_func(tf.add(pre, self.biases_var)),
+                    self._apply_act_func(tf.add(pre, self.biases_var)),
                     self.ei_mask_var)
             else:
-                post = self.activation_func(tf.add(pre, self.biases_var))
-
+                #post = self.activation_func(tf.add(pre, self.biases_var))
+                post = self._apply_act_func(tf.add(pre, self.biases_var))
             # cut into left and right processing and reattach
             left_post = tf.slice(post, [0, 0, 0, 0], [-1, -1, self.output_dims[1], -1])
             right_post = tf.slice(post, [0, 0, self.output_dims[1], 0],
