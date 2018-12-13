@@ -1022,6 +1022,8 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
 
         _key = sorted(out_dict.keys())[-1]
         _last_st = out_dict[_key]
+        _ei_mask = ndn.networks[stkers_address[0]].layers[stkers_address[1] + mm - 1].ei_mask
+        _last_st_ei = _last_st * _ei_mask
         _last_width = _last_st.shape[0]
 
         new_width = _last_width + 2 * (mod_width // 2)
@@ -1033,7 +1035,7 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
                 for alpha_y in range(mod_width):
                     x_rng = [alpha_x, alpha_x + _last_width]
                     y_rng = [alpha_y, alpha_y + _last_width]
-                    k = np.matmul(_last_st, pixels_info[alpha_y, alpha_x, :, which_mod])
+                    k = np.matmul(_last_st_ei, pixels_info[alpha_y, alpha_x, :, which_mod])
                     k = np.reshape(k, (-1, nlags))
                     _tmp_embd += space_embedding(k, [new_width, new_width], x_rng, y_rng)
             _tmp_embd = np.reshape(_tmp_embd, (new_width, new_width, nlags))
