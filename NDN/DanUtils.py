@@ -194,7 +194,6 @@ def spatial_spread(filters, axis=0):
 # END spatial_spread
 
 
-
 def plot_filters(ndn_mod):
 
     # Check to see if there is a temporal layer first
@@ -207,6 +206,10 @@ def plot_filters(ndn_mod):
     else:
         ks = ndn_mod.networks[0].layers[0].weights
         num_lags, filter_width = ndn_mod.networks[0].layers[0].filter_dims[:2]
+
+    # Also make able to work with spatial-only RFs by manipulating variables
+    if num_lags == 1:
+        num_lags = ndn_mod.networks[0].layers[0].filter_dims[2]
 
     num_filters = ks.shape[1]
 
