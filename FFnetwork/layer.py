@@ -55,7 +55,7 @@ class Layer(object):
             my_num_outputs=None,
             activation_func='relu',
             normalize_weights=0,
-            weights_initializer='trunc_normal',
+            weights_initializer='normal',
             biases_initializer='zeros',
             reg_initializer=None,
             num_inh=0,
