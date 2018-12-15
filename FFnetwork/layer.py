@@ -1798,9 +1798,9 @@ class BiConvLayer(ConvLayer):
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is not None:
-                post = tf.multiply(self.activation_func(pre), self.ei_mask_var)
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
             else:
-                post = self.activation_func(pre)
+                post = self._apply_act_func(pre)
 
             # cut into left and right processing and reattach
             left_post = tf.slice(post, [0, 0, 0, 0], [-1, -1, self.output_dims[1], -1])
