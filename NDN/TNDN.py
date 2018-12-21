@@ -291,11 +291,12 @@ class TNDN(NDN):
             train_indxs=None,
             test_indxs=None,
             fit_variables=None,
-            use_dropout=True,
+            use_dropout=False,
             data_filters=None,
             learning_alg='adam',
             opt_params=None,
-            output_dir=None):
+            output_dir=None,
+            verbose=False):
         """Network training function
 
         Args:
@@ -327,6 +328,7 @@ class TNDN(NDN):
                 or summary settings, the graph will automatically be saved.
                 Must be present if early_stopping is desired to restore the
                 best fit, otherwise it will restore the model at break point.
+            verbose (boolean): obv.
 
         Returns:
             int: number of total training epochs
@@ -474,7 +476,8 @@ class TNDN(NDN):
                         test_indxs=test_indxs,
                         opt_params=opt_params,
                         use_dropout=use_dropout,
-                        output_dir=output_dir)
+                        output_dir=output_dir,
+                        verbose=verbose)
                 elif learning_alg is 'lbfgs':
                     self.train_step.minimize(
                         sess, feed_dict={self.indices: train_indxs})
@@ -548,7 +551,8 @@ class TNDN(NDN):
             dataset_test=None,
             opt_params=None,
             use_dropout=True,
-            output_dir=None):
+            output_dir=None,
+            verbose=False):
         """Training function for adam optimizer to clean up code in `train`"""
 
         epochs_training = opt_params['epochs_training']
@@ -559,8 +563,9 @@ class TNDN(NDN):
     #        self.batch_size = opt_params['batch_size']
 
         # print batch size
-        print('\n*** Train initiated, batch size = %s, use_dropout is %s ***\n\n'
-              % (self.batch_size, use_dropout))
+        if verbose:
+            print('\n*** Train initiated, batch size = %s, use_dropout is %s ***\n\n'
+                  % (self.batch_size, use_dropout))
 
         if self.data_pipe_type != 'data_as_var':
             assert self.batch_size is not None, 'Need to assign batch_size to train.'
@@ -781,12 +786,6 @@ class TNDN(NDN):
                 if opt_params['early_stop_mode'] == 1:
                     if (epoch > opt_params['early_stop'] and
                             mean_now >= mean_before):  # or equivalently delta <= 0
-                        print('\n*** early stop criteria met...'
-                              'stopping train now...')
-                        print('     ---> number of epochs used: %d,  '
-                              'end cost: %04f' % (epoch, cost_test))
-                        print('     ---> best epoch: %d,  '
-                              'best cost: %04f\n' % (best_epoch, best_cost))
 
                         # restore saved variables into tf Variables
                         if output_dir is not None and chkpted and \
@@ -796,15 +795,19 @@ class TNDN(NDN):
                             # delete files before break to clean up space
                             shutil.rmtree(os.path.join(output_dir, 'bstmods'),
                                           ignore_errors=True)
+
+                        if verbose:
+                            print('\n*** early stop criteria met...'
+                                  'stopping train now...')
+                            print('     ---> number of epochs used: %d,  '
+                                  'end cost: %04f' % (epoch, cost_test))
+                            print('     ---> best epoch: %d,  '
+                                  'best cost: %04f\n' % (best_epoch, best_cost))
+
                         break
                 else:
                     if mean_now >= mean_before:  # or equivalently delta <= 0
-                        print('\n*** early stop criteria met...'
-                              'stopping train now...')
-                        print('     ---> number of epochs used: %d,  '
-                              'end cost: %04f' % (epoch, cost_test))
-                        print('     ---> best epoch: %d,  '
-                              'best cost: %04f\n' % (best_epoch, best_cost))
+
                         # restore saved variables into tf Variables
                         if output_dir is not None and chkpted and \
                                 opt_params['early_stop_mode'] > 0:
@@ -813,6 +816,15 @@ class TNDN(NDN):
                             # delete files before break to clean up space
                             shutil.rmtree(os.path.join(output_dir, 'bstmods'),
                                           ignore_errors=True)
+
+                        if verbose:
+                            print('\n*** early stop criteria met...'
+                                  'stopping train now...')
+                            print('     ---> number of epochs used: %d,  '
+                                  'end cost: %04f' % (epoch, cost_test))
+                            print('     ---> best epoch: %d,  '
+                                  'best cost: %04f\n' % (best_epoch, best_cost))
+
                         break
         return epoch
         # END TNDN._train_adam

@@ -229,6 +229,11 @@ class CaTentLayer(Layer):
         # ei_mask not useful at the moment
         self.ei_mask_var = None
 
+        # make nc biases instead of only 1
+        bias_dims = (1, self.output_dims[1])
+        init_biases = np.zeros(shape=bias_dims, dtype='float32')
+        self.biases = init_biases
+
         self.reg = Regularization(
             input_dims=[filter_width, 1, 1],
             num_outputs=num_filters,
@@ -261,27 +266,23 @@ class CaTentLayer(Layer):
             # convolve
             strides = [1, 1, 1, 1]
             _pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
-            pre = tf.add(_pre, self.biases_var)
-            post = self._apply_act_func(pre)
 
-       #     if self.ei_mask_var is None:
-       #         post = self._apply_act_func(tf.add(pre, self.biases_var))
-       #     else:
-       #         post = tf.multiply(self._apply_act_func(tf.add(pre, self.biases_var)), self.ei_mask_var)
-
-            # this produces shape (batch_size, nc, num_filts)
+            # transpose, squeeze to final shape
+            # both cases will produce _pre_final_shape.shape ---> (batch_size, nc)
             if self.num_filters > 1:
-                self.outputs = tf.linalg.diag_part(tf.transpose(tf.squeeze(post, axis=2), [1, 0, 2]))
+                _pre_final_shape = tf.linalg.diag_part(tf.transpose(tf.squeeze(_pre, axis=2), [1, 0, 2]))
             else:
                 # single filter
-                self.outputs = tf.transpose(tf.squeeze(post, axis=[2, 3]))
+                _pre_final_shape = tf.transpose(tf.squeeze(_pre, axis=[2, 3]))
 
-            # both cases will produce self.output.shape ---> (batch_size, nc)
+            pre = tf.add(_pre_final_shape, self.biases_var)
+            self.outputs = self._apply_act_func(pre)
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END CaTentLayer.build_graph
+
 
 class TLayer(Layer):
     """Implementation of a temporal layer

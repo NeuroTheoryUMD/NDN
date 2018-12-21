@@ -12,6 +12,8 @@ import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from prettytable import PrettyTable
 from matplotlib.animation import FuncAnimation
+import seaborn as sns
+from jupyterthemes import jtplot
 
 
 def r_squared(true, pred, data_indxs=None):
@@ -340,23 +342,50 @@ def make_nonsep_plot(k, dims, fig_sz):
     return fig
 
 
-def plot_pred_vs_true(ndn, stim, robs, which_cell,
-                      test_indxs, train_indxs, fr_address,
-                      rng_width=500, rows_n=2, cols_n=2, save_dir='./plots/'):
+def plot_pred_vs_true(ndn, stim, robs, which_cell, test_indxs, train_indxs,
+                      fr_address, rng_width=1000, rows_n=2, cols_n=1,
+                      save_dir='./plots/', file_name=None,
+                      style='darkgrid', facecolor='skyblue'):
+
+    _allowed_styles = ['white', 'whitegrid', 'dark', 'darkgrid',
+                       'onedork', 'chesterish', 'grade3', 'gruvboxd', 'gruvboxl',
+                       'monokai', 'oceans16', 'onedork', 'solarizedd', 'solarizedl']
+
+    if style not in _allowed_styles:
+        raise valueError('invalid style ''%s''' % style)
+
+    if style in ['white', 'whitegrid', 'dark', 'darkgrid']:
+        jtplot.reset()
+      #  sns.set_style(style)
+      #  sns.set(rc={'figure.facecolor': facecolor})
+    else:
+        jtplot.style(theme=style, grid=False, ticks=True, figsize=(6, 4))
 
     if not os.path.isdir(os.path.dirname(save_dir)):
         os.makedirs(os.path.dirname(save_dir))
 
-    nt = len(train_indxs) + len(test_indxs)
+    nt = robs.shape[0]
     num_pages = nt // (rows_n * cols_n * rng_width) + 1
 
     out_fr = ndn.generate_prediction(stim, ffnet_target=fr_address[0], layer_target=fr_address[1])
     [out_ca, tst, trn] = xv_v1(ndn, stim, robs, test_indxs, train_indxs, plot=False)
 
-    pp = PdfPages(save_dir + 'pvt_cell:%s.pdf' % which_cell)
+    if file_name is None:
+        file_name = 'pvt_cell:%s.pdf' % which_cell
+    pp = PdfPages(save_dir + file_name)
+
+    # find the upper and lower bounds for ylim in plots
+    _robs_ub = max(robs[np.concatenate((train_indxs, test_indxs)) , which_cell])
+    _robs_lb = min(robs[np.concatenate((train_indxs, test_indxs)), which_cell])
+
+    _out_fr_ub = max(out_fr[np.concatenate((train_indxs, test_indxs)) , which_cell])
+    _out_fr_lb = min(out_fr[np.concatenate((train_indxs, test_indxs)), which_cell])
+
+    _ylim_ub = max(_robs_ub, _out_fr_ub)
+    _ylim_lb = min(_robs_lb, _out_fr_lb)
 
     for page in range(num_pages):
-        fig = plt.figure(figsize=(40, 20))
+        fig = plt.figure(figsize=(30, rows_n * 10 // cols_n))
         for ii in range(cols_n * rows_n):
             page_starting_point = page * cols_n * rows_n * rng_width
             end_point = min(nt, page_starting_point + (ii + 1) * rng_width + 1)
@@ -365,11 +394,19 @@ def plot_pred_vs_true(ndn, stim, robs, which_cell,
             if end_point == nt:
                 continue
 
-            plt.subplot(rows_n, cols_n, ii + 1)
-            plt.plot(intvl, robs[intvl, which_cell], label='robs', color='g', linewidth=4)
-            plt.plot(intvl, out_ca[intvl, which_cell], label='ca', color='b', linestyle='dashdot', linewidth=4)
-            plt.plot(intvl, out_fr[intvl, which_cell], label='fr', color='r', linestyle='dashed', linewidth=3)
-            plt.ylim(-max(abs(robs[:, which_cell])), max(abs(robs[:, which_cell])))
+            if style in ['white', 'whitegrid', 'dark', 'darkgrid']:
+                plt.style.use('seaborn-' + style)
+                plt.style.context('poster')
+                plt.subplot(rows_n, cols_n, ii + 1)
+                plt.plot(intvl, robs[intvl, which_cell], label='cobs', color='darkslategrey', linewidth=1.5)
+                plt.plot(intvl, out_ca[intvl, which_cell], label='ca', color='r', linewidth=3)
+                plt.plot(intvl, out_fr[intvl, which_cell], label='fr', color='royalblue', linewidth=1)
+            else:
+                plt.subplot(rows_n, cols_n, ii + 1)
+                plt.plot(intvl, robs[intvl, which_cell], label='robs', color='g', linewidth=3)
+                plt.plot(intvl, out_ca[intvl, which_cell], label='ca', color='b', linewidth=5)
+                plt.plot(intvl, out_fr[intvl, which_cell], label='fr', color='y', linestyle='dashed', linewidth=2)
+            plt.ylim(_ylim_lb, _ylim_ub)
             plt.title('$r^2$ here: %0.2f %s'
                       % (r_squared(pred=out_ca[intvl, which_cell][:, np.newaxis],
                                    true=robs[intvl, which_cell][:, np.newaxis]) * 100, '%'))
@@ -378,10 +415,15 @@ def plot_pred_vs_true(ndn, stim, robs, which_cell,
             'Cell # %s     |     ...  $r^2$_tst: %0.2f %s,  $r^2$_trn: %0.2f %s   ...     |     intvl: [%d,  %d]'
             % (which_cell, tst[which_cell], '%', trn[which_cell], '%',
                page_starting_point,
-               page_starting_point + (ii + 1) * rng_width), fontsize=40)
-        pp.savefig(fig, orientation='horizontal')
+               page_starting_point + (ii + 1) * rng_width), fontsize=30)
+        plt.draw()
+        pp.savefig(fig, orientation='horizontal', facecolor=facecolor)
         plt.close()
     pp.close()
+
+    # go back to onedork
+    if style in ['white', 'whitegrid', 'dark', 'darkgrid']:
+        jtplot.style(theme='onedork', grid=False, ticks=True, figsize=(6, 4))
 
     return [out_fr, out_ca]
 
@@ -824,8 +866,14 @@ def get_ftvr(ndn, weights_to_fit=None, biases_to_fit=None):
     return _ftvr
 
 
-def make_gif(data_to_plot, frames=np.arange(10), interval=120, fig_sz=(8, 6), dpi=100,
+def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100,
              cmap='Greys', mode='stim', file_name=None, save_dir='./gifs/'):
+
+    if frames is None:
+        if mode == 'stim':
+            frames = np.arange(data_to_plot.shape[0])
+        elif mode == 'subs':
+            frames = np.arange(data_to_plot.shape[-2])
 
     if not os.path.isdir(os.path.dirname(save_dir)):
         os.makedirs(os.path.dirname(save_dir))
