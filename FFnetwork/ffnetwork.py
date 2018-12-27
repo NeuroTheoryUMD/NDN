@@ -225,7 +225,7 @@ class FFNetwork(object):
             elif self.layer_types[nn] == 'readout':
 
                 self.layers.append(ReadoutLayer(
-                    scope='sep_layer_%i' % nn,
+                    scope='readout_layer_%i' % nn,
                     input_dims=layer_sizes[nn],
                     output_dims=layer_sizes[nn + 1],
                     activation_func=network_params['activation_funcs'][nn],

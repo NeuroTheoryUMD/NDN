@@ -680,7 +680,23 @@ class UnitRegularization(Regularization):
             reg_loss.append(tf.constant(0.0, tf.float32, name='zero'))
 
         return tf.add_n(reg_loss)
-    # END Regularization.define_reg_loss
+    # END UnitRegularization.define_reg_loss
+
+    def reg_copy(self):
+        """Copy regularization to new structure"""
+
+        from copy import deepcopy
+
+        reg_target = UnitRegularization(
+            input_dims=self.input_dims,
+            num_outputs=self.num_outputs)
+        reg_target.vals = self.vals.copy()
+        reg_target.mats = {}
+        if self.blocks is not None:
+            reg_target.blocks = deepcopy(self.blocks)
+
+        return reg_target
+    # END UnitRegularization.reg_copy
 
     def _calc_reg_penalty(self, reg_type, weights):
         """Calculate regularization penalty for various reg types in default tf
