@@ -828,7 +828,16 @@ class NDN(Network):
             for batch_test in range(num_batches_test):
 
                 batch_indxs_test = data_indxs[batch_test * self.batch_size:(batch_test + 1) * self.batch_size]
-                feed_dict = {self.indices: batch_indxs_test}
+                if self.data_pipe_type == 'data_as_var':
+                    feed_dict = {self.indices: batch_indxs_test}
+                elif self.data_pipe_type == 'feed_dict':
+                    feed_dict = self._get_feed_dict(
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=None,
+                        batch_indxs=batch_indxs_test)
+                elif self.data_pipe_type == 'iterator':
+                    feed_dict = {self.iterator_handle: data_indxs}
 
                 if batch_test == 0:
                     pred = sess.run(
@@ -839,10 +848,19 @@ class NDN(Network):
                         self.networks[ffnet_target].layers[layer_target].outputs,
                         feed_dict=feed_dict)), axis=0)
 
-            # Add last fraction (if batches did not include all data
+            # Add last fraction (if batches did not include all data)
             if pred.shape[0] < data_indxs.shape[0]:
                 batch_indxs_test = data_indxs[num_batches_test * self.batch_size:data_indxs.shape[0]]
-                feed_dict = {self.indices: batch_indxs_test}
+                if self.data_pipe_type == 'data_as_var':
+                    feed_dict = {self.indices: batch_indxs_test}
+                elif self.data_pipe_type == 'feed_dict':
+                    feed_dict = self._get_feed_dict(
+                        input_data=input_data,
+                        output_data=output_data,
+                        data_filters=None,
+                        batch_indxs=batch_indxs_test)
+                elif self.data_pipe_type == 'iterator':
+                    feed_dict = {self.iterator_handle: data_indxs}
                 pred = np.concatenate((pred, sess.run(
                     self.networks[ffnet_target].layers[layer_target].outputs, feed_dict=feed_dict)), axis=0)
 
