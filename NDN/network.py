@@ -487,6 +487,7 @@ class Network(object):
         if early_stop_mode > 10:
             MAPest = True
             early_stop_mode += -10
+            print("MAP estimation early stop mode %d activated." %(early_stop_mode))
 
         if early_stop_mode > 0:
             prev_costs = np.multiply(np.ones(opt_params['early_stop']), float('NaN'))
