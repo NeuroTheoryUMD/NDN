@@ -481,7 +481,14 @@ class Network(object):
         if self.data_pipe_type != 'data_as_var':
             assert self.batch_size is not None, 'Need to assign batch_size to train.'
 
-        if opt_params['early_stop'] > 0:
+        early_stop_mode = opt_params['early_stop_mode']
+        MAPest = False
+        # flag early stop mode > 10
+        if early_stop_mode > 10:
+            MAPest = True
+            early_stop_mode += -10
+
+        if early_stop_mode > 0:
             prev_costs = np.multiply(np.ones(opt_params['early_stop']), float('NaN'))
 
         num_batches_tr = train_indxs.shape[0] // opt_params['batch_size']
@@ -546,7 +553,8 @@ class Network(object):
                     (epoch % opt_params['display'] == opt_params['display'] - 1
                      or epoch == 0):
 
-                cost_tr, cost_test, reg_pen = 0, 0, 0
+                #cost_tr, cost_test, reg_pen = 0, 0, 0
+                cost_tr, cost_test = 0, 0
                 for batch_tr in range(num_batches_tr):
                     batch_indxs_tr = train_indxs[
                                      batch_tr * opt_params['batch_size']:
@@ -563,9 +571,11 @@ class Network(object):
                         feed_dict = {self.iterator_handle: iter_handle_tr}
 
                     cost_tr += sess.run(self.cost, feed_dict=feed_dict)
-                    reg_pen += sess.run(self.cost_reg, feed_dict=feed_dict)
+                    #reg_pen += sess.run(self.cost_reg, feed_dict=feed_dict)
+
                 cost_tr /= num_batches_tr
-                reg_pen /= num_batches_tr
+                reg_pen = sess.run(self.cost_reg)
+                #reg_pen /= num_batches_tr
 
                 if test_indxs is not None:
                     if self.data_pipe_type == 'data_as_var' or \
@@ -585,6 +595,10 @@ class Network(object):
                             data_filters=data_filters,
                             test_indxs=iter_handle_test,
                             test_batch_size=opt_params['batch_size'])
+
+                    if MAPest:  # then add reg_penalty to test cost
+                        cost_tr += reg_pen
+                        cost_test += reg_pen
 
                 # print additional testing info
                 print('Epoch %04d:  avg train cost = %10.4f,  '
@@ -664,6 +678,9 @@ class Network(object):
                         test_indxs=iter_handle_test,
                         test_batch_size=opt_params['batch_size'])
 
+                if MAPest:
+                    cost_test += sess.run(self.cost_reg)
+
                 prev_costs = np.roll(prev_costs, 1)
                 prev_costs[0] = cost_test
 
@@ -680,19 +697,19 @@ class Network(object):
                     best_epoch = epoch
                     # chkpt model if desired
                     if output_dir is not None:
-                        if opt_params['early_stop_mode'] == 1:
+                        if early_stop_mode == 1:
                             save_file = os.path.join(output_dir,
                                                      'bstmods', 'best_model')
                             self.checkpoint_model(sess, save_file)
                             chkpted = True
-                        elif opt_params['early_stop_mode'] == 2 and \
+                        elif early_stop_mode == 2 and \
                                 delta < 5e-5:
                             save_file = os.path.join(output_dir,
                                                      'bstmods', 'best_model')
                             self.checkpoint_model(sess, save_file)
                             chkpted = True
 
-                if opt_params['early_stop_mode'] == 1:
+                if early_stop_mode == 1:
                     if (epoch > opt_params['early_stop'] and
                             mean_now >= mean_before):  # or equivalently delta <= 0
                         print('\n*** early stop criteria met...'
@@ -702,8 +719,7 @@ class Network(object):
                         print('     ---> best epoch: %d,  '
                               'best cost: %04f\n' % (best_epoch, best_cost))
                         # restore saved variables into tf Variables
-                        if output_dir is not None and chkpted and \
-                                opt_params['early_stop_mode'] > 0:
+                        if output_dir is not None and chkpted and early_stop_mode > 0:
                             # save_file exists only if chkpted is True
                             self.saver.restore(sess, save_file)
                             # delete files before break to clean up space
@@ -719,8 +735,7 @@ class Network(object):
                         print('     ---> best epoch: %d,  '
                               'best cost: %04f\n' % (best_epoch, best_cost))
                         # restore saved variables into tf Variables
-                        if output_dir is not None and chkpted and \
-                                opt_params['early_stop_mode'] > 0:
+                        if output_dir is not None and chkpted and early_stop_mode > 0:
                             # save_file exists only if chkpted is True
                             self.saver.restore(sess, save_file)
                             # delete files before break to clean up space
