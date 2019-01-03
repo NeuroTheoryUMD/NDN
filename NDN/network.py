@@ -596,9 +596,9 @@ class Network(object):
                             test_indxs=iter_handle_test,
                             test_batch_size=opt_params['batch_size'])
 
-                    if MAPest:  # then add reg_penalty to test cost
-                        cost_tr += reg_pen
-                        cost_test += reg_pen
+                    #if MAPest:  # then add reg_penalty to test cost (this is just for display)
+                    #    cost_tr += reg_pen
+                    #    cost_test += reg_pen
 
                 # print additional testing info
                 print('Epoch %04d:  avg train cost = %10.4f,  '
