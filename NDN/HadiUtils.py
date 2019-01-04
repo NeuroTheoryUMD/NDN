@@ -343,9 +343,9 @@ def make_nonsep_plot(k, dims, fig_sz):
 
 
 def plot_pred_vs_true(ndn, stim, robs, which_cell, test_indxs, train_indxs,
-                      fr_address, rng_width=1000, rows_n=2, cols_n=1,
+                      fr_address, rng_width=1000, rows_n=2, cols_n=2,
                       save_dir='./plots/', file_name=None,
-                      style='darkgrid', facecolor='skyblue'):
+                      style='darkgrid', facecolor='grey'):
 
     _allowed_styles = ['white', 'whitegrid', 'dark', 'darkgrid',
                        'onedork', 'chesterish', 'grade3', 'gruvboxd', 'gruvboxl',
@@ -1126,3 +1126,39 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
         out_dict.update({'net%dL%d_cells_embd' % (readout_address[0], readout_address[1]): st_cells_embd})
 
     return out_dict
+
+
+def get_gabor(params, width, plot=True, gabor_per_plot=None):
+    _pi = np.pi
+    ctr = width // 2
+    rng = np.arange(width**2)
+
+    yy = rng // width - ctr
+    xx = rng % width - ctr
+
+    xx_prime = (np.matmul(yy[:, np.newaxis], np.sin(params[1, :][np.newaxis, :]))
+                + np.matmul(xx[:, np.newaxis], np.cos(params[1, :][np.newaxis, :])))
+    yy_prime = (np.matmul(yy[:, np.newaxis], np.cos(params[1, :][np.newaxis, :]))
+                - np.matmul(xx[:, np.newaxis], np.sin(params[1, :][np.newaxis, :])))
+
+    exp = np.exp(-(xx_prime ** 2 + (params[4, :] * yy_prime) ** 2) / (2 * params[3, :] ** 2))
+    gabor = exp * np.sin(2 * _pi * xx_prime / params[0, :] + params[2, :])
+
+    if plot:
+        if gabor_per_plot is None:
+            gabor_per_plot = params.shape[1]
+
+        num_plots = int(np.ceil(params.shape[1] / gabor_per_plot))
+        plt_sz = int(np.ceil(np.sqrt(gabor_per_plot)))
+
+        for pp in range(num_plots):
+            plt.figure(figsize=(plt_sz, plt_sz))
+            for ii in range(gabor_per_plot):
+                plt.subplot(plt_sz, plt_sz, ii + 1)
+                which_gabor = ii + pp*gabor_per_plot
+                k = np.reshape(gabor[:, which_gabor], [width, width])
+                plt.imshow(k, cmap='Greys', vmin=-max(abs(k.flatten())), vmax=max(abs(k.flatten())))
+                plt.axis('off')
+            plt.suptitle('plt # %s,   FROM  %s  to  %s' % (pp, pp*gabor_per_plot, (pp+1)*gabor_per_plot), fontsize=20)
+            plt.show()
+    return gabor.astype('float32')
