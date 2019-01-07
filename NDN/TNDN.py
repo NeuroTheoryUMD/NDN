@@ -269,11 +269,12 @@ class TNDN(NDN):
         self.cost = tf.add_n(cost)
         self.unit_cost = unit_cost
 
-        # add regularization penalties
-        self.cost_reg = 0
+        # Add regularization penalties
+        reg_costs = []
         with tf.name_scope('regularization'):
             for nn in range(self.num_networks):
-                self.cost_reg += self.networks[nn].define_regularization_loss()
+                reg_costs.append(self.networks[nn].define_regularization_loss())
+        self.cost_reg = tf.add_n(reg_costs)
 
         self.cost_penalized = tf.add(self.cost, self.cost_reg)
 
