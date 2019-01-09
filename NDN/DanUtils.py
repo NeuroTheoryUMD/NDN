@@ -5,7 +5,9 @@ import numpy as np
 import NDN as NDN
 import NDNutils as NDNutils
 import matplotlib.pyplot as plt
+
 from copy import deepcopy
+from sklearn.preprocessing import normalize as sk_normalize
 
 
 def reg_path(
@@ -957,6 +959,25 @@ def entropy(dist):
     H = -np.sum( np.multiply( dist, np.log2(dist)) )
 
     return H
+
+
+def orthogonalize_gram_schmidt(kmat):
+    """Orthogonalize filters using gram_schmidt method. kmat should be num_params x num_filts"""
+
+    num_par, num_filts = kmat.shape
+    # First normalize all filters
+    kmat_out = sk_normalize(kmat, axis=0)
+
+    for nn in range(num_filts-1):
+
+        # orthogonalize all filters to the chosen
+        for mm in range(nn+1, num_filts):
+            kmat_out[:, mm] = kmat_out[:, mm] - np.dot(kmat_out[:, nn], kmat_out[:, mm]) * kmat_out[:, nn]
+
+        # renoramlize
+        kmat_out = sk_normalize(kmat_out, axis=0)
+
+    return kmat_out
 
 
 def best_val_mat(mat, min_or_max=0):
