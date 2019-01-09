@@ -512,7 +512,7 @@ class SideNetwork(FFNetwork):
                 
         """
 
-        _conv_types = ['conv', 'convsep', 'biconv']
+        _conv_types = ['conv', 'convsep', 'gabor', 'biconv']
         isbinocular = False
         # Determine dimensions of input and pass into regular network initializer
         input_layer_sizes = input_network_params['layer_sizes'][:]

@@ -1129,6 +1129,24 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
 
 
 def get_gabor(params, width, plot=True, gabor_per_plot=None):
+    """
+    :param params: gabor params
+    :param width:
+    :param plot:
+    :param gabor_per_plot:
+    :return:
+    """
+
+    _lambda = params[0, :]
+    _theta = params[1, :]
+    _phi = params[2, :]
+    _sigma = params[3, :]
+
+    if params.shape[0] < 5:
+        _gamma = np.ones((1, params.shape[1]))
+    else:
+        _gamma = params[-1, :]
+
     _pi = np.pi
     ctr = width // 2
     rng = np.arange(width**2)
@@ -1136,13 +1154,13 @@ def get_gabor(params, width, plot=True, gabor_per_plot=None):
     yy = rng // width - ctr
     xx = rng % width - ctr
 
-    xx_prime = (np.matmul(yy[:, np.newaxis], np.sin(params[1, :][np.newaxis, :]))
-                + np.matmul(xx[:, np.newaxis], np.cos(params[1, :][np.newaxis, :])))
-    yy_prime = (np.matmul(yy[:, np.newaxis], np.cos(params[1, :][np.newaxis, :]))
-                - np.matmul(xx[:, np.newaxis], np.sin(params[1, :][np.newaxis, :])))
+    xx_prime = (np.matmul(yy[:, np.newaxis], np.sin(_theta[np.newaxis, :]))
+                + np.matmul(xx[:, np.newaxis], np.cos(_theta[np.newaxis, :])))
+    yy_prime = (np.matmul(yy[:, np.newaxis], np.cos(_theta[np.newaxis, :]))
+                - np.matmul(xx[:, np.newaxis], np.sin(_theta[np.newaxis, :])))
 
-    exp = np.exp(-(xx_prime ** 2 + (params[4, :] * yy_prime) ** 2) / (2 * params[3, :] ** 2))
-    gabor = exp * np.sin(2 * _pi * xx_prime / params[0, :] + params[2, :])
+    exp = np.exp(-(xx_prime ** 2 + (_gamma * yy_prime) ** 2) / (2 * _sigma ** 2))
+    gabor = exp * np.sin(2 * _pi * xx_prime / _lambda + _phi)
 
     if plot:
         if gabor_per_plot is None:

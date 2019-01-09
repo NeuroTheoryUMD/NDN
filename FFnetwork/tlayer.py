@@ -247,7 +247,7 @@ class CaTentLayer(Layer):
             self._define_layer_variables()
 
             # make shaped input
-            shaped_input = tf.reshape(tf.transpose(inputs), [self.input_dims[1], self.batch_size, 1, 1])
+            shaped_input = tf.reshape(tf.transpose(inputs), [-1, self.batch_size, 1, 1])
 
             if self.pos_constraint is not None:
                 w_p = tf.maximum(self.weights_var, 0.0)

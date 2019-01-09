@@ -1887,7 +1887,7 @@ class GaborLayer(Layer):
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
             shift_spacing=1,
-            # output_dims=None,
+            gabor_params_init=None,
             activation_func='relu',
             normalize_weights=None,
             weights_initializer='trunc_normal',
@@ -1974,19 +1974,19 @@ class GaborLayer(Layer):
                 log_activations=log_activations)
 
         self.partial_fit = None
-        self.gabor_params_to_fit = [0, 1, 2, 3]
 
         # TODO: how to initialize these params?
         # possibly use width fomr self.filter_dims to djust lambda, gamma, and sigma
         # this will be found with a lot of experimentation
 
-        _pi = np.pi
-
-        self.gabor_params = np.zeros((4, self.num_filters), dtype='float32')
-        self.gabor_params[0, :] = self.filter_dims[1] / 3
-        self.gabor_params[1, :] = np.radians(45)
-        self.gabor_params[2, :] = 0
-        self.gabor_params[3, :] = np.sqrt(self.filter_dims[1])
+        if gabor_params_init is None:
+            self.gabor_params = np.zeros((4, self.num_filters), dtype='float32')
+            self.gabor_params[0, :] = self.filter_dims[1] / 3
+            self.gabor_params[1, :] = np.radians(45)
+            self.gabor_params[2, :] = 0
+            self.gabor_params[3, :] = np.sqrt(self.filter_dims[1])
+        else:
+            self.gabor_params = gabor_params_init
 
         # override self.weights
 #        self.weights = np.random.rand((num_input_dims_convsep, self.num_filters)).astype('float32') - 0.5
@@ -2033,10 +2033,10 @@ class GaborLayer(Layer):
   #      self.params_to_fit = [_params_dict[key] for key in params_to_fit]
 
         # Redefine specialized Regularization object to overwrite default
-  #      self.reg = SepRegularization(
-  #          input_dims=filter_dims,
-  #          num_outputs=self.num_filters,
-  #          vals=reg_initializer)
+        self.reg = SepRegularization(
+            input_dims=filter_dims,
+            num_outputs=self.num_filters,
+            vals=reg_initializer)
 
         # ConvLayer-specific properties
         self.shift_spacing = shift_spacing
@@ -2053,18 +2053,34 @@ class GaborLayer(Layer):
         ctr = width // 2
 
         if mode == 'np':
+            _lambda = np.clip(params[0, :], a_min=width/6, a_max=width)
+            _theta = np.clip(params[1, :], a_min=0, a_max=np.pi)
+            _phi = np.clip(params[2, :], a_min=0, a_max=np.pi)
+            _sigma = np.clip(params[3, :], a_min=0.8*np.sqrt(width), a_max=2*np.sqrt(width))  # this was, min: 0.7 * ...
+
+        elif mode == 'tf':
+            _lambda = tf.clip_by_value(params[0, :], clip_value_min=width/6, clip_value_max=width)
+            _theta = tf.clip_by_value(params[1, :], clip_value_min=0, clip_value_max=np.pi)
+            _phi = tf.clip_by_value(params[2, :], clip_value_min=0, clip_value_max=np.pi)
+            _sigma = tf.clip_by_value(params[3, :], clip_value_min=0.8*np.sqrt(width), clip_value_max=2*np.sqrt(width))
+
+        else:
+            raise ValueError('Invalid mode (must be either "np" or "tf"')
+
+        if mode == 'np':
             rng = np.arange(width**2)
 
             yy = rng // width - ctr
             xx = rng % width - ctr
 
-            xx_prime = (np.matmul(yy[:, np.newaxis], np.sin(params[1, :][np.newaxis, :]))
-                        + np.matmul(xx[:, np.newaxis], np.cos(params[1, :][np.newaxis, :])))
-            yy_prime = (np.matmul(yy[:, np.newaxis], np.cos(params[1, :][np.newaxis, :]))
-                        - np.matmul(xx[:, np.newaxis], np.sin(params[1, :][np.newaxis, :])))
+            xx_prime = (np.matmul(yy[:, np.newaxis], np.sin(_theta[np.newaxis, :]))
+                        + np.matmul(xx[:, np.newaxis], np.cos(_theta[np.newaxis, :])))
+            yy_prime = (np.matmul(yy[:, np.newaxis], np.cos(_theta[np.newaxis, :]))
+                        - np.matmul(xx[:, np.newaxis], np.sin(_theta[np.newaxis, :])))
 
-            exp = np.exp(-(xx_prime ** 2 + yy_prime ** 2) / (2 * params[3, :] ** 2))
-            gabor = exp * np.sin(2 * _pi * xx_prime / params[0, :] + params[2, :])
+            exp = np.exp(-(xx_prime ** 2 + yy_prime ** 2) / (2 * _sigma ** 2))
+            gabor = exp * np.sin(2 * _pi * xx_prime / _lambda + _phi)
+            gabor = gabor.astype('float32')
 
         elif mode == 'tf':
             rng = tf.range(0, width ** 2, 1)
@@ -2074,19 +2090,6 @@ class GaborLayer(Layer):
 
             yy = tf.expand_dims(tf.cast(yy_int, dtype=tf.float32), 1)
             xx = tf.expand_dims(tf.cast(xx_int, dtype=tf.float32), 1)
-
-            _lambda = tf.clip_by_value(params[0, :],
-                                       clip_value_min=width / 6,
-                                       clip_value_max=width)
-            _theta = tf.clip_by_value(params[1, :],
-                                      clip_value_min=0,
-                                      clip_value_max=np.pi)
-            _phi = tf.clip_by_value(params[2, :],
-                                    clip_value_min=0,
-                                    clip_value_max=np.pi)
-            _sigma = tf.clip_by_value(params[3, :],
-                                      clip_value_min=0.7 * np.sqrt(width),
-                                      clip_value_max=2 * np.sqrt(width))
 
             xx_prime = (tf.matmul(yy, tf.expand_dims(tf.sin(_theta), 0))
                         + tf.matmul(xx, tf.expand_dims(tf.cos(_theta), 0)))
@@ -2239,53 +2242,50 @@ class GaborLayer(Layer):
             # Section weights into first dimension and space
             if self.partial_fit == 0:
                 kt = self.weights_var
-                ks = tf.constant(self.weights[self.input_dims[0]:, :], dtype=tf.float32)
+                ks = tf.constant(self._get_gabor(params=self.gabor_params, mode='np'), dtype=tf.float32)
             elif self.partial_fit == 1:
                 kt = tf.constant(self.weights[:self.input_dims[0], :], dtype=tf.float32)
-                ks = self.weights_var
+                ks = self._get_gabor(params=self.weights_var, mode='tf')
             else:
                 kt = tf.slice(self.weights_var, [0, 0],
                               [self.input_dims[0], self.num_filters])
-                ks = tf.slice(self.weights_var, [self.input_dims[0], 0],
-                              [self.filter_dims[1] * self.filter_dims[2], self.num_filters])
+                params = tf.slice(self.weights_var, [self.input_dims[0], 0],
+                                  [4, self.num_filters])
+                ks = self._get_gabor(params=params, mode='tf')
+
+            if self.pos_constraint == 0:
+                kt_p = tf.maximum(0.0, kt)
+                ks_p = ks
+            elif self.pos_constraint == 1:
+                kt_p = kt
+                ks_p = tf.maximum(0.0, ks)
+            elif self.pos_constraint == 2:
+                kt_p = tf.maximum(0.0, kt)
+                ks_p = tf.maximum(0.0, ks)
+            else:
+                kt_p = kt
+                ks_p = ks
 
             # Normalize weights (one or both dimensions)
             if self.normalize_weights == 0:
-                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
-                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-8))
-                ks_n = ks
+                kt_pn = tf.nn.l2_normalize(kt_p, axis=0)
+                ks_pn = ks_p
             elif self.normalize_weights == 1:
-                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
-                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-8))
-                kt_n = kt
+                kt_pn = kt_p
+                ks_pn = tf.nn.l2_normalize(ks_p, axis=0)
             elif self.normalize_weights == 2:
-                wnorms_t = tf.sqrt(tf.reduce_sum(tf.square(kt), axis=0))
-                wnorms_s = tf.sqrt(tf.reduce_sum(tf.square(ks), axis=0))
-                kt_n = tf.divide(kt, tf.maximum(wnorms_t, 1e-8))
-                ks_n = tf.divide(ks, tf.maximum(wnorms_s, 1e-8))
+                kt_pn = tf.nn.l2_normalize(kt_p, axis=0)
+                ks_pn = tf.nn.l2_normalize(ks_p, axis=0)
             else:
-                kt_n = kt
-                ks_n = ks
-
-            if self.pos_constraint == 0:
-                kt_np = tf.maximum(0.0, kt_n)
-                ks_np = ks_n
-            elif self.pos_constraint == 1:
-                ks_np = tf.maximum(0.0, ks_n)
-                kt_np = kt_n
-            elif self.pos_constraint == 2:
-                kt_np = tf.maximum(0.0, kt_n)
-                ks_np = tf.maximum(0.0, ks_n)
-            else:
-                kt_np = kt_n
-                ks_np = ks_n
+                kt_pn = kt_p
+                ks_pn = ks_p
 
             if self.partial_fit == 0:
-                return self.reg.define_reg_loss(kt_np)
+                return self.reg.define_reg_loss(kt_pn)
             elif self.partial_fit == 1:
-                return self.reg.define_reg_loss(ks_np)
+                return self.reg.define_reg_loss(ks_pn)
             else:
-                return self.reg.define_reg_loss(tf.concat([kt_np, ks_np], 0))
+                return self.reg.define_reg_loss(tf.concat([kt_pn, ks_pn], 0))
 
     def _separate_weights(self):
         # Section weights into first dimension and space
@@ -2299,7 +2299,7 @@ class GaborLayer(Layer):
             kt = tf.slice(self.weights_var, [0, 0],
                           [self.input_dims[0], self.num_filters])
             params = tf.slice(self.weights_var, [self.input_dims[0], 0],
-                              [self.filter_dims[1] * self.filter_dims[2], self.num_filters])
+                              [4, self.num_filters])
             ks = self._get_gabor(params=params, mode='tf')
 
         if self.pos_constraint == 0:
