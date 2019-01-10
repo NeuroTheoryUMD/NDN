@@ -919,7 +919,7 @@ class NDN(Network):
                     self.networks[nn].layers[ll].biases.copy()
                 target.networks[nn].layers[ll].reg = \
                     self.networks[nn].layers[ll].reg.reg_copy()
-
+            target.networks[nn].input_masks = deepcopy(self.networks[nn].input_masks)
         return target
 
     def matlab_export(self, filename):
