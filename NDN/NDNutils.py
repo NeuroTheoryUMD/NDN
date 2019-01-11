@@ -150,7 +150,7 @@ def ffnetwork_params(
                             reg_initializers[nn][reg_type] = reg_val_list[nn]
 
     # Make default weights initializers
-    weight_inits = ['trunc_normal']*num_layers
+    weight_inits = ['normal']*num_layers
 
     network_params = {
         'network_type': network_type,

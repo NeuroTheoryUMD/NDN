@@ -354,10 +354,10 @@ class FFNetwork(object):
                 if nn < self.num_layers:
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
-            elif self.layer_types[nn] == 'conv_readout':
+            elif self.layer_types[nn] == 'hadi_readout':
 
-                self.layers.append(ConvReadoutLayer(
-                    scope='conv_readout_layer_%i' % nn,
+                self.layers.append(HadiReadoutLayer(
+                    scope='hadi_readout_layer_%i' % nn,
                     # this should be the case:
                     # nlags=network_params['time_expand'][nn],
                     # but since we don't have temporal side network we'll do this for now:

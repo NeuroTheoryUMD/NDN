@@ -297,7 +297,7 @@ class TNDN(NDN):
             learning_alg='adam',
             opt_params=None,
             output_dir=None,
-            verbose=False):
+            verbose=True):
         """Network training function
 
         Args:
@@ -553,7 +553,7 @@ class TNDN(NDN):
             opt_params=None,
             use_dropout=True,
             output_dir=None,
-            verbose=False):
+            verbose=True):
         """Training function for adam optimizer to clean up code in `train`"""
 
         epochs_training = opt_params['epochs_training']

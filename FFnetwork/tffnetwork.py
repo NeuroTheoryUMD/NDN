@@ -217,8 +217,8 @@ class TFFNetwork(FFNetwork):
                 if nn < self.num_layers:
                     layer_sizes[nn+1] = self.layers[nn].output_dims
 
-            elif self.layer_types[nn] == 'conv_readout':
-                self.layers.append(ConvReadoutLayer(
+            elif self.layer_types[nn] == 'hadi_readout':
+                self.layers.append(HadiReadoutLayer(
                     scope='conv_readout_layer_%i' % nn,
                     nlags=network_params['time_expand'][nn],
                     input_dims=layer_sizes[nn],
