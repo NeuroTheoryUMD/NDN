@@ -616,7 +616,7 @@ class UnitRegularization(Regularization):
 
         Args:
             reg_type (str): see `_allowed_reg_types` for options
-            reg_val (float): value of regularization parameter
+            reg_vals (float): value of regularization parameter
 
         Returns:
             bool: True if `reg_type` has not been previously set

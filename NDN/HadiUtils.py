@@ -482,6 +482,8 @@ def display_layer_info(ndn, pretty_table=True):
     pos_constraint_info = {}
     partial_fit_info = {}
     act_func_info = {}
+    ei_info = {}
+    te_info = {}
 
     for nn in range(len(ndn.network_list)):
         for ll, layer_type in enumerate(ndn.network_list[nn]['layer_types']):
@@ -489,28 +491,28 @@ def display_layer_info(ndn, pretty_table=True):
             normalization_val = ndn.networks[nn].layers[ll].normalize_weights
             if layer_type in ['sep', 'convsep', 'gabor']:
                 if normalization_val == 0:
-                    normalization_str = '1st part (filter)'
+                    normalization_str = '1st part (F)'
                 elif normalization_val == 1:
-                    normalization_str = '2nd part (spatial)'
+                    normalization_str = '2nd part (S)'
                 elif normalization_val == 2:
-                    normalization_str = 'Both (filter + spatial)'
+                    normalization_str = 'Both (F + S)'
                 else:
-                    normalization_str = 'No normalization'
+                    normalization_str = 'None'
             else:
                 if normalization_val:
-                    normalization_str = 'N'
+                    normalization_str = 'Yes'
                 else:
-                    normalization_str = 'No normalization'
+                    normalization_str = 'None'
 
             # get positive constraint info
             pos_constraint_val = ndn.networks[nn].layers[ll].pos_constraint
             if layer_type in ['sep', 'convsep', 'gabor']:
                 if pos_constraint_val == 0:
-                    pos_constraint_str = '1st part (filter)'
+                    pos_constraint_str = '1st part (F)'
                 elif pos_constraint_val == 1:
-                    pos_constraint_str = '2nd part (spatial)'
+                    pos_constraint_str = '2nd part (S)'
                 elif pos_constraint_val == 2:
-                    pos_constraint_str = 'Both (filter + spatial)'
+                    pos_constraint_str = 'Both (F + S)'
                 else:
                     pos_constraint_str = 'None'
             else:
@@ -522,9 +524,9 @@ def display_layer_info(ndn, pretty_table=True):
             if layer_type in ['sep', 'convsep', 'gabor']:
                 partial_fit_val = ndn.networks[nn].layers[ll].partial_fit
                 if partial_fit_val == 0:
-                    partial_fit_str = '1st part (filter)'
+                    partial_fit_str = '1st part (F)'
                 elif partial_fit_val == 1:
-                    partial_fit_str = '2nd part (spatial)'
+                    partial_fit_str = '2nd part (S)'
                 else:
                     partial_fit_str = 'Everything'
             else:
@@ -535,30 +537,45 @@ def display_layer_info(ndn, pretty_table=True):
             if act_func_str == 'leaky_relu':
                 act_func_str = act_func_str + ' (alpha = %s)' % ndn.networks[nn].layers[ll].nl_param
 
+            # get E/I info
+            num_inh = ndn.network_list[nn]['num_inh'][ll]
+            num_exc = ndn.network_list[nn]['layer_sizes'][ll] - num_inh
+            ei_str = '[E' + str(num_exc) + '/I' + str(num_inh) + '] -> ' + str(num_inh + num_exc)
+
+            # get time expand info
+            te_str = ndn.network_list[nn]['time_expand'][ll]
+
             # prepare dicts for printing
-            _key = 'net' + str(nn) + 'L' + str(ll) + '_' + layer_type
+            _key = str(nn) + str(ll) + '_' + layer_type
             normalization_info.update({_key: normalization_str})
             pos_constraint_info.update({_key: pos_constraint_str})
             partial_fit_info.update({_key: partial_fit_str})
             act_func_info.update({_key: act_func_str})
+            ei_info.update({_key: ei_str})
 
     if pretty_table:
-        t = PrettyTable(['Layer', 'Normalization', 'Positive Constraint', 'Partial Fit', 'Activation Func'])
+        t = PrettyTable(['Layer', 'Normalization', 'Pos Cnstrnt', 'Partial Fit', 'Act Func', 'E/I', 'Time Expand'])
         for lbl, val in sorted(normalization_info.iteritems()):
-            t.add_row([lbl, val, pos_constraint_info[lbl], partial_fit_info[lbl], act_func_info[lbl]])
+            t.add_row([lbl, val,
+                       pos_constraint_info[lbl], partial_fit_info[lbl],
+                       act_func_info[lbl], ei_info[lbl]], te_info[lbl])
         print(t)
     else:
         print("{:<12} {:<30} {:<30} {:<20}\n".format('Layers:',
                                                      'Normalization:',
                                                      'Positive Constraint:',
                                                      'Partial Fit:',
-                                                     'Activation Func:'))
+                                                     'Act Func:',
+                                                     'E/I',
+                                                     'Time Expand'))
         for label, val in sorted(normalization_info.iteritems()):
             print("{:<12} {:<30} {:<30} {:<20}".format(label,
                                                        val,
                                                        pos_constraint_info[label],
                                                        partial_fit_info[label],
-                                                       act_func_info[label]))
+                                                       act_func_info[label],
+                                                       ei_info[label],
+                                                       te_info[label]))
     print('\n')
 
 
@@ -1180,3 +1197,76 @@ def get_gabor(params, width, plot=True, gabor_per_plot=None):
             plt.suptitle('plt # %s,   FROM  %s  to  %s' % (pp, pp*gabor_per_plot, (pp+1)*gabor_per_plot), fontsize=20)
             plt.show()
     return gabor.astype('float32')
+
+
+def get_ei_indxs(ndn, scaff_net_address=1):
+    levels_n = len(ndn.network_list[scaff_net_address]['layer_sizes'])
+
+    inh_ind = []
+    for ii in range(levels_n):
+        _level_sz = ndn.network_list[scaff_net_address]['layer_sizes'][ii]
+        _num_inh = ndn.network_list[scaff_net_address]['num_inh'][ii]
+        _num_exc = _level_sz - _num_inh
+        if ii == 0:
+            rng = range(_num_exc,
+                        _num_exc + _num_inh)
+        else:
+            rng = range(int(inh_ind[-1]) + 1 + _num_exc,
+                        int(inh_ind[-1]) + 1 + _num_exc + _num_inh)
+        inh_ind = np.concatenate((inh_ind, rng), axis=0)
+    inh_ind = inh_ind.astype(int)
+
+    nf_tot = sum(ndn.network_list[scaff_net_address]['layer_sizes'])
+    exc_ind = np.delete(np.arange(nf_tot), inh_ind)
+
+    return [exc_ind, inh_ind]
+
+
+def get_ei_depth(k, level_sizes, inh_sizes, mode='norm'):
+    lvls_n = len(level_sizes)
+    ei_mass = np.zeros((2, lvls_n))
+    measured_ei_depth = np.zeros(2)
+
+    for indx, _level_width in enumerate(level_sizes):
+        _num_inh = inh_sizes[indx]
+        _num_exc = _level_width - _num_inh
+        if indx == 0:
+            inh_rng = range(_num_exc, _num_exc + _num_inh)
+            exc_rng = range(0, _num_exc)
+            all_rng = range(0, _level_width)
+        else:
+            _accumulated = sum(level_sizes[:indx])
+            inh_rng = range(_accumulated + _num_exc,
+                            _accumulated + _num_exc + _num_inh)
+            exc_rng = range(_accumulated,
+                            _accumulated + _num_exc)
+            all_rng = range(_accumulated,
+                            _accumulated + _level_width)
+        # 0 for exc, 1 for inh
+        if mode == 'norm':
+            if np.linalg.norm(k[all_rng]) > 0:
+                ei_mass[0, indx] = np.linalg.norm(k[exc_rng]) / np.linalg.norm(k[all_rng])
+                ei_mass[1, indx] = np.linalg.norm(k[inh_rng]) / np.linalg.norm(k[all_rng])
+            else:
+                ei_mass[0, indx] = 0
+                ei_mass[1, indx] = 0
+        elif mode == 'sum':
+            if np.sum(k[all_rng]) > 0:
+                ei_mass[0, indx] = np.sum(k[exc_rng]) / np.sum(k[all_rng])
+                ei_mass[1, indx] = np.sum(k[inh_rng]) / np.sum(k[all_rng])
+            else:
+                ei_mass[0, indx] = 0
+                ei_mass[1, indx] = 0
+
+    if np.sum(ei_mass[0, :]) > 0:
+        measured_ei_depth[0] = (np.sum(ei_mass[0, :] * np.arange(1, lvls_n + 1))
+                                / np.sum(ei_mass[0, :])) - 1
+    else:
+        measured_ei_depth[0] = 0
+    if np.sum(ei_mass[1, :]) > 0:
+        measured_ei_depth[1] = (np.sum(ei_mass[1, :] * np.arange(1, lvls_n + 1))
+                                / np.sum(ei_mass[1, :])) - 1
+    else:
+        measured_ei_depth[1] = 0
+
+    return [ei_mass, measured_ei_depth]
