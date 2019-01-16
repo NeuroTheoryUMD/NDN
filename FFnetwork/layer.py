@@ -390,7 +390,8 @@ class ConvLayer(Layer):
             input_dims=None,   # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
-            shift_spacing=1,
+            stride=1,
+            dilation=1,
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='normal',
@@ -457,9 +458,9 @@ class ConvLayer(Layer):
         # Calculate number of shifts (for output)
         num_shifts = [1, 1]
         if input_dims[1] > 1:
-            num_shifts[0] = int(np.floor(input_dims[1]/shift_spacing))
+            num_shifts[0] = int(np.floor(input_dims[1]/stride))
         if input_dims[2] > 1:
-            num_shifts[1] = int(np.floor(input_dims[2]/shift_spacing))
+            num_shifts[1] = int(np.floor(input_dims[2]/stride))
 
         super(ConvLayer, self).__init__(
                 scope=scope,
@@ -477,7 +478,8 @@ class ConvLayer(Layer):
                 log_activations=log_activations)
 
         # ConvLayer-specific properties
-        self.shift_spacing = shift_spacing
+        self.stride = stride
+        self.dilation = dilation
         self.num_shifts = num_shifts
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
@@ -517,14 +519,14 @@ class ConvLayer(Layer):
             ws_conv = tf.reshape(w_pn, conv_filter_dims)
 
             # Make strides list
-            # check back later (this seems to not match with conv_filter_dims)
             strides = [1, 1, 1, 1]
             if conv_filter_dims[1] > 1:
-                strides[1] = self.shift_spacing
+                strides[1] = self.stride
             if conv_filter_dims[2] > 1:
-                strides[2] = self.shift_spacing
+                strides[2] = self.stride
 
-            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            dilations = [1, self.dilation, self.dilation, 1]
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, dilations=dilations, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
@@ -559,7 +561,8 @@ class ConvXYLayer(Layer):
             input_dims=None,  # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
-            shift_spacing=1,
+            stride=1,
+            dilation=1,
             xy_out=None,
             activation_func='relu',
             normalize_weights=0,
@@ -620,9 +623,9 @@ class ConvXYLayer(Layer):
         # Calculate number of shifts (for output)
         num_shifts = [1, 1]
         if input_dims[1] > 1:
-            num_shifts[0] = int(np.floor(input_dims[1] / shift_spacing))
+            num_shifts[0] = int(np.floor(input_dims[1] / stride))
         if input_dims[2] > 1:
-            num_shifts[1] = int(np.floor(input_dims[2] / shift_spacing))
+            num_shifts[1] = int(np.floor(input_dims[2] / stride))
 
         super(ConvXYLayer, self).__init__(
             scope=scope,
@@ -640,7 +643,8 @@ class ConvXYLayer(Layer):
             log_activations=log_activations)
 
         # ConvLayer-specific properties
-        self.shift_spacing = shift_spacing
+        self.stride = stride
+        self.dilation = dilation
         self.num_shifts = num_shifts
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
@@ -684,11 +688,12 @@ class ConvXYLayer(Layer):
             # yaeh this should be the case:
             strides = [1, 1, 1, 1]
             if self.filter_dims[2] > 1:
-                strides[1] = self.shift_spacing
+                strides[1] = self.stride
             if self.filter_dims[1] > 1:
-                strides[2] = self.shift_spacing
+                strides[2] = self.stride
 
-            _pre0 = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            dilations = [1, self.dilation, self.dilation, 1]
+            _pre0 = tf.nn.conv2d(shaped_input, ws_conv, strides, dilations=dilations, padding='SAME')
 
             if self.xy_out is not None:
                 indices = self._get_indices(int(shaped_input.shape[0]))
@@ -1055,7 +1060,8 @@ class ConvSepLayer(Layer):
             input_dims=None,    # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
-            shift_spacing=1,
+            stride=1,
+            dilation=1,
             # output_dims=None,
             activation_func='relu',
             normalize_weights=0,
@@ -1122,9 +1128,9 @@ class ConvSepLayer(Layer):
         # Calculate number of shifts (for output)
         num_shifts = [1, 1]
         if input_dims[1] > 1:
-            num_shifts[0] = int(np.floor(input_dims[1]/shift_spacing))
+            num_shifts[0] = int(np.floor(input_dims[1]/stride))
         if input_dims[2] > 1:
-            num_shifts[1] = int(np.floor(input_dims[2]/shift_spacing))
+            num_shifts[1] = int(np.floor(input_dims[2]/stride))
 
         super(ConvSepLayer, self).__init__(
                 scope=scope,
@@ -1151,7 +1157,8 @@ class ConvSepLayer(Layer):
             vals=reg_initializer)
 
         # ConvLayer-specific properties
-        self.shift_spacing = shift_spacing
+        self.stride = stride
+        self.dilation = dilation
         self.num_shifts = num_shifts
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
@@ -1391,11 +1398,12 @@ class ConvSepLayer(Layer):
             # Make strides list
             strides = [1, 1, 1, 1]
             if conv_filter_dims[0] > 1:
-                strides[1] = self.shift_spacing
+                strides[1] = self.stride
             if conv_filter_dims[1] > 1:
-                strides[2] = self.shift_spacing
+                strides[2] = self.stride
 
-            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            dilations = [1, self.dilation, self.dilation, 1]
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, dilations=dilations, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
@@ -1677,7 +1685,8 @@ class BiConvLayer(ConvLayer):
             input_dims=None,  # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
-            shift_spacing=1,
+            stride=1,
+            dilation=1,
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='trunc_normal',
@@ -1722,7 +1731,8 @@ class BiConvLayer(ConvLayer):
             input_dims=input_dims,
             num_filters=num_filters,
             filter_dims=filter_dims,
-            shift_spacing=shift_spacing,
+            stride=stride,
+            dilation=dilation,
             activation_func=activation_func,
             normalize_weights=normalize_weights,
             weights_initializer=weights_initializer,
@@ -1772,11 +1782,12 @@ class BiConvLayer(ConvLayer):
             # Make strides list
             strides = [1, 1, 1, 1]
             if conv_filter_dims[0] > 1:
-                strides[1] = self.shift_spacing
+                strides[1] = self.stride
             if conv_filter_dims[1] > 1:
-                strides[2] = self.shift_spacing
+                strides[2] = self.stride
 
-            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            dilations = [1, self.dilation, self.dilation, 1]
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, dilations=dilations, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is not None:
@@ -1889,7 +1900,8 @@ class ConvLayerLNL(ConvLayer):
             input_dims=None,  # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
-            shift_spacing=1,
+            stride=1,
+            dilation=1,
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='trunc_normal',
@@ -1934,6 +1946,8 @@ class ConvLayerLNL(ConvLayer):
             input_dims=input_dims,
             filter_dims=filter_dims,
             output_dims=num_filters,  # Note difference from layer
+            stride=stride,
+            dilation=dilation,
             activation_func=activation_func,
             normalize_weights=normalize_weights,
             weights_initializer=weights_initializer,
@@ -1985,11 +1999,12 @@ class ConvLayerLNL(ConvLayer):
             # check back later (this seems to not match with conv_filter_dims)
             strides = [1, 1, 1, 1]
             if conv_filter_dims[1] > 1:
-                strides[1] = self.shift_spacing
+                strides[1] = self.stride
             if conv_filter_dims[2] > 1:
-                strides[2] = self.shift_spacing
+                strides[2] = self.stride
 
-            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            dilations = [1, self.dilation, self.dilation, 1]
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, dilations=dilations, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
@@ -2020,7 +2035,8 @@ class GaborLayer(Layer):
             input_dims=None,    # this can be a list up to 3-dimensions
             num_filters=None,
             filter_dims=None,  # this can be a list up to 3-dimensions
-            shift_spacing=1,
+            stride=1,
+            dilation=1,
             gabor_params_init=None,
             activation_func='relu',
             normalize_weights=None,
@@ -2087,9 +2103,9 @@ class GaborLayer(Layer):
         # Calculate number of shifts (for output)
         num_shifts = [1, 1]
         if input_dims[1] > 1:
-            num_shifts[0] = int(np.floor(input_dims[1]/shift_spacing))
+            num_shifts[0] = int(np.floor(input_dims[1]/stride))
         if input_dims[2] > 1:
-            num_shifts[1] = int(np.floor(input_dims[2]/shift_spacing))
+            num_shifts[1] = int(np.floor(input_dims[2]/stride))
 
         super(GaborLayer, self).__init__(
                 scope=scope,
@@ -2172,8 +2188,8 @@ class GaborLayer(Layer):
             num_outputs=self.num_filters,
             vals=reg_initializer)
 
-        # ConvLayer-specific properties
-        self.shift_spacing = shift_spacing
+        self.stride = stride
+        self.dilation = dilation
         self.num_shifts = num_shifts
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
@@ -2490,11 +2506,12 @@ class GaborLayer(Layer):
             # Make strides list
             strides = [1, 1, 1, 1]
             if conv_filter_dims[0] > 1:
-                strides[1] = self.shift_spacing
+                strides[1] = self.stride
             if conv_filter_dims[1] > 1:
-                strides[2] = self.shift_spacing
+                strides[2] = self.stride
 
-            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, padding='SAME')
+            dilations = [1, self.dilation, self.dilation, 1]
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, dilations=dilations, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
 
             if self.ei_mask_var is None:
