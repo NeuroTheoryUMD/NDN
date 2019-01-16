@@ -151,8 +151,8 @@ class CaTentLayer(Layer):
             filter_width=None,  # this can be a list up to 3-dimensions
             batch_size=None,
             activation_func='lin',
-            normalize_weights=0,
-            weights_initializer='trunc_normal',
+            normalize_weights=True,
+            weights_initializer='normal',
             biases_initializer='zeros',
             reg_initializer=None,
             num_inh=0,
@@ -284,6 +284,7 @@ class CaTentLayer(Layer):
     # END CaTentLayer.build_graph
 
 
+# TODO: fix input/output dims so that multiple consecutive TLayers are possible
 class TLayer(Layer):
     """Implementation of a temporal layer
 
@@ -302,6 +303,7 @@ class TLayer(Layer):
             num_filters=None,
             filter_width=None,  # this can be a list up to 3-dimensions
             batch_size=None,
+            dilation=1,
             activation_func='lin',
             normalize_weights=True,
             weights_initializer='trunc_normal',
@@ -375,6 +377,8 @@ class TLayer(Layer):
    #     self.output_dims = deepcopy(input_dims)
         self.output_dims[0] = self.num_filters
 
+        self.dilation = dilation
+
         # ei_mask not useful at the moment
         self.ei_mask_var = None
 
@@ -410,7 +414,8 @@ class TLayer(Layer):
 
             # convolve
             strides = [1, 1, 1, 1]
-            _pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
+            dilations = [1, self.dilation, 1, 1]
+            _pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, dilations=dilations, padding='SAME')
             pre = tf.add(_pre, self.biases_var)
             post = self._apply_act_func(pre)
 

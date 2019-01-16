@@ -310,6 +310,7 @@ class TFFNetwork(FFNetwork):
                     output_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn + 1],
                     filter_width=network_params['ca_tent_widths'][nn],
+                    dilation=network_params['dilation'][nn],
                     activation_func=network_params['activation_funcs'][nn],
                     batch_size=self.batch_size,
                     normalize_weights=network_params['normalize_weights'][nn],

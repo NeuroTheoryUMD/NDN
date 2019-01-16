@@ -543,7 +543,10 @@ def display_layer_info(ndn, pretty_table=True):
             ei_str = '[E' + str(num_exc) + '/I' + str(num_inh) + '] -> ' + str(num_inh + num_exc)
 
             # get time expand info
-            te_str = ndn.network_list[nn]['time_expand'][ll]
+            if 'time_expand' in ndn.network_list[nn].keys():
+                te_str = str(ndn.network_list[nn]['time_expand'][ll])
+            else:
+                te_str = '---'  ### change this to None once you made temporal side network
 
             # prepare dicts for printing
             _key = str(nn) + str(ll) + '_' + layer_type
@@ -552,13 +555,15 @@ def display_layer_info(ndn, pretty_table=True):
             partial_fit_info.update({_key: partial_fit_str})
             act_func_info.update({_key: act_func_str})
             ei_info.update({_key: ei_str})
+            te_info.update({_key: te_str})
 
     if pretty_table:
+        # TODO: add Dilation/Stride/Width to this list
         t = PrettyTable(['Layer', 'Normalization', 'Pos Cnstrnt', 'Partial Fit', 'Act Func', 'E/I', 'Time Expand'])
         for lbl, val in sorted(normalization_info.iteritems()):
             t.add_row([lbl, val,
                        pos_constraint_info[lbl], partial_fit_info[lbl],
-                       act_func_info[lbl], ei_info[lbl]], te_info[lbl])
+                       act_func_info[lbl], ei_info[lbl], te_info[lbl]])
         print(t)
     else:
         print("{:<12} {:<30} {:<30} {:<20}\n".format('Layers:',
