@@ -1,3 +1,4 @@
+# coding=utf-8
 """Neural deep network situtation-specific utils by Hadi"""
 
 from __future__ import print_function
@@ -478,12 +479,22 @@ def xv_retina(ndn, stim, robs, data_indxs=None, plot=True):
 
 
 def display_layer_info(ndn, pretty_table=True):
+    architecture = 'FF'
+
+    for nn in range(len(ndn.network_list)):
+        if ndn.network_list[nn]['network_type'] == 'side':
+            architecture = 'SCAFF'
+
+    print('Architecture = %s,  batch size = %d,  time spread = %d \n'
+          % (architecture, ndn.batch_size, ndn.time_spread))
+
     normalization_info = {}
     pos_constraint_info = {}
     partial_fit_info = {}
     act_func_info = {}
     ei_info = {}
     te_info = {}
+    conv_info = {}
 
     for nn in range(len(ndn.network_list)):
         for ll, layer_type in enumerate(ndn.network_list[nn]['layer_types']):
@@ -548,6 +559,17 @@ def display_layer_info(ndn, pretty_table=True):
             else:
                 te_str = '---'  ### change this to None once you made temporal side network
 
+            # get conv info
+            if layer_type in ['temporal', 'ca_tent']:
+                conv_str = ('- / ' + str(ndn.network_list[nn]['dilation'][ll])
+                            + ' / ' + str(ndn.network_list[nn]['ca_tent_widths'][ll]))
+            elif layer_type in ['conv', 'convsep', 'gabor', 'biconv']:
+                conv_str = (str(ndn.network_list[nn]['stride'][ll])
+                            + ' / ' + str(ndn.network_list[nn]['dilation'][ll])
+                            + ' / ' + str(ndn.network_list[nn]['conv_filter_widths'][ll]))
+            else:
+                conv_str = '---'
+
             # prepare dicts for printing
             _key = str(nn) + str(ll) + '_' + layer_type
             normalization_info.update({_key: normalization_str})
@@ -556,14 +578,18 @@ def display_layer_info(ndn, pretty_table=True):
             act_func_info.update({_key: act_func_str})
             ei_info.update({_key: ei_str})
             te_info.update({_key: te_str})
+            conv_info.update({_key: conv_str})
 
     if pretty_table:
-        # TODO: add Dilation/Stride/Width to this list
-        t = PrettyTable(['Layer', 'Normalization', 'Pos Cnstrnt', 'Partial Fit', 'Act Func', 'E/I', 'Time Expand'])
+        t = PrettyTable(['Layer', 'Normalization',
+                         'Pos Cnstrnt', 'Partial Fit',
+                         'Act Func', 'E/I',
+                         'Time Expand', 'S / D / W'])
         for lbl, val in sorted(normalization_info.iteritems()):
             t.add_row([lbl, val,
                        pos_constraint_info[lbl], partial_fit_info[lbl],
-                       act_func_info[lbl], ei_info[lbl], te_info[lbl]])
+                       act_func_info[lbl], ei_info[lbl],
+                       te_info[lbl], conv_info[lbl]])
         print(t)
     else:
         print("{:<12} {:<30} {:<30} {:<20}\n".format('Layers:',
@@ -572,7 +598,7 @@ def display_layer_info(ndn, pretty_table=True):
                                                      'Partial Fit:',
                                                      'Act Func:',
                                                      'E/I',
-                                                     'Time Expand'))
+                                                     'Time Expand', 'S / D / W'))
         for label, val in sorted(normalization_info.iteritems()):
             print("{:<12} {:<30} {:<30} {:<20}".format(label,
                                                        val,
@@ -580,7 +606,8 @@ def display_layer_info(ndn, pretty_table=True):
                                                        partial_fit_info[label],
                                                        act_func_info[label],
                                                        ei_info[label],
-                                                       te_info[label]))
+                                                       te_info[label],
+                                                       conv_info[label]))
     print('\n')
 
 
@@ -1275,3 +1302,56 @@ def get_ei_depth(k, level_sizes, inh_sizes, mode='norm'):
         measured_ei_depth[1] = 0
 
     return [ei_mass, measured_ei_depth]
+
+
+def make_ei_depth_plot(ndn, readout_address=None, readout_type='hadi_readout',
+                       save_dir='./plots/', file_name='el_level_depth.png'):
+    if readout_address is None:
+        readout_address = [2, 0]
+
+    level_sizes = ndn.network_list[readout_address[0]-1]['layer_sizes']
+    num_inh = ndn.network_list[readout_address[0]-1]['num_inh']
+
+    levels_n = len(level_sizes)
+    nf_tot = sum(level_sizes)
+
+    if readout_type == 'hadi_readout':
+        rof = deepcopy(ndn.networks[readout_address[0], readout_address[1]].weights[:nf_tot, :])
+    elif readout_type == 'sep':
+        rof = deepcopy(ndn.networks[readout_address[0], readout_address[1]].weights[:nf_tot, :])
+    else:
+        raise TypeError('Nont implemented yet')
+
+    nc = rof.shape[1]
+
+    measured_ei_depth = np.zeros((2, nc))
+    measured_ei_mass = np.zeros((2, levels_n, nc))
+    for ii in range(nc):
+        measured_ei_mass[..., ii], measured_ei_depth[:, ii] = HU.get_ei_depth(
+            rof_normalized[:, which_cell], level_sizes, num_inh)
+
+    # make the plot
+    sns.set_style('darkgrid')
+
+    fig = plt.figure(figsize=(16, 8))
+    exc_plt = plt.hist(measured_ei_depth[0, :], bins=25, label='EXC depth', color='r')
+    inh_plt = plt.hist(measured_ei_depth[1, :], bins=50, label='INH depth', fc=(0, 0.2, 0.8, 0.7))
+
+    y1 = max(max(exc_plt[0]), max(inh_plt[0]))
+
+    plt.plot([np.mean(measured_ei_depth[0, :]), np.mean(measured_ei_depth[0, :])], [0, y1],
+             color='y', linewidth=4, linestyle='dashdot', label='mean (EXC)')
+    plt.plot([np.mean(measured_ei_depth[1, :]), np.mean(measured_ei_depth[1, :])], [0, y1],
+             color='c', linewidth=4, linestyle='dashdot', label='mean (INH)')
+
+    plt.xlabel('bins', fontsize=25)
+    plt.ylabel('count', fontsize=25)
+    # plt.xticks([], [])
+    plt.yticks([], [])
+    plt.xlim(0, levels_n - 1)
+    plt.legend()
+    plt.title('E/I level depth', fontsize=25)
+    fig.savefig(save_dir + file_name, facecolor='grey')
+    plt.show()
+
+    return [measured_ei_mass, measured_ei_depth]

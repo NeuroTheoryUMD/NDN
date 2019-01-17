@@ -148,7 +148,8 @@ class CaTentLayer(Layer):
             input_dims=None,  # this can be a list up to 3-dimensions
             output_dims=None,
             num_filters=None,
-            filter_width=None,  # this can be a list up to 3-dimensions
+            filter_width=None,
+            dilation=1,
             batch_size=None,
             activation_func='lin',
             normalize_weights=True,
@@ -225,6 +226,7 @@ class CaTentLayer(Layer):
             log_activations=log_activations)
 
         self.output_dims = input_dims
+        self.dilation = dilation
 
         # ei_mask not useful at the moment
         self.ei_mask_var = None
@@ -265,7 +267,8 @@ class CaTentLayer(Layer):
 
             # convolve
             strides = [1, 1, 1, 1]
-            _pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, padding='SAME')
+            dilations = [1, self.dilation, 1, 1]
+            _pre = tf.nn.conv2d(shaped_input, shaped_padded_filt, strides, dilations=dilations, padding='SAME')
 
             # transpose, squeeze to final shape
             # both cases will produce _pre_final_shape.shape ---> (batch_size, nc)
