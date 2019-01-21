@@ -15,6 +15,7 @@ from prettytable import PrettyTable
 from matplotlib.animation import FuncAnimation
 import seaborn as sns
 from jupyterthemes import jtplot
+import datetime
 
 
 def r_squared(true, pred, data_indxs=None):
@@ -1304,7 +1305,7 @@ def get_ei_depth(k, level_sizes, inh_sizes, mode='norm'):
     return [ei_mass, measured_ei_depth]
 
 
-def make_ei_depth_plot(ndn, readout_address=None, readout_type='hadi_readout',
+def make_ei_depth_plot(ndn, readout_address=None, readout_type='hadi_readout', save_fig=False,
                        save_dir='./plots/', file_name='el_level_depth.png'):
     if readout_address is None:
         readout_address = [2, 0]
@@ -1316,19 +1317,18 @@ def make_ei_depth_plot(ndn, readout_address=None, readout_type='hadi_readout',
     nf_tot = sum(level_sizes)
 
     if readout_type == 'hadi_readout':
-        rof = deepcopy(ndn.networks[readout_address[0], readout_address[1]].weights[:nf_tot, :])
+        rof = deepcopy(ndn.networks[readout_address[0]].layers[readout_address[1]].weights)
     elif readout_type == 'sep':
-        rof = deepcopy(ndn.networks[readout_address[0], readout_address[1]].weights[:nf_tot, :])
+        rof = deepcopy(ndn.networks[readout_address[0]].layers[readout_address[1]].weights[:nf_tot, :])
     else:
-        raise TypeError('Nont implemented yet')
+        raise TypeError('Not implemented yet')
 
     nc = rof.shape[1]
 
     measured_ei_depth = np.zeros((2, nc))
     measured_ei_mass = np.zeros((2, levels_n, nc))
     for ii in range(nc):
-        measured_ei_mass[..., ii], measured_ei_depth[:, ii] = HU.get_ei_depth(
-            rof_normalized[:, which_cell], level_sizes, num_inh)
+        measured_ei_mass[..., ii], measured_ei_depth[:, ii] = get_ei_depth(rof[:, ii], level_sizes, num_inh)
 
     # make the plot
     sns.set_style('darkgrid')
@@ -1351,7 +1351,18 @@ def make_ei_depth_plot(ndn, readout_address=None, readout_type='hadi_readout',
     plt.xlim(0, levels_n - 1)
     plt.legend()
     plt.title('E/I level depth', fontsize=25)
-    fig.savefig(save_dir + file_name, facecolor='grey')
+    if save_fig:
+        fig.savefig(save_dir + file_name, facecolor='grey')
     plt.show()
 
     return [measured_ei_mass, measured_ei_depth]
+
+
+def save_mod(ndn, data_dir, name, xv, save_dir='pkld_mods/'):
+    month = datetime.datetime.now().month
+    d = datetime.datetime.now().day
+    h = datetime.datetime.now().hour
+    m = datetime.datetime.now().minute
+
+    file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.2f%s)' % (np.mean(xv), '%')
+    ndn.save_model(data_dir + save_dir + file_name)

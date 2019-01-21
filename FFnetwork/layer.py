@@ -2603,10 +2603,8 @@ class HadiReadoutLayer(Layer):
             log_activations=log_activations)
 
         self.xy_out = xy_out
-        if self.xy_out is None:
-            self.output_dims = [1, num_filters, 1]
-        else:
-            self.output_dims = [num_filters, 1, 1]
+        self.output_dims = [1, num_filters, 1]
+
 
         # Unit Reg
         self.reg = UnitRegularization(
