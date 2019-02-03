@@ -916,11 +916,14 @@ def get_ftvr(ndn, weights_to_fit=None, biases_to_fit=None):
     return _ftvr
 
 
-def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100,
-             cmap='Greys', mode='stim', file_name=None, save_dir='./gifs/'):
+def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sns_style=None,
+             cmap='Greys', mode='stim', file_name=None, save_dir='./gifs/', row_n=None):
+
+    if sns_style is not None:
+        sns.set_style(sns_style)
 
     if frames is None:
-        if mode == 'stim':
+        if mode in ['stim', 'stim_multi']:
             frames = np.arange(data_to_plot.shape[0])
         elif mode == 'subs':
             frames = np.arange(data_to_plot.shape[-2])
@@ -932,7 +935,7 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100,
         file_name = mode + '.gif'
 
 
-    if mode=='stim':
+    if mode == 'stim':
         # start the fig
         fig, _ax = plt.subplots()
         fig.set_size_inches(fig_sz)
@@ -949,7 +952,37 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100,
                              frames=frames, interval=interval)
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
-    elif mode=='subs':
+    elif mode == 'stim_multi':
+        if row_n is None:
+            raise ValueError('For multiple stims must enter row_n')
+
+        num_stim = data_to_plot.shape[-1]
+        col_n = int(np.ceil(num_stim / row_n))
+
+        _plt_dict = {}
+
+        fig, axes = plt.subplots(row_n, col_n)
+        fig.set_size_inches((col_n * 2, row_n * 2))
+
+        _abs_max = np.max(abs(data_to_plot))
+        for ii in range(row_n):
+            for jj in range(col_n):
+                which_stim = ii * col_n + jj
+                if which_stim >= num_stim:
+                    continue
+
+                axes[ii, jj].xaxis.set_ticks([])
+                axes[ii, jj].yaxis.set_ticks([])
+                tmp_plt = axes[ii, jj].imshow(data_to_plot[0, ..., which_stim], cmap='Greys',
+                                              vmin=-_abs_max, vmax=_abs_max)
+                _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
+
+        # start anim object
+        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, row_n, mode],
+                             frames=frames, interval=interval)
+        anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
+
+    elif mode == 'subs':
         width_y, width_x, nlags, ker_n = data_to_plot.shape
         col_n = int(np.ceil(np.sqrt(ker_n)))
         row_n = int(np.ceil(ker_n / col_n))
@@ -983,10 +1016,10 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100,
     plt.close()
     print('...your GIF is done! "%s" was saved at %s.' % (file_name, save_dir))
 
-def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, mode='stim'):
+def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, row_n=None, mode='stim'):
     lbl = 'time {0}'.format(tt)
 
-    if mode=='stim':
+    if mode == 'stim':
         _plt, _ax = _fig_or_plt_like, _ax_like
 
         _plt.set_data(data_to_plot[tt, :])
@@ -994,7 +1027,26 @@ def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, mode='stim'):
 
         return _plt, _ax
 
-    elif mode=='subs':
+    elif mode == 'stim_multi':
+        if row_n is None:
+            raise ValueError('For multiple stims must enter row_n')
+        num_stim = data_to_plot.shape[-1]
+        col_n = int(np.ceil(num_stim / row_n))
+
+        _fig, _plt_dict = _fig_or_plt_like, _ax_like
+
+        for ii in range(row_n):
+            for jj in range(col_n):
+                which_stim = ii * col_n + jj
+                if which_stim >= num_stim:
+                    continue
+                k = data_to_plot[tt, ..., which_stim]
+                _plt_dict['ax_%s_%s' % (ii, jj)].set_data(k)
+        _fig.suptitle(lbl, fontsize=50)
+
+        return _plt_dict, _fig
+
+    elif mode == 'subs':
         ker_n = data_to_plot.shape[3]
 
         col_n = int(np.ceil(np.sqrt(ker_n)))
@@ -1046,8 +1098,9 @@ def make_synth_stim(lambdas, thetas, omega, frames_n, width):
     # start gabors and evolve in time
     for tt in range(1, frames_n):
         tmp_gabors = np.sin(2 * _pi * xx_prime / params[0, :] + omega_rad * tt)
-        tmp_gabors -= np.mean(tmp_gabors, axis=0)
-        tmp_gabors /= np.std(tmp_gabors[:, 0], axis=0)
+        # TODO: normalization fix later
+       # tmp_gabors -= np.mean(tmp_gabors, axis=0)
+       # tmp_gabors /= np.std(tmp_gabors[:, 0], axis=0)
         synth_stim[tt, ...] = np.reshape(tmp_gabors, (width, width, -1))
 
     return synth_stim
@@ -1056,8 +1109,8 @@ def make_synth_stim(lambdas, thetas, omega, frames_n, width):
 def get_st_subs(ndn):
     tbasis = ndn.networks[0].layers[0].weights
     nlags, tbasis_n = tbasis.shape
-    stkers = ndn.networks[0].layers[1].weights
-    [_, width_x, width_y] = ndn.networks[0].layers[1].filter_dims
+    stkers = ndn.networks[1].layers[0].weights
+    [_, width_x, width_y] = ndn.networks[1].layers[0].filter_dims
     ker_n = stkers.shape[1]
 
     st_subs = np.zeros((width_y, width_x, nlags, ker_n))
@@ -1344,7 +1397,7 @@ def make_ei_depth_plot(ndn, readout_address=None, readout_type='hadi_readout', s
     plt.plot([np.mean(measured_ei_depth[1, :]), np.mean(measured_ei_depth[1, :])], [0, y1],
              color='c', linewidth=4, linestyle='dashdot', label='mean (INH)')
 
-    plt.xlabel('bins', fontsize=25)
+    plt.xlabel('depth', fontsize=25)
     plt.ylabel('count', fontsize=25)
     # plt.xticks([], [])
     plt.yticks([], [])
@@ -1366,3 +1419,32 @@ def save_mod(ndn, data_dir, name, xv, save_dir='pkld_mods/'):
 
     file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.2f%s)' % (np.mean(xv), '%')
     ndn.save_model(data_dir + save_dir + file_name)
+
+
+def sep_to_nonsep(ndn, mode='to_ndn'):
+
+    # kers
+    nlags, tbasis_n = ndn.networks[0].layers[0].weights.shape
+    coeffs = ndn.networks[1].layers[0].weights[:tbasis_n, :]
+    t_kers = np.matmul(ndn.networks[0].layers[0].weights, coeffs)
+    s_kers = ndn.networks[1].layers[0].weights[tbasis_n:, :]
+
+    width = ndn.networks[1].layers[0].filter_dims[1]
+    ker_n = ndn.networks[1].layers[0].num_filters
+
+    if mode == 'to_plot':
+        st_kers = np.zeros((width ** 2, nlags, ker_n), dtype='float32')
+
+        for which_sub in range(ker_n):
+            for lag in range(nlags):
+                st_kers[..., lag, which_sub] = s_kers[:, which_sub] * t_kers[lag, which_sub]
+    elif mode == 'to_ndn':
+        st_kers = np.zeros((width ** 2, tbasis_n, ker_n), dtype='float32')
+
+        for which_sub in range(ker_n):
+            for bb in range(tbasis_n):
+                st_kers[..., bb, which_sub] = s_kers[:, which_sub] * coeffs[bb, which_sub]
+    else:
+        raise ValueError('wrong mode (should be either to_plot or to_ndn)')
+
+    return st_kers.reshape(-1, ker_n)
