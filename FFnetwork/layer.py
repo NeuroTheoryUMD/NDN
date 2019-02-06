@@ -564,6 +564,7 @@ class ConvXYLayer(Layer):
             stride=1,
             dilation=1,
             xy_out=None,
+            batch_size=None,
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='normal',
@@ -602,6 +603,8 @@ class ConvXYLayer(Layer):
 
         """
 
+        self.batch_size = batch_size
+
         # Process stim and filter dimensions
         # (potentially both passed in as num_inputs list)
         if isinstance(input_dims, list):
@@ -610,11 +613,6 @@ class ConvXYLayer(Layer):
         else:
             # assume 1-dimensional (space)
             input_dims = [1, input_dims, 1]
-
- #       if xy_out is not None:
-  #          filter_dims = [input_dims[0], 1, 1]
-   #     else:
-    #        filter_dims = None
 
         # If output dimensions already established, just strip out num_filters
         if isinstance(num_filters, list):
@@ -649,10 +647,17 @@ class ConvXYLayer(Layer):
         # Changes in properties from Layer - note this is implicitly
         # multi-dimensional
         self.xy_out = xy_out
+
         if self.xy_out is None:
-            self.output_dims = [num_filters] + num_shifts[:]
-        else:
-            self.output_dims = [num_filters, 1, 1]
+            raise ValueError('self.xy_out is none... centers must be provided')
+
+        self.output_dims = [num_filters, 1, 1]
+
+        # Unit Reg
+        self.reg = UnitRegularization(
+            input_dims=self.filter_dims,
+            num_outputs=self.output_dims[0],
+            vals=reg_initializer)
 
     # END ConvXYLayer.__init__
 
@@ -695,11 +700,8 @@ class ConvXYLayer(Layer):
             dilations = [1, self.dilation, self.dilation, 1]
             _pre0 = tf.nn.conv2d(shaped_input, ws_conv, strides, dilations=dilations, padding='SAME')
 
-            if self.xy_out is not None:
-                indices = self._get_indices(int(shaped_input.shape[0]))
-                _pre = tf.reshape(tf.gather_nd(_pre0, indices), (-1, self.num_filters))
-            else:
-                _pre = _pre0
+            indices = self._get_indices(self.batch_size)
+            _pre = tf.reshape(tf.gather_nd(_pre0, indices), (-1, self.num_filters))
 
             pre = tf.add(_pre, self.biases_var)
 
@@ -709,14 +711,8 @@ class ConvXYLayer(Layer):
                 post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
 
             # reminder: self.xy_out = centers[which_cell] = [ctr_x, ctr_y]
-            if self.xy_out is not None:
-                self.outputs = self._apply_dropout(post, use_dropout=use_dropout,
-                                                   noise_shape=[1, self.num_filters])
-            else:
-                post_drpd = self._apply_dropout(post, use_dropout=use_dropout,
-                                                noise_shape=[1, 1, 1, self.num_filters])
-                self.outputs = tf.reshape(
-                    post_drpd, [-1, self.num_filters * self.num_shifts[0] * self.num_shifts[1]])
+            self.outputs = self._apply_dropout(post, use_dropout=use_dropout,
+                                               noise_shape=[1, self.num_filters])
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
@@ -2604,7 +2600,6 @@ class HadiReadoutLayer(Layer):
 
         self.xy_out = xy_out
         self.output_dims = [1, num_filters, 1]
-
 
         # Unit Reg
         self.reg = UnitRegularization(

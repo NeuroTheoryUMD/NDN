@@ -175,6 +175,7 @@ class TFFNetwork(FFNetwork):
                     xy_out=network_params['xy_out'][nn],
                     stride=network_params['stride'][nn],
                     dilation=network_params['dilation'][nn],
+                    batch_size=self.batch_size,
                     activation_func=network_params['activation_funcs'][nn],
                     normalize_weights=network_params['normalize_weights'][nn],
                     weights_initializer=network_params['weights_initializers'][nn],
@@ -394,6 +395,158 @@ class TFFNetwork(FFNetwork):
                 self.layers[layer].build_graph(inputs, params_dict, use_dropout=use_dropout)
                 inputs = self.layers[layer].outputs
     # END TFFNetwork._build_graph
+
+
+
+class TSideNetwork(TFFNetwork):
+    """Implementation of side network that takes input from multiple layers of
+    other FFNetworks
+
+    Attributes:
+        num_units (int): number of output units of network
+
+    """
+
+    def __init__(self,
+                 scope=None,
+                 input_network_params=None,
+                 params_dict=None,
+                 batch_size=None,
+                 time_spread=None):
+        """Constructor for side_network class
+
+        Args:
+            scope (str): name scope for network
+            input_network_params (dict): params_dict of `FFNetwork` that acts
+                as input to this network
+            params_dict (dict): contains details about the network
+            params_dict['first_filter_size'] (list of ints): size of filters
+                in first layer, if different than input size
+                DEFAULT = input size
+            params_dict['shift_spacing'] (int): convolutional "strides" to be
+                passed back into conv2d
+                DEFAULT = 1
+            params_dict['binocular'] (boolean): currently doesn't work
+                DEFAULT = FALSE
+            params_dict['layer_sizes'] (list of ints): see FFNetwork documentation
+            params_dict['activation_funcs'] (str or list of strs, optional):
+                see FFNetwork documentation
+            params_dict['weights_initializer'] (str or list of strs, optional):
+                see FFNetwork documentation
+            params_dict['biases_initializer'] (str or list of strs, optional):
+                see FFNetwork documentation
+            params_dict['reg_initializers'] (list of dicts):
+                see FFNetwork documentation
+            params_dict['num_inh'] (None, int or list of ints, optional): see
+                FFNetwork documentation
+            params_dict['pos_constraint'] (bool or list of bools, optional):
+                see FFNetwork documentation
+            params_dict['log_activations'] (bool, optional): see FFNetwork documentation
+
+        """
+
+        _conv_types = ['conv', 'convsep', 'gabor', 'biconv', 'convLNL', 'conv_xy']
+        isbinocular = False
+        # Determine dimensions of input and pass into regular network initializer
+        input_layer_sizes = input_network_params['layer_sizes'][:]
+        # Check if entire network is convolutional (then will have spatial input dims)
+        all_convolutional = False
+        nonconv_inputs = np.zeros(len(input_layer_sizes), dtype=int)
+        if input_network_params['layer_types'][0] in _conv_types:
+            # then check that all are conv
+            all_convolutional = True
+            for nn in range(len(input_layer_sizes)):
+                if input_network_params['layer_types'][nn] in _conv_types:
+                    nonconv_inputs[nn] = input_layer_sizes[nn] * input_network_params['input_dims'][1] * \
+                                         input_network_params['input_dims'][2]
+                    if input_network_params['layer_types'][nn] == 'biconv':
+                        isbinocular = True
+                        # then twice as many outputs as filters
+                        nonconv_inputs[nn] *= 2
+                else:
+                    all_convolutional = False
+                    nonconv_inputs[nn] = input_layer_sizes[nn]
+        else:
+            nonconv_inputs = input_layer_sizes[:]
+
+        if all_convolutional:
+            nx_ny = input_network_params['input_dims'][1:]
+            if isbinocular:
+                nx_ny[0] = int(nx_ny[0] / 2)
+
+                if input_network_params['layer_types'][0] == 'biconv':
+                    input_layer_sizes[0] = input_layer_sizes[0] * 2
+                elif input_network_params['layer_types'][1] == 'biconv':
+                    input_layer_sizes[0] = input_layer_sizes[0] * 2
+                    input_layer_sizes[1] = input_layer_sizes[1] * 2
+            # input_dims = [max(input_layer_sizes)*len(input_layer_sizes), nx_ny[0], nx_ny[1]]
+
+            input_dims = [np.sum(input_layer_sizes), nx_ny[0], nx_ny[1]]
+        else:
+            nx_ny = [1, 1]
+            # input_dims = [len(input_layer_sizes), max(nonconv_inputs), 1]
+            input_dims = [np.sum(nonconv_inputs), 1, 1]
+
+        super(TSideNetwork, self).__init__(
+            scope=scope,
+            input_dims=input_dims,
+            params_dict=params_dict,
+            batch_size=batch_size,
+            time_spread=time_spread)
+
+        self.num_space = nx_ny[0] * nx_ny[1]
+        if all_convolutional:
+            self.num_units = input_layer_sizes
+        else:
+            self.num_units = nonconv_inputs
+
+        # Set up potential side_network regularization (in first layer)
+        self.layers[0].reg.scaffold_setup(self.num_units)
+
+    # END TSideNetwork.__init__
+
+    def build_graph(self, input_network, params_dict=None, use_dropout=False):
+        """Note this is different from other network build-graphs in that the
+        whole network graph, rather than just a link to its output, so that it
+        can be assembled here"""
+
+        num_layers = len(self.num_units)
+        with tf.name_scope(self.scope):
+
+            # Assemble network-inputs into the first layer
+            for input_nn in range(num_layers):
+
+                if (self.num_space == 1) or \
+                        self.num_space == np.prod(input_network.layers[input_nn].output_dims[1:]):
+                    new_slice = tf.reshape(input_network.layers[input_nn].outputs,
+                                           [-1, self.num_space, self.num_units[input_nn]])
+                else:  # spatial positions converted to different filters (binocular)
+                    native_space = np.prod(input_network.layers[input_nn].output_dims[1:])
+                    native_filters = input_network.layers[input_nn].output_dims[0]
+                    tmp = tf.reshape(input_network.layers[input_nn].outputs,
+                                     [-1, 1, native_space, native_filters])
+                    # Reslice into correct spatial arrangement
+                    left_post = tf.slice(tmp, [0, 0, 0, 0], [-1, -1, self.num_space, -1])
+                    right_post = tf.slice(tmp, [0, 0, self.num_space, 0],
+                                          [-1, -1, self.num_space, -1])
+
+                    new_slice = tf.reshape(tf.concat([left_post, right_post], axis=3),
+                                           [-1, self.num_space, self.num_units[input_nn]])
+
+                if input_nn == 0:
+                    inputs_raw = new_slice
+                else:
+                    inputs_raw = tf.concat([inputs_raw, new_slice], 2)
+
+            # Need to put layer dimension with the filters as bottom dimension instead of top
+            inputs = tf.reshape(inputs_raw, [-1, np.sum(self.num_units) * self.num_space])
+            # inputs = tf.reshape(inputs_raw, [-1, num_layers*max_units*self.num_space])
+
+            # Now standard graph-build (could just call the parent with inputs)
+            for layer in range(self.num_layers):
+                self.layers[layer].build_graph(inputs, params_dict, use_dropout=use_dropout)
+                inputs = self.layers[layer].outputs
+    # END TSideNetwork.build_graph
 
 
 def get_tmat(batch_sz, nlags):

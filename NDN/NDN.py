@@ -250,7 +250,7 @@ class NDN(Network):
             # Build network graph
             for nn in range(self.num_networks):
 
-                if self.network_list[nn]['network_type'] == 'side':
+                if self.network_list[nn]['network_type'] in ['side', 'temporal_side']:
 
                     # Specialized inputs to side-network
                     assert self.network_list[nn]['xstim_n'] is None, \
@@ -491,7 +491,7 @@ class NDN(Network):
             print('....partial_fit value for --net%sL%s-- set to %s, %s will be fit'
                   % (ffnet_target, layer_target, value, translation))
         else:
-            raise ValueError('partial fit should be used only with Seplayer families.')
+            raise ValueError('partial fit can be used only for Seplayer families.')
     # END NDN.set_partial_fit
 
     def set_regularization(self, reg_type, reg_val, ffnet_target=0, layer_target=None):

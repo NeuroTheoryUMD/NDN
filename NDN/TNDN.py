@@ -11,9 +11,8 @@ import warnings
 import shutil
 
 from .NDN import NDN
-from FFnetwork.ffnetwork import FFNetwork
-from FFnetwork.ffnetwork import SideNetwork
-from FFnetwork.tffnetwork import TFFNetwork
+from FFnetwork.ffnetwork import *
+from FFnetwork.tffnetwork import *
 
 from NDNutils import concatenate_input_dims
 
@@ -178,6 +177,18 @@ class TNDN(NDN):
                 self.networks.append(
                     TFFNetwork(
                         scope='temporal_network_%i' % nn,
+                        params_dict=self.network_list[nn],
+                        batch_size=self.batch_size,
+                        time_spread=self.time_spread))
+            elif self.network_list[nn]['network_type'] == 'temporal_side':
+                assert len(self.network_list[nn]['ffnet_n']) == 1, \
+                    'only one input to a side network'
+                network_input_params = \
+                    self.network_list[self.network_list[nn]['ffnet_n'][0]]
+                self.networks.append(
+                    TSideNetwork(
+                        scope='temporal_side_network_%i' % nn,
+                        input_network_params=network_input_params,
                         params_dict=self.network_list[nn],
                         batch_size=self.batch_size,
                         time_spread=self.time_spread))
@@ -679,9 +690,9 @@ class TNDN(NDN):
                             test_batch_size=opt_params['batch_size_test'])
 
                 # print additional testing info
-                print('Epoch %04d:   train cost  =  %.2e ,   '
-                      'test cost  =  %.2e ,   '
-                      'reg pen  =  %.2e'
+                print('Epoch %04d:   train cost  =  %.4e ,   '
+                      'test cost  =  %.4e ,   '
+                      'reg pen  =  %.4e'
                       % (epoch, cost_tr / np.sum(self.output_sizes),
                          cost_test / np.sum(self.output_sizes),
                          reg_pen / np.sum(self.output_sizes)))

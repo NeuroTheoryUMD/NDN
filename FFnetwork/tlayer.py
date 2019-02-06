@@ -378,7 +378,7 @@ class TLayer(Layer):
             log_activations=log_activations)
 
    #     self.output_dims = deepcopy(input_dims)
-        self.output_dims[0] = self.num_filters
+        self.output_dims[0] = self.num_filters * self.input_dims[0]
 
         self.dilation = dilation
 
@@ -397,10 +397,6 @@ class TLayer(Layer):
         with tf.name_scope(self.scope):
             self._define_layer_variables()
 
-            # make shaped input
-            shaped_input = tf.reshape(tf.transpose(inputs),
-                                      [self.input_dims[1]*self.input_dims[2], self.batch_size, 1, 1])
-
             if self.pos_constraint is not None:
                 w_p = tf.maximum(self.weights_var, 0.0)
             else:
@@ -414,6 +410,9 @@ class TLayer(Layer):
             padding = tf.constant([[0, self.filter_width], [0, 0]])
             padded_filt = tf.pad(w_pn, padding)
             shaped_padded_filt = tf.reshape(padded_filt, [2*self.filter_width, 1, 1, self.num_filters])
+
+            # make shaped input
+            shaped_input = tf.reshape(tf.transpose(inputs), [-1, self.batch_size, 1, 1])
 
             # convolve
             strides = [1, 1, 1, 1]
