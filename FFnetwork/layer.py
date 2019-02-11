@@ -2540,6 +2540,7 @@ class HadiReadoutLayer(Layer):
             input_dims=None,  # this can be a list up to 3-dimensions
             num_filters=None,
             xy_out=None,
+            batch_size=None,
             activation_func='relu',
             normalize_weights=0,
             weights_initializer='normal',
@@ -2577,6 +2578,8 @@ class HadiReadoutLayer(Layer):
             ValueError: If `pos_constraint` is `True`
 
         """
+
+        self.batch_size = batch_size
 
         if xy_out is not None:
             filter_dims = [input_dims[0], 1, 1]
@@ -2639,7 +2642,7 @@ class HadiReadoutLayer(Layer):
             shaped_inputs = tf.reshape(
                 inputs, (-1, self.input_dims[2] * self.input_dims[1], self.input_dims[0]))
 
-            indices = self._get_indices(int(shaped_inputs.shape[0]))
+            indices = self._get_indices(self.batch_size)
 
             if self.xy_out is not None:
                 inputs_dot_w = tf.tensordot(shaped_inputs, k_pn, [-1, 0])

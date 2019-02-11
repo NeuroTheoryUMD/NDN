@@ -228,6 +228,7 @@ class TFFNetwork(FFNetwork):
                     input_dims=layer_sizes[nn],
                     num_filters=layer_sizes[nn + 1],
                     xy_out=network_params['xy_out'][nn],
+                    batch_size=self.batch_size,
                     activation_func=network_params['activation_funcs'][nn],
                     normalize_weights=network_params['normalize_weights'][nn],
                     weights_initializer=network_params['weights_initializers'][nn],

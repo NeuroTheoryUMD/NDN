@@ -483,7 +483,7 @@ def display_layer_info(ndn, pretty_table=True):
     architecture = 'FF'
 
     for nn in range(len(ndn.network_list)):
-        if ndn.network_list[nn]['network_type'] == 'side':
+        if ndn.network_list[nn]['network_type'] in ['side', 'temporal_side']:
             architecture = 'SCAFF'
 
     print('Architecture = %s,  batch size = %d,  time spread = %d \n'
@@ -917,7 +917,7 @@ def get_ftvr(ndn, weights_to_fit=None, biases_to_fit=None):
 
 
 def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sns_style=None,
-             cmap='Greys', mode='stim', file_name=None, save_dir='./gifs/', row_n=None):
+             cmap='Greys', mode='stim', file_name=None, save_dir='./gifs/', row_n=None, col_n=None):
 
     if sns_style is not None:
         sns.set_style(sns_style)
@@ -957,7 +957,8 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
             raise ValueError('For multiple stims must enter row_n')
 
         num_stim = data_to_plot.shape[-1]
-        col_n = int(np.ceil(num_stim / row_n))
+        if col_n is None:
+            col_n = int(np.ceil(num_stim / row_n))
 
         _plt_dict = {}
 
@@ -978,7 +979,7 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
                 _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
 
         # start anim object
-        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, row_n, mode],
+        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, row_n, col_n, mode],
                              frames=frames, interval=interval)
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
@@ -1016,7 +1017,7 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
     plt.close()
     print('...your GIF is done! "%s" was saved at %s.' % (file_name, save_dir))
 
-def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, row_n=None, mode='stim'):
+def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, row_n=None, col_n=None, mode='stim'):
     lbl = 'time {0}'.format(tt)
 
     if mode == 'stim':
@@ -1031,7 +1032,8 @@ def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, row_n=None, mode='
         if row_n is None:
             raise ValueError('For multiple stims must enter row_n')
         num_stim = data_to_plot.shape[-1]
-        col_n = int(np.ceil(num_stim / row_n))
+        if col_n is None:
+            col_n = int(np.ceil(num_stim / row_n))
 
         _fig, _plt_dict = _fig_or_plt_like, _ax_like
 
@@ -1122,18 +1124,24 @@ def get_st_subs(ndn):
     return st_subs
 
 
-def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
+def propagte_weights(ndn, mod_struct='scaff', num_conv_mod_layers=None):
     """
     :param ndn: Obv.
-    :param address_dict: provide the network/layer addresses
-    {'tbasis': [0, 0], 'stkers': [0, 1], 'redout': [0, -1]}
+    :param mod_struct: model structure
     :param num_conv_mod_layers: Number of mod layers
     :return: dict containing propagated weights throughout network
 
     """
 
-    if address_dict is None:
-        address_dict = {'tbasis': [0, 0], 'stkers': [0, 1], 'readout': [0, -1]}
+    if mod_struct == 'scaff':
+        address_dict = {'tbasis': [0, 0], 'stkers': [1, 0], 'readout': [-1, -1]}
+    elif mod_struct == 'ff':
+        address_dict = {'tbasis': [0, 0], 'stkers': [0, 1], 'readout': [-1, -1]}
+    else:
+        raise ValueError('allowed model structures: SCAFF, FF')
+
+   # if address_dict is None:
+   #     address_dict = {'tbasis': [0, 0], 'stkers': [0, 1], 'readout': [0, -1]}
 
     tbasis_address = address_dict['tbasis']
     tbasis = ndn.networks[tbasis_address[0]].layers[tbasis_address[1]].weights
@@ -1161,6 +1169,7 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
     # mods
     for mm in range(1, num_conv_mod_layers + 1):
         mod_width = ndn.networks[stkers_address[0]].layers[stkers_address[1] + mm].filter_dims[1]
+        dilation = ndn.networks[stkers_address[0]].layers[stkers_address[1] + mm].dilation
         mod_n = ndn.networks[stkers_address[0]].layers[stkers_address[1] + mm].num_filters
         mod_n_before = ndn.networks[stkers_address[0]].layers[stkers_address[1] + mm - 1].num_filters
 
@@ -1177,16 +1186,16 @@ def propagte_weights(ndn, address_dict=None, num_conv_mod_layers=None):
         _last_st_ei = _last_st * _ei_mask
         _last_width = _last_st.shape[0]
 
-        new_width = _last_width + 2 * (mod_width // 2)
+        new_width = _last_width + 2 * (mod_width // 2) * dilation
         st_mods = np.zeros((new_width, new_width, nlags, mod_n))
 
         for which_mod in range(mod_n):
             _tmp_embd = np.zeros((new_width ** 2, nlags))
-            for alpha_x in range(mod_width):
-                for alpha_y in range(mod_width):
+            for indx_x, alpha_x in enumerate(range(0, dilation * mod_width, dilation)):
+                for indx_y, alpha_y in enumerate(range(0, dilation * mod_width, dilation)):
                     x_rng = [alpha_x, alpha_x + _last_width]
                     y_rng = [alpha_y, alpha_y + _last_width]
-                    k = np.matmul(_last_st_ei, pixels_info[alpha_y, alpha_x, :, which_mod])
+                    k = np.matmul(_last_st_ei, pixels_info[indx_y, indx_x, :, which_mod])
                     k = np.reshape(k, (-1, nlags))
                     _tmp_embd += space_embedding(k, [new_width, new_width], x_rng, y_rng)
             _tmp_embd = np.reshape(_tmp_embd, (new_width, new_width, nlags))
@@ -1417,7 +1426,7 @@ def save_mod(ndn, data_dir, name, xv, save_dir='pkld_mods/'):
     h = datetime.datetime.now().hour
     m = datetime.datetime.now().minute
 
-    file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.2f%s)' % (np.mean(xv), '%')
+    file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.4f%s)' % (np.mean(xv), '%')
     ndn.save_model(data_dir + save_dir + file_name)
 
 
