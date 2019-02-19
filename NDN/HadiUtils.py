@@ -963,7 +963,10 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
         _plt_dict = {}
 
         fig, axes = plt.subplots(row_n, col_n)
-        fig.set_size_inches((col_n * 2, row_n * 2))
+        if fig_sz is None:
+            fig.set_size_inches((col_n * 2, row_n * 2))
+        else:
+            fig.set_size_inches((fig_sz[0], fig_sz[1]))
 
         _abs_max = np.max(abs(data_to_plot))
         for ii in range(row_n):
@@ -974,7 +977,7 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
 
                 axes[ii, jj].xaxis.set_ticks([])
                 axes[ii, jj].yaxis.set_ticks([])
-                tmp_plt = axes[ii, jj].imshow(data_to_plot[0, ..., which_stim], cmap='Greys',
+                tmp_plt = axes[ii, jj].imshow(data_to_plot[0, ..., which_stim], cmap=cmap,
                                               vmin=-_abs_max, vmax=_abs_max)
                 _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
 
@@ -991,7 +994,10 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
         _plt_dict = {}
 
         fig, axes = plt.subplots(row_n, col_n)
-        fig.set_size_inches((col_n * 2, row_n * 2))
+        if fig_sz is None:
+            fig.set_size_inches((col_n * 2, row_n * 2))
+        else:
+            fig.set_size_inches((fig_sz[0], fig_sz[1]))
 
         _abs_max = np.max(abs(data_to_plot))
         for ii in range(row_n):
@@ -1002,12 +1008,12 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
 
                 axes[ii, jj].xaxis.set_ticks([])
                 axes[ii, jj].yaxis.set_ticks([])
-                tmp_plt = axes[ii, jj].imshow(data_to_plot[..., 0, which_sub], cmap='Greys',
+                tmp_plt = axes[ii, jj].imshow(data_to_plot[..., 0, which_sub], cmap=cmap,
                                               vmin=-_abs_max, vmax=_abs_max)
                 _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
 
         # start anim object
-        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, mode],
+        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, None, None, mode],
                              frames=np.arange(nlags), interval=interval)
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
@@ -1420,16 +1426,6 @@ def make_ei_depth_plot(ndn, readout_address=None, readout_type='hadi_readout', s
     return [measured_ei_mass, measured_ei_depth]
 
 
-def save_mod(ndn, data_dir, name, xv, save_dir='pkld_mods/'):
-    month = datetime.datetime.now().month
-    d = datetime.datetime.now().day
-    h = datetime.datetime.now().hour
-    m = datetime.datetime.now().minute
-
-    file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.4f%s)' % (np.mean(xv), '%')
-    ndn.save_model(data_dir + save_dir + file_name)
-
-
 def sep_to_nonsep(ndn, mode='to_ndn'):
 
     # kers
@@ -1457,3 +1453,34 @@ def sep_to_nonsep(ndn, mode='to_ndn'):
         raise ValueError('wrong mode (should be either to_plot or to_ndn)')
 
     return st_kers.reshape(-1, ker_n)
+
+
+def save_mod(ndn, data_dir, name, xv):
+    month = datetime.datetime.now().month
+    d = datetime.datetime.now().day
+    h = datetime.datetime.now().hour
+    m = datetime.datetime.now().minute
+
+    if ndn.noise_dist == 'gaussian':
+        file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.4f%s)' % (np.mean(xv), '%')
+    elif ndn.noise_dist == 'poisson':
+        file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.4f)' % np.mean(xv)
+    else:
+        raise ValueError('not implemented yet')
+    ndn.save_model(data_dir + 'pkld_mods/' + file_name)
+
+
+def xv_save(ndn, input, output, tst_ind, trn_ind, data_dir, save_name):
+    noise_dist = ndn.noise_dist
+
+    if noise_dist == 'gaussian':
+        [out, tst_xv, trn_xv] = xv_v1(ndn, input, output, tst_ind, trn_ind, plot=True)
+    elif noise_dist == 'poisson':
+        [out, tst_xv] = xv_retina(ndn, input, output, tst_ind, plot=True)
+        # TODO: add trn_xv
+    else:
+        raise ValueError('not implemented yet')
+
+    save_mod(ndn, data_dir, save_name, tst_xv)
+
+    return [out, tst_xv, trn_xv]
