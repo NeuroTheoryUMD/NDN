@@ -1552,9 +1552,8 @@ class AddLayer(Layer):
         else:
             w_pn = w_p
 
-        flattened_weights = np.reshape(w_pn, [1, num_input_streams * num_outputs])
-
-        self.weights = flattened_weights
+        #flattened_weights = np.reshape(w_pn, [num_input_streams, num_outputs])
+        self.weights = w_pn #flattened_weights
         self.biases = sess.run(self.biases_var)
 
 
