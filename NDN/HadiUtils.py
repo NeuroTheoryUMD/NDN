@@ -347,21 +347,19 @@ def make_nonsep_plot(k, dims, fig_sz):
 def plot_pred_vs_true(ndn, stim, robs, which_cell, test_indxs, train_indxs,
                       fr_address, rng_width=1000, rows_n=2, cols_n=2,
                       save_dir='./plots/', file_name=None,
-                      style='darkgrid', facecolor='grey'):
+                      style='darkgrid', facecolor='white'):
 
-    _allowed_styles = ['white', 'whitegrid', 'dark', 'darkgrid',
-                       'onedork', 'chesterish', 'grade3', 'gruvboxd', 'gruvboxl',
-                       'monokai', 'oceans16', 'onedork', 'solarizedd', 'solarizedl']
+    _allowed_styles = ['white', 'whitegrid', 'dark', 'darkgrid']
 
     if style not in _allowed_styles:
         raise valueError('invalid style ''%s''' % style)
 
-    if style in ['white', 'whitegrid', 'dark', 'darkgrid']:
-        jtplot.reset()
+   # if style in ['white', 'whitegrid', 'dark', 'darkgrid']:
+  #      jtplot.reset()
       #  sns.set_style(style)
       #  sns.set(rc={'figure.facecolor': facecolor})
-    else:
-        jtplot.style(theme=style, grid=False, ticks=True, figsize=(6, 4))
+  #  else:
+  #      jtplot.style(theme=style, grid=False, ticks=True, figsize=(6, 4))
 
     if not os.path.isdir(os.path.dirname(save_dir)):
         os.makedirs(os.path.dirname(save_dir))
@@ -424,8 +422,8 @@ def plot_pred_vs_true(ndn, stim, robs, which_cell, test_indxs, train_indxs,
     pp.close()
 
     # go back to onedork
-    if style in ['white', 'whitegrid', 'dark', 'darkgrid']:
-        jtplot.style(theme='onedork', grid=False, ticks=True, figsize=(6, 4))
+   # if style in ['white', 'whitegrid', 'dark', 'darkgrid']:
+   #     jtplot.style(theme='onedork', grid=False, ticks=True, figsize=(6, 4))
 
     return [out_fr, out_ca]
 
@@ -476,7 +474,7 @@ def xv_retina(ndn, stim, robs, data_indxs=None, plot=True):
         plt.title('Null adjusted negative log-likelihood (on test indices)')
         plt.show()
 
-    return [r2, null_adj_nll]
+    return [out, r2, null_adj_nll]
 
 
 def display_layer_info(ndn, pretty_table=True):
