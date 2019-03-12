@@ -428,6 +428,70 @@ def plot_pred_vs_true(ndn, stim, robs, which_cell, test_indxs, train_indxs,
     return [out_fr, out_ca]
 
 
+
+def plot_pred_vs_true_simplified(
+    datas, lbls, lws, colors, which_cell,
+    rng_width=1000, rows_n=2, cols_n=2,
+    save_dir='./plots/', file_name=None,
+    style='darkgrid', facecolor='white'):
+
+    _allowed_styles = ['white', 'whitegrid', 'dark', 'darkgrid']
+
+    if style not in _allowed_styles:
+        raise valueError('invalid style ''%s''' % style)
+
+    assert (len(datas) == len(lbls) == len(lws) == len(colors)), 'must have same length'
+
+    if not os.path.isdir(os.path.dirname(save_dir)):
+        os.makedirs(os.path.dirname(save_dir))
+
+    nt = datas[0].shape[0]
+    num_pages = int(np.floor(nt // (rows_n * cols_n * rng_width)))
+
+    if file_name is None:
+        file_name = 'pvt_cell:%d.pdf' % which_cell
+    pp = PdfPages(save_dir + file_name)
+
+    # find the upper and lower bounds for ylim in plots
+    _ylim_ub = 0
+    _ylim_lb = 0
+    for data in datas:
+        _ylim_ub = max(_ylim_ub, max(data[: , which_cell]))
+        _ylim_lb = min(_ylim_lb, min(data[: , which_cell]))
+
+    for page in range(num_pages):
+        fig = plt.figure(figsize=(30, rows_n * 10 // cols_n))
+        for ii in range(cols_n * rows_n):
+            page_starting_point = page * cols_n * rows_n * rng_width
+            end_point = min(nt, page_starting_point + (ii + 1) * rng_width + 1)
+            intvl = range(page_starting_point + ii * rng_width, end_point)
+
+            if end_point == nt:
+                continue
+
+            plt.style.use('seaborn-' + style)
+            plt.style.context('poster')
+            plt.subplot(rows_n, cols_n, ii + 1)
+            for indx, data in enumerate(datas):
+                plt.plot(intvl, data[intvl, which_cell], label=lbls[indx],
+                         color=colors[indx], linewidth=lws[indx])
+            plt.ylim(_ylim_lb, _ylim_ub)
+            plt.title('$r^2$ here: %0.2f %s'
+                      % (r_squared(pred=datas[1][intvl, which_cell][:, np.newaxis],
+                                   true=datas[0][intvl, which_cell][:, np.newaxis]) * 100, '%'))
+            plt.legend()
+
+        plt.suptitle(
+            '|     cell # %d     ...     |     intvl: [%d,  %d]     ...     |'
+            % (which_cell, page_starting_point,
+               page_starting_point + (ii + 1) * rng_width), fontsize=30)
+        plt.draw()
+        pp.savefig(fig, orientation='horizontal', facecolor=facecolor)
+        plt.close()
+    pp.close()
+
+
+
 def xv_retina(ndn, stim, robs, data_indxs=None, plot=True):
     if data_indxs is None:
         data_indxs = np.arange(robs.shape[0])
