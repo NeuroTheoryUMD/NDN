@@ -460,7 +460,7 @@ def plot_pred_vs_true_simplified(
         _ylim_lb = min(_ylim_lb, min(data[: , which_cell]))
 
     for page in range(num_pages):
-        fig = plt.figure(figsize=(30, rows_n * 10 // cols_n))
+        fig = plt.figure(figsize=(40, rows_n * 10 // cols_n))
         for ii in range(cols_n * rows_n):
             page_starting_point = page * cols_n * rows_n * rng_width
             end_point = min(nt, page_starting_point + (ii + 1) * rng_width + 1)

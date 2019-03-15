@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 import warnings
 import shutil
+import pandas as pd
 
 from .NDN import NDN
 from FFnetwork.ffnetwork import *
@@ -76,7 +77,43 @@ class TNDN(NDN):
             batch_size=batch_size,
             tf_seed=tf_seed)
 
+
+        _dict = {'type': ['l1', 'l2'], 'val': [None, None], 'ffnet_target': [-1, -1], 'layer_target': [-1, -1]}
+        self.post_reg = pd.DataFrame(_dict)
+
     # END TNDN.__init
+
+    def set_post_reg(self, reg_type='l1', reg_val=1e-3, ffnet_target=-1, layer_target=-1):
+        self.post_reg.loc[self.post_reg.type == reg_type, 'val'] = reg_val
+        self.post_reg.loc[self.post_reg.type == reg_type, 'ffnet_target'] = ffnet_target
+        self.post_reg.loc[self.post_reg.type == reg_type, 'layer_target'] = layer_target
+
+        self.post_reg['ffnet_target'] = self.post_reg['ffnet_target'].astype(int)
+        self.post_reg['layer_target'] = self.post_reg['layer_target'].astype(int)
+
+        print(self.post_reg)
+
+    def _define_post_reg_loss(self):
+        postreg_costs = []
+        for ii in range(len(self.post_reg)):
+            _val = self.post_reg.iloc[ii]['val']
+            _type = self.post_reg.iloc[ii]['type']
+            _ff = self.post_reg.iloc[ii]['ffnet_target']
+            _ll = self.post_reg.iloc[ii]['layer_target']
+
+            if _val is not None:
+                if _type == 'l1':
+                    _cost = tf.multiply(_val, tf.norm(self.networks[_ff].layers[_ll].outputs, ord=1))
+                elif _type == 'l2':
+                    _cost = tf.multiply(_val, tf.norm(self.networks[_ff].layers[_ll].outputs, ord=2))
+                else:
+                    raise ValueError('Not implemented yet')
+                postreg_costs.append(_cost)
+
+        if len(postreg_costs) == 0:
+            postreg_costs.append(tf.constant(0.0, tf.float32, name='zero'))
+
+        return tf.add_n(postreg_costs)
 
     def _set_batch_size(self, new_batch_size):
         """
@@ -287,13 +324,17 @@ class TNDN(NDN):
                 reg_costs.append(self.networks[nn].define_regularization_loss())
         self.cost_reg = tf.add_n(reg_costs)
 
-        self.cost_penalized = tf.add(self.cost, self.cost_reg)
+        with tf.name_scope('post-reg'):
+            self.cost_postreg = self._define_post_reg_loss()
+
+        self.cost_penalized = tf.add_n([self.cost, self.cost_reg, self.cost_postreg])
 
         # save summary of cost
         # with tf.variable_scope('summaries'):
         tf.summary.scalar('cost', self.cost)
         tf.summary.scalar('cost_penalized', self.cost_penalized)
         tf.summary.scalar('reg_pen', self.cost_reg)
+        tf.summary.scalar('post_reg_pen', self.cost_postreg)
     # END NDN._define_loss
 
     def train(
