@@ -18,6 +18,20 @@ from jupyterthemes import jtplot
 import datetime
 
 
+def convert_time(time_in_secs):
+
+    d = time_in_secs // 86400
+    h = (time_in_secs - d * 86400) // 3600
+    m = (time_in_secs - d * 86400 - h * 3600) // 60
+    s = time_in_secs - d * 86400 - h * 3600 - m * 60
+
+    print('\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
+    print("It took   %d days,   %d hours,   %d minutes,  and   %d seconds."
+          % (d, h, m, s))
+    print('++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n')
+
+
+
 def r_squared(true, pred, data_indxs=None):
     """
     START.

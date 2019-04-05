@@ -690,7 +690,7 @@ class TNDN(NDN):
                     (epoch % opt_params['display'] == opt_params['display'] - 1
                      or epoch == 0):
 
-                cost_tr, cost_test, reg_pen = 0, 0, 0
+                cost_tr, cost_test, reg_pen, postreg_pen = 0, 0, 0, 0
                 for batch_tr in range(num_batches_tr):
                     batch_indxs_tr = train_indxs[
                                      batch_tr * self.batch_size:
@@ -708,8 +708,10 @@ class TNDN(NDN):
 
                     cost_tr += sess.run(self.cost, feed_dict=feed_dict)
                     reg_pen += sess.run(self.cost_reg, feed_dict=feed_dict)
+                    postreg_pen += sess.run(self.cost_postreg, feed_dict=feed_dict)
                 cost_tr /= num_batches_tr
                 reg_pen /= num_batches_tr
+                postreg_pen /= num_batches_tr
 
                 if test_indxs is not None:
                     if self.data_pipe_type == 'data_as_var' or \
@@ -731,12 +733,13 @@ class TNDN(NDN):
                             test_batch_size=opt_params['batch_size_test'])
 
                 # print additional testing info
-                print('Epoch %04d:   train cost  =  %.4e ,   '
-                      'test cost  =  %.4e ,   '
-                      'reg pen  =  %.4e'
+                print('Epoch %04d:   trn cst = %.4e ,   '
+                      'tst cst = %.4e ,   '
+                      'reg pen = %.4e ,   postreg pen = %.4e'
                       % (epoch, cost_tr / np.sum(self.output_sizes),
                          cost_test / np.sum(self.output_sizes),
-                         reg_pen / np.sum(self.output_sizes)))
+                         reg_pen / np.sum(self.output_sizes),
+                         postreg_pen / np.sum(self.output_sizes)))
 
             # save model checkpoints
             if epochs_ckpt is not None and (
