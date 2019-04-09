@@ -70,8 +70,8 @@ class Layer(object):
             output_dims (int or list of ints): dimensions of output data
             activation_func (str, optional): pointwise function applied to  
                 output of affine transformation
-                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' | 
-                'elu' | 'quad'
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' or 'lin' | 'softplus' |
+                'elu' | 'quad' | 'requ' (rect quadratic)
             normalize_weights (int): 1 to normalize weights 0 otherwise
                 [0] | 1
             weights_initializer (str, optional): initializer for the weights
@@ -97,7 +97,7 @@ class Layer(object):
         """
 
         _allowed_act_funcs = ['lin', 'relu', 'leaky_relu', 'softplus',
-                              'sigmoid', 'exp', 'tanh', 'quad', 'elu']
+                              'sigmoid', 'exp', 'tanh', 'quad', 'elu', 'requ']
 
         if activation_func in _allowed_act_funcs:
             self.act_func = activation_func
@@ -283,6 +283,8 @@ class Layer(object):
 
         if self.act_func == 'relu':
             post = tf.nn.relu(pre)
+        elif self.act_func == 'relu':
+            post = tf.square(tf.nn.relu(pre))
         elif self.act_func == 'sigmoid':
             post = tf.sigmoid(pre)
         elif self.act_func == 'tanh':
