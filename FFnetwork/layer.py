@@ -283,7 +283,7 @@ class Layer(object):
 
         if self.act_func == 'relu':
             post = tf.nn.relu(pre)
-        elif self.act_func == 'relu':
+        elif self.act_func == 'requ':
             post = tf.square(tf.nn.relu(pre))
         elif self.act_func == 'sigmoid':
             post = tf.sigmoid(pre)
@@ -302,7 +302,7 @@ class Layer(object):
         elif self.act_func == 'leaky_relu':
             post = tf.nn.leaky_relu(pre, self.nl_param)
         else:
-            raise ValueEror('act func not defined')
+            raise ValueError('act func not defined')
 
         return post
 
