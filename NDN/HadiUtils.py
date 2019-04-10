@@ -49,15 +49,20 @@ def r_squared(true, pred, data_indxs=None):
     assert true.shape == pred.shape, 'true and prediction vectors should have the same shape'
 
     if data_indxs is None:
-        dim = true.shape[0]
-        data_indxs = np.arange(dim)
-    else:
-        dim = len(data_indxs)
+        data_indxs = np.arange(true.shape[0])
 
-    ss_res = np.sum(np.square(true[data_indxs, :] - pred[data_indxs, :]), axis=0) / dim
+    ss_res = np.sum(np.square(true[data_indxs, :] - pred[data_indxs, :]), axis=0) / len(data_indxs)
     ss_tot = np.var(true[data_indxs, :], axis=0)
 
-    return 1 - ss_res/ss_tot
+    _nonzero_inds = np.where(ss_tot != 0)[0]
+    _zero_inds = np.where(ss_tot == 0)[0]
+
+    r2 = np.zeros(true.shape[1])
+
+    r2[_nonzero_inds] = 1 - np.divide(ss_res[_nonzero_inds], ss_tot[_nonzero_inds])
+    r2[_zero_inds] = 1 - ss_res[_zero_inds]
+
+    return r2
 
 
 def crop(input_k, input_dims, x_range, y_range):
