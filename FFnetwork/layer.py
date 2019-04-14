@@ -1547,7 +1547,7 @@ class AddLayer(Layer):
         if self.pos_constraint is not None:
             w_p = np.maximum(_tmp_weights, 0.0)
         else:
-            w_p = self.weights_var
+            w_p = self._tmp_weights
 
         if (self.normalize_weights > 0) and (num_input_streams != 1):
             w_pn = sk_normalize(w_p, axis=0)
