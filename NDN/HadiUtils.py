@@ -14,7 +14,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from prettytable import PrettyTable
 from matplotlib.animation import FuncAnimation
 import seaborn as sns
-from jupyterthemes import jtplot
+# from jupyterthemes import jtplot
 import datetime
 
 
@@ -26,7 +26,7 @@ def convert_time(time_in_secs):
     s = time_in_secs - d * 86400 - h * 3600 - m * 60
 
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
-    print("It took   %d days,   %d hours,   %d minutes,  and   %d seconds."
+    print("It took   %d days,   %d hours,   %d minutes,  and   %d seconds..."
           % (d, h, m, s))
     print('++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n')
 
