@@ -9,12 +9,10 @@ import numpy as np
 from copy import deepcopy
 import matplotlib.pyplot as plt
 import math
-import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from prettytable import PrettyTable
 from matplotlib.animation import FuncAnimation
 import seaborn as sns
-# from jupyterthemes import jtplot
 import datetime
 
 
@@ -25,11 +23,7 @@ def convert_time(time_in_secs):
     m = (time_in_secs - d * 86400 - h * 3600) // 60
     s = time_in_secs - d * 86400 - h * 3600 - m * 60
 
-    print('\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
-    print("It took   %d days,   %d hours,   %d minutes,  and   %d seconds..."
-          % (d, h, m, s))
-    print('++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n')
-
+    print("\nd / hh:mm:ss   --->   %d / %d:%d:%d\n" % (d, h, m, s))
 
 
 def r_squared(true, pred, data_indxs=None):
@@ -235,8 +229,7 @@ def subunit_plots(ndn, mode='kers', layer=1, sub_indxs=None, only_sep_plot=True,
 
     subs_n = ndn.networks[0].layers[layer].num_filters
 
-    d, h, m = datetime.datetime.now().day, datetime.datetime.now().hour, datetime.datetime.now().minute
-    file_name = '%s,%s:%s_%s.pdf' % (d, h, m, mode)
+    file_name = datetime.datetime.now().strftime("%Y:%m:%d_%H:%M")+'_%s.pdf' % mode
     pp = PdfPages(save_dir + file_name)
 
     if sub_indxs is None:
@@ -1537,28 +1530,26 @@ def sep_to_nonsep(ndn, mode='to_ndn'):
 
 
 def save_mod(ndn, data_dir, name, xv):
-    month = datetime.datetime.now().month
-    d = datetime.datetime.now().day
-    h = datetime.datetime.now().hour
-    m = datetime.datetime.now().minute
+    time_str = datetime.datetime.now().strftime("%Y:%m:%d_%H:%M")
 
     if ndn.noise_dist == 'gaussian':
-        file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.4f%s)' % (np.mean(xv), '%')
+        file_name = time_str + name + '_(xv:%.4f%s)' % (float(np.mean(xv)), '%')
     elif ndn.noise_dist == 'poisson':
-        file_name = '(%s,%s_%s:%s)_' % (month, d, h, m) + name + '_(xv:%.4f)' % np.mean(xv)
+        file_name = time_str + name + '_(xv:%.4f)' % np.mean(xv)
     else:
         raise ValueError('not implemented yet')
     ndn.save_model(data_dir + 'pkld_mods/' + file_name)
 
 
-def xv_save(ndn, input, output, tst_ind, trn_ind, data_dir, save_name):
+def xv_save(ndn, inputs, outputs, tst_ind, trn_ind, data_dir, save_name):
     noise_dist = ndn.noise_dist
 
     if noise_dist == 'gaussian':
-        [out, tst_xv, trn_xv] = xv_v1(ndn, input, output, tst_ind, trn_ind, plot=True)
+        [out, tst_xv, trn_xv] = xv_v1(ndn, inputs, outputs, tst_ind, trn_ind, plot=True)
     elif noise_dist == 'poisson':
-        [out, tst_xv] = xv_retina(ndn, input, output, tst_ind, plot=True)
+        [out, tst_xv] = xv_retina(ndn, inputs, outputs, tst_ind, plot=True)
         # TODO: add trn_xv
+        trn_xv = None
     else:
         raise ValueError('not implemented yet')
 
