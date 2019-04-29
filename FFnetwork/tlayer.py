@@ -202,8 +202,8 @@ class CaTentLayer(Layer):
             input_dims = [1, input_dims, 1]
 
         # If output dimensions already established, just strip out num_filters
-      #  if isinstance(num_filters, list):
-      #      num_filters = num_filters[0]
+        if isinstance(num_filters, list):
+            num_filters = num_filters[0]
 
         # TODO: how to specify num filters...
         if num_filters > 1:
@@ -283,7 +283,7 @@ class CaTentLayer(Layer):
 
         if self.log:
             tf.summary.histogram('act_pre', pre)
-            tf.summary.histogram('act_post', post)
+            tf.summary.histogram('act_post', self.outputs)
     # END CaTentLayer.build_graph
 
 

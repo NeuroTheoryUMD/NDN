@@ -990,14 +990,13 @@ def get_ftvr(ndn, weights_to_fit=None, biases_to_fit=None):
     return _ftvr
 
 
-def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sns_style=None,
-             cmap='Greys', mode='stim', file_name=None, save_dir='./gifs/', row_n=None, col_n=None):
-
+def make_gif(data_to_plot, frames=None, interval=120, dt=25, fig_sz=(8, 6), dpi=100, sns_style=None,
+             cmap='Greys', mode='stim', scale=None, file_name=None, save_dir='./gifs/', row_n=None, col_n=None):
     if sns_style is not None:
         sns.set_style(sns_style)
 
     if frames is None:
-        if mode in ['stim', 'stim_multi']:
+        if mode in ['stim', 'stim_multi', 'velocity_field']:
             frames = np.arange(data_to_plot.shape[0])
         elif mode == 'subs':
             frames = np.arange(data_to_plot.shape[-2])
@@ -1008,12 +1007,11 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
     if file_name is None:
         file_name = mode + '.gif'
 
-
     if mode == 'stim':
         # start the fig
         fig, _ax = plt.subplots()
         fig.set_size_inches(fig_sz)
-       # fig.set_tight_layout(True)
+        # fig.set_tight_layout(True)
 
         # find absmax for vmin/vmax and plot the first frame
         _abs_max = np.max(abs(data_to_plot))
@@ -1056,7 +1054,84 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
                 _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
 
         # start anim object
-        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, row_n, col_n, mode],
+        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, dt, row_n, col_n, mode],
+                             frames=frames, interval=interval)
+        anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
+
+    elif mode == 'velocity_field':
+        k = data_to_plot.copy()
+        k /= k.std()
+
+        num_arr = k.shape[-1]
+        grd = k.shape[1]
+
+        if col_n is None:
+            col_n = int(np.ceil(num_arr / row_n))
+
+        _plt_dict = {}
+
+        fig, axes = plt.subplots(row_n, col_n)
+        if fig_sz is None:
+            fig.set_size_inches((col_n * 2, row_n * 2))
+        else:
+            fig.set_size_inches((fig_sz[0], fig_sz[1]))
+
+        xx, yy = np.mgrid[0:grd, 0:grd]
+
+        for ii in range(row_n):
+            for jj in range(col_n):
+                which_arr = ii * col_n + jj
+                if which_arr >= num_arr:
+                    continue
+
+                # estimate scale
+                tmp = -1
+                max_lag = -1
+                for lag in range(k.shape[0]):
+                    tmp_cc = np.sqrt(np.square(k[lag, ..., 0, which_arr])
+                                     + np.square(k[lag, ..., 1, which_arr]))
+                    if np.max(tmp_cc) > tmp:
+                        tmp = np.max(tmp_cc)
+                        max_lag = lag
+                cc = np.sqrt(np.square(k[max_lag, ..., 0, which_arr])
+                             + np.square(k[max_lag, ..., 1, which_arr]))
+
+                # axes indexing
+                if row_n > 1 and col_n > 1:
+                    ax = axes[ii, jj]
+                elif row_n > 1 and col_n == 1:
+                    ax = axes[ii]
+                elif row_n == 1 and col_n > 1:
+                    ax = axes[jj]
+                elif row_n == 1 and col_n == 1:
+                    ax = axes
+                else:
+                    raise ValueError('row_n, col_n should be integers greater than or equal to 1')
+
+                ax.xaxis.set_ticks([])
+                ax.yaxis.set_ticks([])
+
+                uu, vv = k[-1, ..., 0, which_arr], k[-1, ..., 1, which_arr]
+                if scale is None:
+                    scale = 8 * np.max(cc)
+                else:
+                    scale = scale[ii, jj]
+                    cc = np.sqrt(np.square(uu) + np.square(vv))
+
+                tmp_plt = ax.quiver(xx, yy, uu, vv, cc, alpha=1, scale=scale, cmap='PuBu')
+                ax.scatter(xx, yy, s=0.01)
+
+                ax.set_xlim(-1, grd)
+                ax.set_ylim(-1, grd)
+
+                ax.set_aspect('equal')
+
+                ax.set_title('# %d' % which_arr)
+                _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
+
+        # start anim object
+        anim = FuncAnimation(fig, _gif_update,
+                             fargs=[fig, _plt_dict, k, dt, scale, row_n, col_n, mode],
                              frames=frames, interval=interval)
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
@@ -1087,8 +1162,8 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
                 _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
 
         # start anim object
-        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, None, None, mode],
-                             frames=np.arange(nlags), interval=interval)
+        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, dt, None, None, mode],
+                             frames=frames, interval=interval)
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
     else:
@@ -1097,8 +1172,11 @@ def make_gif(data_to_plot, frames=None, interval=120, fig_sz=(8, 6), dpi=100, sn
     plt.close()
     print('...your GIF is done! "%s" was saved at %s.' % (file_name, save_dir))
 
-def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, row_n=None, col_n=None, mode='stim'):
-    lbl = 'time {0}'.format(tt)
+
+def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, dt, scale=None, row_n=None, col_n=None, mode='stim'):
+    nlags = data_to_plot.shape[0]
+    time_remaining = np.rint((nlags - tt) * dt)
+    lbl = '- {0} ms'.format(time_remaining)
 
     if mode == 'stim':
         _plt, _ax = _fig_or_plt_like, _ax_like
@@ -1122,9 +1200,36 @@ def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, row_n=None, col_n=
                 which_stim = ii * col_n + jj
                 if which_stim >= num_stim:
                     continue
-                k = data_to_plot[tt, ..., which_stim]
-                _plt_dict['ax_%s_%s' % (ii, jj)].set_data(k)
+                kk = data_to_plot[tt, ..., which_stim]
+                _plt_dict['ax_%s_%s' % (ii, jj)].set_data(kk)
         _fig.suptitle(lbl, fontsize=50)
+
+        return _plt_dict, _fig
+
+    elif mode == 'velocity_field':
+        if row_n is None:
+            raise ValueError('For velocity fields must enter row_n')
+        num_arr = data_to_plot.shape[-1]
+        if col_n is None:
+            col_n = int(np.ceil(num_arr / row_n))
+
+        _fig, _plt_dict = _fig_or_plt_like, _ax_like
+
+        for ii in range(row_n):
+            for jj in range(col_n):
+                which_arr = ii * col_n + jj
+                if which_arr >= num_arr:
+                    continue
+
+                current_uu = data_to_plot[tt, ..., 0, which_arr]
+                current_vv = data_to_plot[tt, ..., 1, which_arr]
+                if scale is not None:
+                    current_cc = np.sqrt(np.square(current_uu) + np.square(current_vv))
+                    _plt_dict['ax_%s_%s' % (ii, jj)].set_UVC(current_uu, current_vv, current_cc)
+                else:
+                    _plt_dict['ax_%s_%s' % (ii, jj)].set_UVC(current_uu, current_vv)
+
+        _fig.suptitle(lbl, fontsize=30)
 
         return _plt_dict, _fig
 
@@ -1147,7 +1252,7 @@ def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, row_n=None, col_n=
 
         return _plt_dict, _fig
     else:
-        raise ValueError, 'Not implemented yet.'
+        raise ValueError('Not implemented yet.')
 
 
 def make_synth_stim(lambdas, thetas, omega, frames_n, width):
