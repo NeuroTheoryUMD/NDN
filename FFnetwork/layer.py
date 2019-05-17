@@ -2662,3 +2662,170 @@ class HadiReadoutLayer(Layer):
             tf.summary.histogram('act_pre', pre)
             tf.summary.histogram('act_post', post)
     # END ConvReadoutLayer.build_graph
+
+
+class MTConvLayer(Layer):
+    """Implementation of convolutional layer
+
+    Attributes:
+        shift_spacing (int): stride of convolution operation
+        num_shifts (int): number of shifts in horizontal and vertical
+            directions for convolution operation
+
+    """
+
+    def __init__(
+            self,
+            scope=None,
+            nlags=None,
+            input_dims=None,  # this can be a list up to 3-dimensions
+            num_filters=None,
+            filter_dims=None,  # this can be a list up to 3-dimensions
+            stride=1,
+            dilation=1,
+            activation_func='relu',
+            normalize_weights=0,
+            weights_initializer='normal',
+            biases_initializer='zeros',
+            reg_initializer=None,
+            num_inh=0,
+            pos_constraint=None,
+            log_activations=False):
+        """Constructor for ConvLayer class
+
+        Args:
+            scope (str): name scope for variables and operations in layer
+            input_dims (int or list of ints): dimensions of input data
+            num_filters (int): number of convolutional filters in layer
+            filter_dims (int or list of ints): dimensions of input data
+            shift_spacing (int): stride of convolution operation
+            activation_func (str, optional): pointwise function applied to
+                output of affine transformation
+                ['relu'] | 'sigmoid' | 'tanh' | 'identity' | 'softplus' |
+                'elu' | 'quad'
+            normalize_weights (int): 1 to normalize weights 0 otherwise
+                [0] | 1
+            weights_initializer (str, optional): initializer for the weights
+                ['trunc_normal'] | 'normal' | 'zeros'
+            biases_initializer (str, optional): initializer for the biases
+                'trunc_normal' | 'normal' | ['zeros']
+            reg_initializer (dict, optional): see Regularizer docs for info
+            num_inh (int, optional): number of inhibitory units in layer
+            pos_constraint (None, valued): True to constrain layer weights to
+                be positive
+            log_activations (bool, optional): True to use tf.summary on layer
+                activations
+
+        Raises:
+            ValueError: If `pos_constraint` is `True`
+
+        """
+
+        # Process stim and filter dimensions
+        # (potentially both passed in as num_inputs list)
+        if isinstance(input_dims, list):
+            while len(input_dims) < 3:
+                input_dims.append(1)
+        else:
+            # assume 1-dimensional (space)
+            input_dims = [1, input_dims, 1]
+
+        if filter_dims is None:
+            filter_dims = input_dims
+        else:
+            if isinstance(filter_dims, list):
+                while len(filter_dims) < 3:
+                    filter_dims.extend(1)
+            else:
+                filter_dims = [filter_dims, 1, 1]
+
+        if nlags is not None:
+            filter_dims[0] *= nlags
+
+        # If output dimensions already established, just strip out num_filters
+        if isinstance(num_filters, list):
+            num_filters = num_filters[0]
+
+        # Calculate number of shifts (for output)
+        num_shifts = [1, 1]
+        if input_dims[1] > 1:
+            num_shifts[0] = int(np.floor(input_dims[1] / stride))
+        if input_dims[2] > 1:
+            num_shifts[1] = int(np.floor(input_dims[2] / stride))
+
+        super(MTConvLayer, self).__init__(
+            scope=scope,
+            nlags=nlags,
+            input_dims=input_dims,
+            filter_dims=filter_dims,
+            output_dims=num_filters,  # Note difference from layer
+            activation_func=activation_func,
+            normalize_weights=normalize_weights,
+            weights_initializer=weights_initializer,
+            biases_initializer=biases_initializer,
+            reg_initializer=reg_initializer,
+            num_inh=num_inh,
+            pos_constraint=pos_constraint,  # note difference from layer (not anymore)
+            log_activations=log_activations)
+
+        # ConvLayer-specific properties
+        self.stride = stride
+        self.dilation = dilation
+        self.num_shifts = num_shifts
+        # Changes in properties from Layer - note this is implicitly
+        # multi-dimensional
+        self.output_dims = [num_filters, self.input_dims[1], self.input_dims[2] // 2]
+
+    # END ConvLayer.__init__
+
+    def build_graph(self, inputs, params_dict=None, use_dropout=False):
+
+        assert params_dict is not None, 'Incorrect siLayer initialization.'
+        # Unfold siLayer-specific parameters for building graph
+
+        with tf.name_scope(self.scope):
+            self._define_layer_variables()
+
+            input_reshape_dims = [-1, self.input_dims[2] // 2, self.input_dims[1], self.input_dims[0] * 2]
+            shaped_input = tf.reshape(inputs, input_reshape_dims)
+
+            # Reshape weights (4:D:
+            conv_filter_dims = [self.filter_dims[2], self.filter_dims[1], self.filter_dims[0], self.num_filters]
+
+            if self.pos_constraint is not None:
+                w_p = tf.maximum(self.weights_var, 0.0)
+            else:
+                w_p = self.weights_var
+
+            if self.normalize_weights > 0:
+                w_pn = tf.nn.l2_normalize(w_p, axis=0)
+            else:
+                w_pn = w_p
+
+            ws_conv = tf.reshape(w_pn, conv_filter_dims)
+
+            # Make strides list
+            strides = [1, 1, 1, 1]
+            if conv_filter_dims[1] > 1:
+                strides[1] = self.stride
+            if conv_filter_dims[2] > 1:
+                strides[2] = self.stride
+
+            dilations = [1, self.dilation, self.dilation, 1]
+            _pre = tf.nn.conv2d(shaped_input, ws_conv, strides, dilations=dilations, padding='SAME')
+            pre = tf.add(_pre, self.biases_var)
+
+            if self.ei_mask_var is None:
+                post = self._apply_act_func(pre)
+            else:
+                post = tf.multiply(self._apply_act_func(pre), self.ei_mask_var)
+
+            post_drpd = self._apply_dropout(post, use_dropout=use_dropout,
+                                            noise_shape=[1, 1, 1, self.num_filters])
+            self.outputs = tf.reshape(
+                post_drpd, [-1, self.num_filters * (self.input_dims[2] // 2) * self.input_dims[1]])
+
+        if self.log:
+            tf.summary.histogram('act_pre', pre)
+            tf.summary.histogram('act_post', post)
+    # END ConvLayer.build_graph

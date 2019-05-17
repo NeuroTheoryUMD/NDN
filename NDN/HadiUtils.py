@@ -14,6 +14,7 @@ from prettytable import PrettyTable
 from matplotlib.animation import FuncAnimation
 import seaborn as sns
 import datetime
+from scipy.fftpack import fft, fft2, ifft, ifft2
 
 
 def convert_time(time_in_secs):
@@ -364,7 +365,7 @@ def plot_pred_vs_true(ndn, stim, robs, which_cell, test_indxs, train_indxs,
     _allowed_styles = ['white', 'whitegrid', 'dark', 'darkgrid']
 
     if style not in _allowed_styles:
-        raise valueError('invalid style ''%s''' % style)
+        raise ValueError('invalid style ''%s''' % style)
 
    # if style in ['white', 'whitegrid', 'dark', 'darkgrid']:
   #      jtplot.reset()
@@ -450,7 +451,7 @@ def plot_pred_vs_true_simplified(
     _allowed_styles = ['white', 'whitegrid', 'dark', 'darkgrid']
 
     if style not in _allowed_styles:
-        raise valueError('invalid style ''%s''' % style)
+        raise ValueError('invalid style ''%s''' % style)
 
     assert (len(datas) == len(lbls) == len(lws) == len(colors)), 'must have same length'
 
@@ -991,7 +992,7 @@ def get_ftvr(ndn, weights_to_fit=None, biases_to_fit=None):
 
 
 def make_gif(data_to_plot, frames=None, interval=120, dt=25, fig_sz=(8, 6), dpi=100, sns_style=None,
-             cmap='Greys', mode='stim', scale=None, file_name=None, save_dir='./gifs/', row_n=None, col_n=None):
+             cmap='Greys', mode='stim', scales=None, file_name=None, save_dir='./gifs/', row_n=None, col_n=None):
     if sns_style is not None:
         sns.set_style(sns_style)
 
@@ -1020,7 +1021,8 @@ def make_gif(data_to_plot, frames=None, interval=120, dt=25, fig_sz=(8, 6), dpi=
         fig.colorbar(_plt)
 
         # start anim object
-        anim = FuncAnimation(fig, _gif_update, fargs=[_plt, _ax, data_to_plot, mode],
+        anim = FuncAnimation(fig, _gif_update,
+                             fargs=[_plt, _ax, data_to_plot, dt, None, None, None, mode],
                              frames=frames, interval=interval)
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
@@ -1054,7 +1056,8 @@ def make_gif(data_to_plot, frames=None, interval=120, dt=25, fig_sz=(8, 6), dpi=
                 _plt_dict.update({'ax_%s_%s' % (ii, jj): tmp_plt})
 
         # start anim object
-        anim = FuncAnimation(fig, _gif_update, fargs=[fig, _plt_dict, data_to_plot, dt, row_n, col_n, mode],
+        anim = FuncAnimation(fig, _gif_update,
+                             fargs=[fig, _plt_dict, data_to_plot, dt, None, row_n, col_n, mode],
                              frames=frames, interval=interval)
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
@@ -1112,10 +1115,10 @@ def make_gif(data_to_plot, frames=None, interval=120, dt=25, fig_sz=(8, 6), dpi=
                 ax.yaxis.set_ticks([])
 
                 uu, vv = k[-1, ..., 0, which_arr], k[-1, ..., 1, which_arr]
-                if scale is None:
+                if scales is None:
                     scale = 8 * np.max(cc)
                 else:
-                    scale = scale[ii, jj]
+                    scale = scales[ii, jj]
                     cc = np.sqrt(np.square(uu) + np.square(vv))
 
                 tmp_plt = ax.quiver(xx, yy, uu, vv, cc, alpha=1, scale=scale, cmap='PuBu')
@@ -1131,7 +1134,7 @@ def make_gif(data_to_plot, frames=None, interval=120, dt=25, fig_sz=(8, 6), dpi=
 
         # start anim object
         anim = FuncAnimation(fig, _gif_update,
-                             fargs=[fig, _plt_dict, k, dt, scale, row_n, col_n, mode],
+                             fargs=[fig, _plt_dict, k, dt, scales, row_n, col_n, mode],
                              frames=frames, interval=interval)
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
@@ -1173,7 +1176,7 @@ def make_gif(data_to_plot, frames=None, interval=120, dt=25, fig_sz=(8, 6), dpi=
     print('...your GIF is done! "%s" was saved at %s.' % (file_name, save_dir))
 
 
-def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, dt, scale=None, row_n=None, col_n=None, mode='stim'):
+def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, dt, scales=None, row_n=None, col_n=None, mode='stim'):
     nlags = data_to_plot.shape[0]
     time_remaining = np.rint((nlags - tt) * dt)
     lbl = '- {0} ms'.format(time_remaining)
@@ -1223,7 +1226,7 @@ def _gif_update(tt, _fig_or_plt_like, _ax_like, data_to_plot, dt, scale=None, ro
 
                 current_uu = data_to_plot[tt, ..., 0, which_arr]
                 current_vv = data_to_plot[tt, ..., 1, which_arr]
-                if scale is not None:
+                if scales is not None:
                     current_cc = np.sqrt(np.square(current_uu) + np.square(current_vv))
                     _plt_dict['ax_%s_%s' % (ii, jj)].set_UVC(current_uu, current_vv, current_cc)
                 else:
@@ -1661,3 +1664,88 @@ def xv_save(ndn, inputs, outputs, tst_ind, trn_ind, data_dir, save_name):
     save_mod(ndn, data_dir, save_name, tst_xv)
 
     return [out, tst_xv, trn_xv]
+
+
+def get_temporal_fft(k, f0=60,
+                     normalize=True, plot=True,
+                     fig_name='temporal', plt_scale='log'):
+    N, lx, ly = k.shape
+
+    temporal = np.zeros(k.shape)
+    for ii in range(lx):
+        for jj in range(ly):
+            yf = fft(k[:, ii, jj])
+            y_abs = np.sqrt(np.square(np.real(yf)) + np.square(np.real(yf)))
+            temporal[:, ii, jj] = y_abs
+
+    temporal_mean = temporal.reshape(N, -1).mean(-1)
+    if normalize:
+        temporal_mean /= max(temporal_mean[1:])
+
+    dt = 1 / f0
+    xf = np.linspace(0.0, 1 / 2, N // 2) / dt
+
+    if plot:
+        sns.set_style('whitegrid')
+        fig = plt.figure(figsize=(15, 5))
+        plt.plot(xf[1:], temporal_mean[1:N // 2])
+        plt.xlabel('Frequency (Hz)', fontsize=20)
+        plt.ylabel('Power', fontsize=20)
+        plt.yscale(plt_scale)
+        plt.title('avg for all pixels (lx * ly = %d total numer of pixels)' % (lx * ly))
+        fig.savefig('./%s.png' % fig_name, facecolor='white')
+        plt.show()
+
+    return temporal.reshape(N, -1)
+
+
+def get_spatial_fft(k, normalize=True, plot=True, fig_name='spatial', plt_scale='log'):
+    N, lx, ly = k.shape
+
+    spatial = np.zeros(k.shape)
+    for tt in range(N):
+        x = k[tt, ...]
+
+        y = fft2(x)
+        y_abs = np.sqrt(np.square(np.real(y)) + np.square(np.imag(y)))
+
+        spatial[tt, ...] = y_abs
+
+    k_abs_vals = []
+    for ii in range(lx // 2 + 1):
+        for jj in range(ly // 2 + 1):
+            k_abs_vals.append(np.sqrt(ii ** 2 + jj ** 2))
+    k_abs_vals = np.unique(np.array(k_abs_vals))
+
+    spatial_abs = np.zeros((N, len(k_abs_vals)))
+    for ii in range(lx // 2 + 1):
+        for jj in range(ly // 2 + 1):
+            k_abs = np.sqrt(ii ** 2 + jj ** 2)
+            k_arg = np.where(k_abs_vals == k_abs)[0][0]
+            spatial_abs[:, k_arg] += spatial[:, ii, jj]
+
+    spatial_mean = spatial_abs.mean(0)
+    if normalize:
+        spatial_mean /= max(spatial_mean)
+
+    if plot:
+        sns.set_style('whitegrid')
+        fig = plt.figure(figsize=(15, 9))
+        plt.subplot(211)
+        plt.plot(k_abs_vals / k_abs_vals.max(), spatial_abs[:100, :].T)
+        # plt.xlabel('Cycle Per Pixel (CPP)', fontsize=20)
+        plt.ylabel('Power', fontsize=20)
+        plt.yscale(plt_scale)
+        # plt.xticks([],[])
+        plt.title('first 100 frames')
+
+        plt.subplot(212)
+        plt.plot(k_abs_vals / k_abs_vals.max(), spatial_mean)
+        plt.xlabel('Cycle Per Pixel (CPP)', fontsize=20)
+        plt.ylabel('Power', fontsize=20)
+        plt.yscale(plt_scale)
+        plt.title('avg for all frames (N = %d total frames for this example stim)' % N)
+        fig.savefig('./%s.png' % fig_name, facecolor='white')
+        plt.show()
+
+    return spatial_abs
