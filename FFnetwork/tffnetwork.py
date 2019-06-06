@@ -483,9 +483,9 @@ class TSideNetwork(TFFNetwork):
             levels_to_include = params_dict['levels_to_include']
 
         input_level_sizes = np.take(input_network_params['layer_sizes'], levels_to_include)
-        nx_ny = input_network_params['input_dims'][1:]
+        width = input_network_params['input_dims'][1]
 
-        input_dims = [np.sum(input_level_sizes), nx_ny[0], nx_ny[1]]
+        input_dims = [np.sum(input_level_sizes), width, width]
 
         # _conv_types = ['conv', 'convsep', 'gabor', 'biconv', 'convLNL', 'conv_xy']
         # isbinocular = False
@@ -537,7 +537,7 @@ class TSideNetwork(TFFNetwork):
 
         self.levels_to_include = levels_to_include
 
-        self.num_space = nx_ny[0] * nx_ny[1]
+        self.num_space = width**2
         self.input_level_sizes = input_level_sizes
 
         # if all_convolutional:

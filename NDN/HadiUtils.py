@@ -1170,7 +1170,7 @@ def make_gif(data_to_plot, frames=None, interval=120, dt=25, fig_sz=(8, 6), dpi=
         anim.save(save_dir + file_name, dpi=dpi, writer='imagemagick')
 
     else:
-        raise ValueError, 'Not implemented yet.'
+        raise ValueError('Not implemented yet.')
 
     plt.close()
     print('...your GIF is done! "%s" was saved at %s.' % (file_name, save_dir))
@@ -1664,6 +1664,20 @@ def xv_save(ndn, inputs, outputs, tst_ind, trn_ind, data_dir, save_name):
     save_mod(ndn, data_dir, save_name, tst_xv)
 
     return [out, tst_xv, trn_xv]
+
+
+def get_nll(true, pred):
+    _eps = np.finfo(np.float32).eps
+    return np.sum(pred - true * np.log(pred + _eps), axis=0) / np.sum(true, axis=0)
+
+
+def get_null_adj_nll(true, pred):
+    nll = get_nll(true, pred)
+
+    r_0 = true.mean(0)
+    null_nll = get_nll(true, r_0)
+
+    return -nll + null_nll
 
 
 def get_temporal_fft(k, f0=60,

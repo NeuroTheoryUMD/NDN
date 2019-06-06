@@ -2,11 +2,8 @@
 
 from __future__ import print_function
 from __future__ import division
-from copy import deepcopy
 
 import os
-import numpy as np
-import tensorflow as tf
 import warnings
 import shutil
 import pandas as pd
@@ -15,7 +12,7 @@ from .NDN import NDN
 from FFnetwork.ffnetwork import *
 from FFnetwork.tffnetwork import *
 
-from NDNutils import concatenate_input_dims
+from .NDNutils import concatenate_input_dims
 
 from FFnetwork.tlayer import *
 from FFnetwork.layer import *

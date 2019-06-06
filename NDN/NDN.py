@@ -2,15 +2,11 @@
 
 from __future__ import print_function
 from __future__ import division
-from copy import deepcopy
-
-import numpy as np
-import tensorflow as tf
 
 from FFnetwork.ffnetwork import FFNetwork
 from FFnetwork.ffnetwork import SideNetwork
 from .network import Network
-from NDNutils import concatenate_input_dims
+from .NDNutils import concatenate_input_dims
 
 from FFnetwork.tlayer import *
 from FFnetwork.layer import *
