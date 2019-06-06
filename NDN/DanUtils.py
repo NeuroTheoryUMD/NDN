@@ -196,15 +196,28 @@ def spatial_spread(filters, axis=0):
 # END spatial_spread
 
 
-def plot_filters(ndn_mod):
+def plot_filters(ndn_mod, tbasis_select=-1):
 
     # Check to see if there is a temporal layer first
     if np.prod(ndn_mod.networks[0].layers[0].filter_dims[1:]) == 1:
-        ks = tbasis_recover_filters(ndn_mod)
         plt.plot(ndn_mod.networks[0].layers[0].weights)
         plt.title('Temporal basis')
-        num_lags = ndn_mod.networks[0].layers[0].filter_dims[0]
-        filter_width = ndn_mod.networks[0].layers[1].filter_dims[1]
+        if ndn_mod.networks[0].layers[1].filter_dims[2] == 1:
+            ks = tbasis_recover_filters(ndn_mod)
+            num_lags = ndn_mod.networks[0].layers[0].filter_dims[0]
+            filter_width = ndn_mod.networks[0].layers[1].filter_dims[1]
+        else:
+            dims = ndn_mod.networks[0].layers[1].filter_dims
+            kraw = np.reshape(ndn_mod.networks[0].layers[1].weights.copy(),
+                              [dims[2], dims[1], dims[0], ndn_mod.networks[0].layers[1].weights.shape[1]])
+            if tbasis_select == -1:
+                ks = np.reshape(np.sum(kraw, axis=2), [dims[1]*dims[2], ndn_mod.networks[0].layers[1].weights.shape[1]])
+            else:
+                ks = np.reshape(kraw[:,:, tbasis_select, :],
+                                [dims[1] * dims[2], ndn_mod.networks[0].layers[1].weights.shape[1]])
+            # repurpose variables for just displaying spatial components
+            num_lags = ndn_mod.networks[0].layers[1].filter_dims[1]
+            filter_width = ndn_mod.networks[0].layers[1].filter_dims[2]
     else:
         ks = ndn_mod.networks[0].layers[0].weights
         num_lags, filter_width = ndn_mod.networks[0].layers[0].filter_dims[:2]
@@ -223,6 +236,8 @@ def plot_filters(ndn_mod):
         cols = 6
     elif num_filters / 5 == num_filters // 5:
         cols = 5
+    elif num_filters < 5:
+        cols = num_filters
     else:
         cols = 8
     rows = int(np.ceil(num_filters/cols))
