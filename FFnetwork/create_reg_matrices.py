@@ -60,18 +60,18 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
     # if isinf(stim_params.boundary_conds(1)) # if temporal dim has free boundary
     if not boundary_conditions[0]:
         et[0, [0, -1]] = 0  # constrain temporal boundary to zero: all else are free
-    else:
-        print('t-bound')
+    #else:
+    #    print('t-bound')
     # if isinf(stim_params.boundary_conds(2)) # if first spatial dim has free boundary
     if not boundary_conditions[1]:
         ex[0, [0, -1]] = 0
-    else:
-        print('x-bound')
+    #else:
+    #    print('x-bound')
     # if isinf(stim_params.boundary_conds(3)); # if second spatial dim has free boundary
     if not boundary_conditions[2]:
         ey[0, [0, -1]] = 0
-    else:
-        print('y-bound')
+    #else:
+    #    print('y-bound')
 
     if nPix == 1:  # for 0-spatial-dimensional stimuli can only do temporal
 
