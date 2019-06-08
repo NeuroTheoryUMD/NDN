@@ -17,7 +17,10 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
             stimulus, in the form [num_lags, num_x_pix, num_y_pix]
         reg_type (str): specify form of the regularization matrix
             'd2xt' | 'd2x' | 'd2t'
-        boundary_conditions (None): would ideally be a dictionary with each reg 
+        boundary_conditions (None): is a list corresponding to all dimensions
+            [i.e. [False,True,True]: will be free if false, otherwise true)
+            [default is [True,True,True]
+            would ideally be a dictionary with each reg
             type listed; currently unused
 
     Returns:
@@ -31,6 +34,12 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
         Written in Matlab by James McFarland, adapted into python by Dan Butts
         
     """
+
+    if boundary_conditions is None:
+        boundary_conditions = [True]*3
+    else:
+        if not isinstance(boundary_conditions, list):
+            boundary_conditions = [boundary_conditions]*3
 
     # first dimension is assumed to represent time lags
     nLags = stim_dims[0]
@@ -47,13 +56,22 @@ def create_tikhonov_matrix(stim_dims, reg_type, boundary_conditions=None):
     ex = np.ones([1, stim_dims[1]], dtype=np.float32)
     ey = np.ones([1, stim_dims[2]], dtype=np.float32)
 
-    # Boundary conditions (currently not implemented)
+    # Boundary conditions (currently implemented clumsily)
     # if isinf(stim_params.boundary_conds(1)) # if temporal dim has free boundary
-    # et[0, [0, -1]] = 0  # constrain temporal boundary to zero: all else are free
+    if not boundary_conditions[0]:
+        et[0, [0, -1]] = 0  # constrain temporal boundary to zero: all else are free
+    else:
+        print('t-bound')
     # if isinf(stim_params.boundary_conds(2)) # if first spatial dim has free boundary
-    ex[0, [0, -1]] = 0
+    if not boundary_conditions[1]:
+        ex[0, [0, -1]] = 0
+    else:
+        print('x-bound')
     # if isinf(stim_params.boundary_conds(3)); # if second spatial dim has free boundary
-    ey[0, [0, -1]] = 0
+    if not boundary_conditions[2]:
+        ey[0, [0, -1]] = 0
+    else:
+        print('y-bound')
 
     if nPix == 1:  # for 0-spatial-dimensional stimuli can only do temporal
 
